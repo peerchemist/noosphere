@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: noosphere_flutter
+      - uses: actions/checkout@v4
+        with:
+          repository: peercoin/noosphere_roast_client
+          ref: iroh
+          path: noosphere_roast_client
+      - uses: actions/checkout@v4
+        with:
+          repository: peercoin/noosphere_roast_server
+          ref: iroh
+          path: noosphere_roast_server
+      - uses: actions/checkout@v4
+        with:
+          repository: peerchemist/frosty
+          ref: dd921490f0cd6696328e89b18de767d87ed680a4
+          path: frosty
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+      - name: Install Linux desktop prerequisites
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb
+      - name: Resolve umbrella dependencies
+        working-directory: noosphere_flutter
+        run: flutter pub get
+      - name: Analyze and unit test umbrella
+        working-directory: noosphere_flutter
+        run: |
+          flutter analyze
+          flutter test test
+      - name: Run native Linux integration test
+        working-directory: noosphere_flutter
+        run: xvfb-run -a flutter test integration_test/native_transport_test.dart -d linux
+      - name: Analyze and build example
+        working-directory: noosphere_flutter/example
+        run: |
+          flutter analyze
+          flutter build linux --release
+      - name: Build core native test libraries
+        run: |
+          cargo build --locked --release --manifest-path frosty/frosty_flutter/rust/Cargo.toml
+          git clone --depth 1 --branch v0.5.0 https://github.com/bitcoin-core/secp256k1.git
+          cmake -S secp256k1 -B secp256k1-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/secp256k1" \
+            -DSECP256K1_ENABLE_MODULE_RECOVERY=ON \
+            -DSECP256K1_BUILD_TESTS=OFF \
+            -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF \
+            -DSECP256K1_BUILD_BENCHMARK=OFF
+          cmake --build secp256k1-build --parallel
+          cmake --install secp256k1-build
+      - name: Verify client core
+        working-directory: noosphere_roast_client
+        run: |
+          dart pub get
+          dart analyze
+          dart run iroh_quic:setup
+          dart test --concurrency=1
+        env:
+          IROHDART_CACHE_DIR: ${{ runner.temp }}/iroh-cache
+          IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.0.3/x86_64-unknown-linux-gnu/libirohdart_ffi.so
+          LD_LIBRARY_PATH: ${{ github.workspace }}/frosty/frosty_flutter/rust/target/release:${{ runner.temp }}/secp256k1/lib
+      - name: Verify server core
+        working-directory: noosphere_roast_server
+        run: |
+          dart pub get
+          dart analyze
+          dart test --concurrency=1
+        env:
+          IROHDART_CACHE_DIR: ${{ runner.temp }}/iroh-cache
+          IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.0.3/x86_64-unknown-linux-gnu/libirohdart_ffi.so
+          LD_LIBRARY_PATH: ${{ github.workspace }}/frosty/frosty_flutter/rust/target/release:${{ runner.temp }}/secp256k1/lib
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: noosphere_flutter
+      - uses: actions/checkout@v4
+        with:
+          repository: peercoin/noosphere_roast_client
+          ref: iroh
+          path: noosphere_roast_client
+      - uses: actions/checkout@v4
+        with:
+          repository: peercoin/noosphere_roast_server
+          ref: iroh
+          path: noosphere_roast_server
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+      - name: Resolve and analyze umbrella
+        working-directory: noosphere_flutter
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test test
+      - name: Run native macOS integration test
+        working-directory: noosphere_flutter
+        run: flutter test integration_test/native_transport_test.dart -d macos
+      - name: Analyze and build example
+        working-directory: noosphere_flutter/example
+        run: |
+          flutter analyze
+          flutter build macos --release

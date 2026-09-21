@@ -1,0 +1,15 @@
+.agents/
+.codex/
+.dart_tool/
+.github/
+.idea/
+build/
+linux/
+macos/
+integration_test/
+pubspec_overrides.yaml
+example/.dart_tool/
+example/.idea/
+example/build/
+example/pubspec_overrides.yaml
+*.iml
