@@ -136,9 +136,8 @@ final class _NodeScreenState extends State<NodeScreen> {
       final pinnedId = _machine.hostsServer
           ? address.id
           : PublicKey.fromZ32(_serverId.text.trim());
-      _logSecret(
-        'ROAST participant ${_machine.participant} private key',
-        _participantKey.data,
+      _log(
+        'Using deterministic test key for participant ${_machine.participant}.',
       );
 
       _clientNode = await NoosphereNode.start(
@@ -333,8 +332,7 @@ final class _NodeScreenState extends State<NodeScreen> {
         padding: const EdgeInsets.all(24),
         children: [
           Text(
-            'TEST ONLY: deterministic keys, private-key logging, and '
-            'in-memory state.',
+            'TEST ONLY: deterministic keys and in-memory state.',
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
           const SizedBox(height: 16),
@@ -487,7 +485,7 @@ final class _MemoryIdentityStore implements ServerIdentityStore {
   @override
   Future<void> write(Uint8List secret) async {
     _secret = Uint8List.fromList(secret);
-    _logSecret('Iroh server private key', secret);
+    _log('Stored the test server identity in memory.');
   }
 }
 
@@ -499,9 +497,6 @@ void _logAddress(EndpointAddr address) => _log(
 );
 
 void _log(String message) => stdout.writeln('[noosphere] $message');
-
-void _logSecret(String name, Iterable<int> bytes) =>
-    stderr.writeln('[noosphere][SECRET] $name: ${_hex(bytes)}');
 
 String _hex(Iterable<int> bytes) =>
     bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();

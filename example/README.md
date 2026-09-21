@@ -8,8 +8,8 @@ identity store, and displays that limitation prominently. Enter a server ID
 obtained through an independent trusted channel and its base64-encoded bootstrap
 address for client roles. Both-role mode retains a dedicated client endpoint.
 
-The app prints verbose diagnostics, including its demo ROAST and Iroh private
-keys, to the terminal. Never use this logging with production keys.
+The app prints verbose connection and protocol diagnostics to the terminal,
+but never private keys.
 
 ## First two-computer 2-of-2 test
 

@@ -224,20 +224,16 @@ packages:
   frosty:
     dependency: "direct overridden"
     description:
-      path: frosty
-      ref: dd921490f0cd6696328e89b18de767d87ed680a4
-      resolved-ref: dd921490f0cd6696328e89b18de767d87ed680a4
-      url: "https://github.com/peercoin/frosty.git"
-    source: git
+      path: "../frosty/frosty"
+      relative: true
+    source: path
     version: "4.0.0"
   frosty_flutter:
     dependency: "direct main"
     description:
-      path: frosty_flutter
-      ref: dd921490f0cd6696328e89b18de767d87ed680a4
-      resolved-ref: dd921490f0cd6696328e89b18de767d87ed680a4
-      url: "https://github.com/peercoin/frosty.git"
-    source: git
+      path: "../frosty/frosty_flutter"
+      relative: true
+    source: path
     version: "4.0.1"
   fuchsia_remote_debug_protocol:
     dependency: transitive

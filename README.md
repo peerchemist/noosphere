@@ -112,9 +112,8 @@ must leave that prepared record present so the operation cannot be replayed.
 ## Example and verification
 
 The `example/` app has client-only, embedded-server-only, and both-role modes.
-It displays public endpoint/bootstrap details and prints demo ROAST/Iroh keys,
-addresses, sessions, events, and errors to the terminal. This intentionally
-unsafe logging must not be copied into production code. Its in-memory
+It displays public endpoint/bootstrap details and prints public addresses,
+sessions, events, and errors to the terminal, never private keys. Its in-memory
 persistence is called out visibly in the UI.
 
 ```sh

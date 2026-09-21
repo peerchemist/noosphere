@@ -26,6 +26,8 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Noosphere uses the local network to connect ROAST participants.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

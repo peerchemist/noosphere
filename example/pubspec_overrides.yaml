@@ -4,12 +4,6 @@ dependency_overrides:
   noosphere_roast_server:
     path: ../../noosphere_roast_server
   frosty:
-    git:
-      url: https://github.com/peercoin/frosty.git
-      ref: dd921490f0cd6696328e89b18de767d87ed680a4
-      path: frosty
+    path: ../../frosty/frosty
   frosty_flutter:
-    git:
-      url: https://github.com/peercoin/frosty.git
-      ref: dd921490f0cd6696328e89b18de767d87ed680a4
-      path: frosty_flutter
+    path: ../../frosty/frosty_flutter
