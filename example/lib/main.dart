@@ -16,7 +16,7 @@ final class NoosphereExampleApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Noosphere ROAST',
+    title: 'Noosphere 2-of-2 test',
     theme: ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
     ),
@@ -24,13 +24,11 @@ final class NoosphereExampleApp extends StatelessWidget {
   );
 }
 
-enum NodeRole(final String label) {
-  client('Client only'),
-  server('Embedded server only'),
-  both('Both roles');
+enum TestMachine(final String label, final int participant) {
+  a('Computer A · server + participant 1', 1),
+  b('Computer B · participant 2', 2);
 
-  bool get hasServer => this == server || this == both;
-  bool get hasClient => this == client || this == both;
+  bool get hostsServer => this == a;
 }
 
 final class NodeScreen extends StatefulWidget {
@@ -41,259 +39,438 @@ final class NodeScreen extends StatefulWidget {
 }
 
 final class _NodeScreenState extends State<NodeScreen> {
-  final _bootstrapController = TextEditingController();
-  final _pinnedIdController = TextEditingController();
+  final _serverId = TextEditingController();
+  final _serverAddress = TextEditingController();
+  final _dkgName = TextEditingController(text: 'first-2of2');
+  final _messageHash = TextEditingController(
+    text: '0000000000000000000000000000000000000000000000000000000000000001',
+  );
   final _identityStore = _MemoryIdentityStore();
-  final ECPrivateKey _participantKey = ECPrivateKey(Uint8List(32)..last = 1);
+  final _keys = [
+    ECPrivateKey(Uint8List(32)..last = 1),
+    ECPrivateKey(Uint8List(32)..last = 2),
+  ];
 
   late final GroupConfig _group = GroupConfig(
     id: 'noosphere-flutter-example',
     participants: {
-      Identifier.fromUint16(1): ECCompressedPublicKey.fromPubkey(
-        _participantKey.pubkey,
-      ),
-      Identifier.fromUint16(2): ECCompressedPublicKey.fromPubkey(
-        ECPrivateKey(Uint8List(32)..last = 2).pubkey,
-      ),
+      for (var i = 0; i < _keys.length; i++)
+        Identifier.fromUint16(i + 1): ECCompressedPublicKey.fromPubkey(
+          _keys[i].pubkey,
+        ),
     },
   );
 
-  NodeRole _role = NodeRole.client;
-  NoosphereNode? _node;
-  NoosphereLifecycleObserver? _lifecycle;
-  StreamSubscription<Client>? _sessionsSubscription;
-  StreamSubscription<ClientEvent>? _eventsSubscription;
-  Client? _displayedClient;
+  TestMachine _machine = TestMachine.a;
+  NoosphereNode? _serverNode;
+  NoosphereNode? _clientNode;
+  NoosphereLifecycleObserver? _serverLifecycle;
+  NoosphereLifecycleObserver? _clientLifecycle;
+  StreamSubscription<Client>? _sessions;
+  StreamSubscription<ClientEvent>? _events;
+  Client? _client;
+  EndpointAddr? _publishedAddress;
   String _status = 'Stopped';
   String? _error;
-  int _eventCount = 0;
+  String? _signature;
+  String? _signedHash;
+  bool? _signatureValid;
   bool _busy = false;
+
+  bool get _running => _clientNode != null || _serverNode != null;
+  Identifier get _participantId => Identifier.fromUint16(_machine.participant);
+  ECPrivateKey get _participantKey => _keys[_machine.participant - 1];
 
   @override
   void dispose() {
-    _lifecycle?.detach();
-    unawaited(_sessionsSubscription?.cancel());
-    unawaited(_eventsSubscription?.cancel());
-    unawaited(_node?.close());
-    _bootstrapController.dispose();
-    _pinnedIdController.dispose();
+    _serverLifecycle?.detach();
+    _clientLifecycle?.detach();
+    unawaited(_sessions?.cancel());
+    unawaited(_events?.cancel());
+    unawaited(_clientNode?.close());
+    unawaited(_serverNode?.close());
+    for (final controller in [
+      _serverId,
+      _serverAddress,
+      _dkgName,
+      _messageHash,
+    ]) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   Future<void> _start() async {
-    _log('Starting node with role: ${_role.name}');
-    _logSecret('ROAST participant private key', _participantKey.data);
+    if (!_machine.hostsServer &&
+        (_serverId.text.trim().isEmpty || _serverAddress.text.trim().isEmpty)) {
+      setState(() => _error = 'Paste the server ID and bootstrap address.');
+      return;
+    }
+
     setState(() {
       _busy = true;
       _error = null;
       _status = 'Starting…';
+      _signature = null;
+      _signedHash = null;
+      _signatureValid = null;
     });
 
     try {
-      final serverOptions = _role.hasServer
-          ? EmbeddedServerOptions(
-              serverConfig: ServerConfig(group: _group),
-              identityStore: _identityStore,
-            )
-          : null;
-      final clientOptions = _role.hasClient ? _clientOptions() : null;
-      final node = await NoosphereNode.start(
-        server: serverOptions,
-        client: clientOptions,
-      );
-      final lifecycle = NoosphereLifecycleObserver(node)..attach();
-      _node = node;
-      _lifecycle = lifecycle;
-
-      final address = node.serverAddress;
-      if (address != null) {
-        _log(
-          'Iroh ID: ${address.id.toZ32()}\n'
-          'Iroh address: ${base64Encode(address.encode())}\n'
-          'Iroh IPs: ${address.ipAddrs}\n'
-          'Iroh relays: ${address.relayUrls}',
+      final EndpointAddr address;
+      if (_machine.hostsServer) {
+        _serverNode = await NoosphereNode.start(
+          server: EmbeddedServerOptions(
+            serverConfig: ServerConfig(group: _group),
+            identityStore: _identityStore,
+          ),
         );
+        _serverLifecycle = NoosphereLifecycleObserver(_serverNode!)..attach();
+        address = await _reachableAddress(_serverNode!);
+        _publishedAddress = address;
+        _logAddress(address);
+      } else {
+        address = EndpointAddr.decode(base64Decode(_serverAddress.text.trim()));
       }
 
-      final reconnecting = node.client;
-      if (reconnecting != null) {
-        _replaceDisplayedClient(reconnecting.current);
-        _sessionsSubscription = reconnecting.sessions.listen(
-          _replaceDisplayedClient,
-          onError: (Object error) {
-            if (mounted) setState(() => _error = '$error');
-          },
-        );
-      }
-
-      if (mounted) {
-        setState(() {
-          _status = reconnecting == null ? 'Serving' : 'Connected';
-          _busy = false;
-        });
-      }
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _error = '$error';
-          _status = 'Stopped';
-          _busy = false;
-        });
-      }
-    }
-  }
-
-  ClientNodeOptions _clientOptions() {
-    if (_bootstrapController.text.trim().isEmpty ||
-        _pinnedIdController.text.trim().isEmpty) {
-      throw const FormatException(
-        'Client roles require an independently trusted server ID and '
-        'bootstrap address.',
+      final pinnedId = _machine.hostsServer
+          ? address.id
+          : PublicKey.fromZ32(_serverId.text.trim());
+      _logSecret(
+        'ROAST participant ${_machine.participant} private key',
+        _participantKey.data,
       );
-    }
-    _log('Iroh bootstrap: ${_bootstrapController.text.trim()}');
-    return ClientNodeOptions(
-      clientConfig: ClientConfig(group: _group, id: Identifier.fromUint16(1)),
-      bootstrapAddress: EndpointAddr.decode(
-        base64Decode(_bootstrapController.text.trim()),
-      ),
-      pinnedServerId: PublicKey.fromZ32(_pinnedIdController.text.trim()),
-      storage: InMemoryClientStorage(),
-      getPrivateKey: (_) async => _participantKey,
-    );
-  }
 
-  void _replaceDisplayedClient(Client client) {
-    _log('ROAST session: ${identityHashCode(client)}');
-    unawaited(_eventsSubscription?.cancel());
-    _eventsSubscription = client.events.listen(
-      (event) {
-        _log('ROAST event: ${event.runtimeType} ($event)');
-        if (mounted) setState(() => _eventCount++);
-      },
-      onError: (Object error) {
-        if (mounted) setState(() => _error = '$error');
-      },
-    );
-    if (mounted) {
+      _clientNode = await NoosphereNode.start(
+        client: ClientNodeOptions(
+          clientConfig: ClientConfig(group: _group, id: _participantId),
+          bootstrapAddress: address,
+          pinnedServerId: pinnedId,
+          storage: InMemoryClientStorage(),
+          getPrivateKey: (_) async => _participantKey,
+        ),
+      );
+      _clientLifecycle = NoosphereLifecycleObserver(_clientNode!)..attach();
+
+      final reconnecting = _clientNode!.client!;
+      _useClient(reconnecting.current);
+      _sessions = reconnecting.sessions.listen(
+        _useClient,
+        onError: (Object error) => _setError(error),
+      );
       setState(() {
-        _displayedClient = client;
+        _busy = false;
         _status = 'Connected';
       });
+    } catch (error, stackTrace) {
+      _log('Start failed: $error\n$stackTrace');
+      await _close(ignoreErrors: true);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _status = 'Stopped';
+          _error = '$error';
+        });
+      }
     }
   }
 
+  Future<EndpointAddr> _reachableAddress(NoosphereNode node) async {
+    final server = node.server!;
+    final current = server.address;
+    if (current.ipAddrs.isNotEmpty || current.relayUrls.isNotEmpty) {
+      return current;
+    }
+    try {
+      return await server.endpoint
+          .watchAddr()
+          .firstWhere(
+            (address) =>
+                address.ipAddrs.isNotEmpty || address.relayUrls.isNotEmpty,
+          )
+          .timeout(const Duration(seconds: 15));
+    } on TimeoutException {
+      return server.address;
+    }
+  }
+
+  void _useClient(Client client) {
+    unawaited(_events?.cancel());
+    _client = client;
+    _events = client.events.listen((event) {
+      _log('ROAST event: ${event.runtimeType}');
+      if (event case SignaturesCompleteClientEvent()) {
+        final details = event.details.requiredSigs.single;
+        final result = event.signatures.single;
+        _signature = _hex(result.data);
+        _signedHash = _hex(details.signDetails.message);
+        _signatureValid = result.verify(
+          details.groupKey,
+          details.signDetails.message,
+        );
+      }
+      if (mounted) setState(() {});
+    }, onError: (Object error) => _setError(error));
+    if (mounted) setState(() {});
+  }
+
+  void _setError(Object error) {
+    _log('Error: $error');
+    if (mounted) setState(() => _error = '$error');
+  }
+
+  Future<void> _perform(
+    String status,
+    Future<void> Function(Client client) operation,
+  ) async {
+    final client = _client;
+    if (client == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+      _status = status;
+    });
+    try {
+      await operation(client);
+    } catch (error, stackTrace) {
+      _log('$status failed: $error\n$stackTrace');
+      _error = '$error';
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _status = 'Connected';
+        });
+      }
+    }
+  }
+
+  Future<void> _createDkg() => _perform('Creating 2-of-2 key…', (client) {
+    final name = _dkgName.text.trim();
+    return client.requestDkg(
+      NewDkgDetails(
+        name: name,
+        description: 'Two-computer Noosphere Flutter test',
+        threshold: 2,
+        expiry: Expiry(const Duration(hours: 1)),
+      ),
+    );
+  });
+
+  Future<void> _requestSignature() =>
+      _perform('Requesting signature…', (client) {
+        if (client.keys.isEmpty) {
+          throw StateError('Complete the DKG first.');
+        }
+        final key = client.keys.values.first;
+        return client.requestSignatures(
+          SignaturesRequestDetails(
+            requiredSigs: [
+              SingleSignatureDetails(
+                signDetails: SignDetails.scriptSpend(
+                  message: _parseHash(_messageHash.text),
+                ),
+                groupKey: key.groupKey,
+                hdDerivation: const [],
+              ),
+            ],
+            expiry: Expiry(const Duration(minutes: 3)),
+          ),
+        );
+      });
+
   Future<void> _stop() async {
-    final node = _node;
-    if (node == null) return;
     setState(() {
       _busy = true;
       _status = 'Stopping…';
     });
-    _lifecycle?.detach();
-    await _sessionsSubscription?.cancel();
-    await _eventsSubscription?.cancel();
     try {
-      await node.close().timeout(const Duration(seconds: 5));
+      await _close();
+    } catch (error) {
+      _setError(error);
     } finally {
       if (mounted) {
         setState(() {
-          _node = null;
-          _lifecycle = null;
-          _displayedClient = null;
-          _status = 'Stopped';
           _busy = false;
+          _status = 'Stopped';
+          _publishedAddress = null;
         });
       }
+    }
+  }
+
+  Future<void> _close({bool ignoreErrors = false}) async {
+    _serverLifecycle?.detach();
+    _clientLifecycle?.detach();
+    try {
+      await _sessions?.cancel();
+      await _events?.cancel();
+      try {
+        await _clientNode?.close().timeout(const Duration(seconds: 5));
+      } finally {
+        await _serverNode?.close().timeout(const Duration(seconds: 5));
+      }
+    } catch (error) {
+      if (!ignoreErrors) rethrow;
+      _log('Close failed: $error');
+    } finally {
+      _sessions = null;
+      _events = null;
+      _client = null;
+      _clientNode = null;
+      _serverNode = null;
+      _clientLifecycle = null;
+      _serverLifecycle = null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final node = _node;
-    final endpointId = node?.serverId?.toZ32();
-    final address = node?.serverAddress;
+    final client = _client;
     return Scaffold(
-      appBar: AppBar(title: const Text('Noosphere ROAST desktop example')),
+      appBar: AppBar(title: const Text('Noosphere 2-of-2 test')),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            color: Theme.of(context).colorScheme.errorContainer,
-            child: const Text(
-              'DEMO ONLY: client state and the embedded-server identity are '
-              'kept in memory. They are lost when this process exits. Use '
-              'transactional durable client storage and OS secure storage in '
-              'production.',
-            ),
+          Text(
+            'TEST ONLY: deterministic keys, private-key logging, and '
+            'in-memory state.',
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
-          const SizedBox(height: 20),
-          DropdownButtonFormField<NodeRole>(
-            initialValue: _role,
-            decoration: const InputDecoration(labelText: 'Roles'),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<TestMachine>(
+            initialValue: _machine,
+            decoration: const InputDecoration(labelText: 'This instance'),
             items: [
-              for (final role in NodeRole.values)
-                DropdownMenuItem(value: role, child: Text(role.label)),
+              for (final machine in TestMachine.values)
+                DropdownMenuItem(value: machine, child: Text(machine.label)),
             ],
-            onChanged: node == null
-                ? (role) => setState(() => _role = role ?? _role)
-                : null,
+            onChanged: _running
+                ? null
+                : (machine) =>
+                      setState(() => _machine = machine ?? TestMachine.a),
           ),
-          if (_role.hasClient) ...[
+          if (!_machine.hostsServer) ...[
             const SizedBox(height: 12),
             TextField(
-              controller: _pinnedIdController,
-              enabled: node == null,
+              controller: _serverId,
+              enabled: !_running,
               decoration: const InputDecoration(
-                labelText: 'Trusted server endpoint ID (z-base-32)',
+                labelText: 'Computer A server ID',
               ),
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: _bootstrapController,
-              enabled: node == null,
+              controller: _serverAddress,
+              enabled: !_running,
               decoration: const InputDecoration(
-                labelText: 'Bootstrap address (base64)',
-                helperText: 'Both-role mode uses a dedicated client endpoint.',
+                labelText: 'Computer A bootstrap address',
               ),
             ),
           ],
-          const SizedBox(height: 20),
-          Row(
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
             children: [
               FilledButton(
-                onPressed: _busy || node != null ? null : _start,
+                onPressed: _busy || _running ? null : _start,
                 child: const Text('Start'),
               ),
-              const SizedBox(width: 12),
               OutlinedButton(
-                onPressed: _busy || node == null ? null : _stop,
-                child: const Text('Logout / shut down'),
+                onPressed: _busy || !_running ? null : _stop,
+                child: const Text('Stop'),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           Text('State: $_status'),
-          if (endpointId != null)
-            SelectableText('Server endpoint ID: $endpointId'),
-          if (address != null)
+          if (_publishedAddress case final address?) ...[
+            SelectableText('Server ID: ${address.id.toZ32()}'),
             SelectableText(
               'Bootstrap address: ${base64Encode(address.encode())}',
             ),
-          if (_displayedClient case final client?)
-            Text('Client session: ${identityHashCode(client)}'),
-          if (_role.hasClient) Text('Client events received: $_eventCount'),
+          ],
+          if (client != null) ...[
+            Text(
+              'Participant ${_machine.participant}; '
+              'online peers: ${client.onlineParticipants.length}',
+            ),
+            const Divider(height: 32),
+            TextField(
+              controller: _dkgName,
+              decoration: const InputDecoration(labelText: 'DKG name'),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.tonal(
+              onPressed: _busy ? null : _createDkg,
+              child: const Text('Create 2-of-2 key'),
+            ),
+            for (final dkg in client.dkgRequests)
+              ListTile(
+                title: Text('Pending DKG: ${dkg.details.name}'),
+                trailing: FilledButton(
+                  onPressed: _busy
+                      ? null
+                      : () => _perform(
+                          'Accepting DKG…',
+                          (client) => client.acceptDkg(dkg.details.name),
+                        ),
+                  child: const Text('Accept DKG'),
+                ),
+              ),
+            for (final dkg in client.acceptedDkgs)
+              Text(
+                '${dkg.details.name}: ${dkg.stage.name}, '
+                '${dkg.completed.length}/2',
+              ),
+            for (final key in client.keys.values)
+              SelectableText('Group key: ${key.groupKey.hex}'),
+            const Divider(height: 32),
+            TextField(
+              controller: _messageHash,
+              decoration: const InputDecoration(
+                labelText: '32-byte hash (64 hex characters)',
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.tonal(
+              onPressed: _busy || client.keys.isEmpty
+                  ? null
+                  : _requestSignature,
+              child: const Text('Request 2-of-2 signature'),
+            ),
+            for (final request in client.signaturesRequests)
+              ListTile(
+                title: Text(
+                  'Signature request: '
+                  '${_hex(request.details.requiredSigs.single.signDetails.message)}',
+                ),
+                subtitle: Text(request.status.name),
+                trailing: request.status == SignaturesRequestStatus.waiting
+                    ? FilledButton(
+                        onPressed: _busy
+                            ? null
+                            : () => _perform(
+                                'Accepting signature…',
+                                (client) => client.acceptSignaturesRequest(
+                                  request.details.id,
+                                ),
+                              ),
+                        child: const Text('Accept signature'),
+                      )
+                    : null,
+              ),
+            if (_signature case final signature?) ...[
+              SelectableText('Signed hash: $_signedHash'),
+              SelectableText('Schnorr signature: $signature'),
+              Text('Signature valid: $_signatureValid'),
+            ],
+          ],
           if (_error case final error?)
             Text(
               error,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
-          const SizedBox(height: 20),
-          const Text(
-            'An embedded server is reachable only while this desktop process '
-            'is alive. Window focus changes do not stop it.',
-          ),
         ],
       ),
     );
@@ -304,10 +481,8 @@ final class _MemoryIdentityStore implements ServerIdentityStore {
   Uint8List? _secret;
 
   @override
-  Future<Uint8List?> read() async {
-    if (_secret != null) _logSecret('Iroh server private key', _secret!);
-    return _secret == null ? null : Uint8List.fromList(_secret!);
-  }
+  Future<Uint8List?> read() async =>
+      _secret == null ? null : Uint8List.fromList(_secret!);
 
   @override
   Future<void> write(Uint8List secret) async {
@@ -316,6 +491,13 @@ final class _MemoryIdentityStore implements ServerIdentityStore {
   }
 }
 
+void _logAddress(EndpointAddr address) => _log(
+  'Iroh ID: ${address.id.toZ32()}\n'
+  'Iroh address: ${base64Encode(address.encode())}\n'
+  'Iroh IPs: ${address.ipAddrs}\n'
+  'Iroh relays: ${address.relayUrls}',
+);
+
 void _log(String message) => stdout.writeln('[noosphere] $message');
 
 void _logSecret(String name, Iterable<int> bytes) =>
@@ -323,3 +505,16 @@ void _logSecret(String name, Iterable<int> bytes) =>
 
 String _hex(Iterable<int> bytes) =>
     bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+
+Uint8List _parseHash(String value) {
+  final hex = value.trim();
+  if (!RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(hex)) {
+    throw const FormatException(
+      'Message hash must be exactly 64 hex characters.',
+    );
+  }
+  return Uint8List.fromList([
+    for (var i = 0; i < hex.length; i += 2)
+      int.parse(hex.substring(i, i + 2), radix: 16),
+  ]);
+}
