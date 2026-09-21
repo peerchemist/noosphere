@@ -45,9 +45,11 @@ jobs:
         run: |
           flutter analyze
           flutter test test
-      - name: Run native Linux integration test
+      - name: Run native Linux integration tests
         working-directory: noosphere_flutter
-        run: xvfb-run -a flutter test integration_test/native_transport_test.dart -d linux
+        run: |
+          xvfb-run -a flutter test integration_test/native_transport_test.dart -d linux
+          xvfb-run -a flutter test integration_test/roast_2_of_2_test.dart -d linux
       - name: Analyze and build example
         working-directory: noosphere_flutter/example
         run: |
@@ -115,9 +117,11 @@ jobs:
           flutter pub get
           flutter analyze
           flutter test test
-      - name: Run native macOS integration test
+      - name: Run native macOS integration tests
         working-directory: noosphere_flutter
-        run: flutter test integration_test/native_transport_test.dart -d macos
+        run: |
+          flutter test integration_test/native_transport_test.dart -d macos
+          flutter test integration_test/roast_2_of_2_test.dart -d macos
       - name: Analyze and build example
         working-directory: noosphere_flutter/example
         run: |

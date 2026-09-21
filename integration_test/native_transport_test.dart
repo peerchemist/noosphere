@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 
+import 'test_support.dart';
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -24,7 +26,7 @@ void main() {
           secondId: ECCompressedPublicKey.fromPubkey(secondKey.pubkey),
         },
       );
-      final identityStore = _MemoryIdentityStore();
+      final identityStore = MemoryIdentityStore();
       final serverOptions = EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
         identityStore: identityStore,
@@ -33,9 +35,9 @@ void main() {
 
       var serverNode = await NoosphereNode.start(server: serverOptions);
       final initialServerId = serverNode.serverId!;
-      final initialAddress = await _reachableAddress(serverNode.server!);
+      final initialAddress = await reachableTestAddress(serverNode.server!);
       final firstClientNode = await NoosphereNode.start(
-        client: _clientOptions(
+        client: nativeTestClientOptions(
           group: group,
           participant: firstId,
           key: firstKey,
@@ -54,7 +56,7 @@ void main() {
       );
 
       final secondClientNode = await NoosphereNode.start(
-        client: _clientOptions(
+        client: nativeTestClientOptions(
           group: group,
           participant: secondId,
           key: secondKey,
@@ -96,7 +98,7 @@ void main() {
 
       serverNode = await NoosphereNode.start(server: serverOptions);
       expect(serverNode.serverId, initialServerId);
-      final replacementAddress = await _reachableAddress(serverNode.server!);
+      final replacementAddress = await reachableTestAddress(serverNode.server!);
       firstClientNode.client!.updateTransportConfig(
         IrohClientTransportConfig(
           bootstrapAddress: replacementAddress,
@@ -118,51 +120,4 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
-}
-
-ClientNodeOptions _clientOptions({
-  required GroupConfig group,
-  required Identifier participant,
-  required ECPrivateKey key,
-  required EndpointAddr address,
-}) => ClientNodeOptions(
-  clientConfig: ClientConfig(group: group, id: participant),
-  bootstrapAddress: address,
-  pinnedServerId: address.id,
-  relay: IrohRelayConfig.disabled(),
-  storage: InMemoryClientStorage(),
-  getPrivateKey: (_) async => key,
-  reconnect: const IrohReconnectConfig(
-    initialDelay: Duration(milliseconds: 100),
-    maxDelay: Duration(seconds: 1),
-    jitter: 0,
-  ),
-);
-
-Future<EndpointAddr> _reachableAddress(IrohServer server) async {
-  final current = server.address;
-  if (current.ipAddrs.isNotEmpty || current.relayUrls.isNotEmpty) {
-    return current;
-  }
-  return server.endpoint
-      .watchAddr()
-      .firstWhere(
-        (address) => address.ipAddrs.isNotEmpty || address.relayUrls.isNotEmpty,
-      )
-      .timeout(const Duration(seconds: 15));
-}
-
-final class _MemoryIdentityStore implements ServerIdentityStore {
-  Uint8List? _secret;
-  int writes = 0;
-
-  @override
-  Future<Uint8List?> read() async =>
-      _secret == null ? null : Uint8List.fromList(_secret!);
-
-  @override
-  Future<void> write(Uint8List secret) async {
-    writes++;
-    _secret = Uint8List.fromList(secret);
-  }
 }
