@@ -79,10 +79,11 @@ future. Native library paths are intentionally not configurable: the Flutter
 plugins bundle and load the libraries.
 
 For both roles, the server starts first and the client uses its own endpoint.
-The client still requires an independently trusted pinned server ID and
-bootstrap address. Listen to `ReconnectingIrohClient.sessions` and replace any
-cached `Client` when a new authenticated session arrives. Reconnection never
-retries an in-flight mutating DKG or signing RPC.
+The client requires an independently trusted pinned Iroh ID. Its
+`bootstrapAddress` may contain only that ID and rely on Iroh discovery, or add
+direct/relay address hints. Listen to `ReconnectingIrohClient.sessions` and
+replace any cached `Client` when a new authenticated session arrives.
+Reconnection never retries an in-flight mutating DKG or signing RPC.
 
 `NoosphereLifecycleObserver` optionally attempts a bounded close on the
 terminal `detached` lifecycle state. It does not close on `inactive`, because a
@@ -112,9 +113,10 @@ must leave that prepared record present so the operation cannot be replayed.
 ## Example and verification
 
 The `example/` app has client-only, embedded-server-only, and both-role modes.
-It displays public endpoint/bootstrap details and prints public addresses,
-sessions, events, and errors to the terminal, never private keys. Its in-memory
-persistence is called out visibly in the UI.
+It connects through Iroh discovery using the server's Iroh ID, displays each
+ROAST participant public key, and prints public addresses, sessions, events,
+and errors to the terminal, never private keys. Its in-memory persistence is
+called out visibly in the UI.
 
 ```sh
 flutter analyze

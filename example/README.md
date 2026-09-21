@@ -4,9 +4,10 @@ Linux/macOS example for client-only, embedded-server-only, and both-role
 Noosphere nodes.
 
 The example intentionally uses in-memory client storage and an in-memory server
-identity store, and displays that limitation prominently. Enter a server ID
-obtained through an independent trusted channel and its base64-encoded bootstrap
-address for client roles. Both-role mode retains a dedicated client endpoint.
+identity store, and displays that limitation prominently. Enter an Iroh ID
+obtained through an independent trusted channel for client roles. Iroh
+discovery resolves that Iroh ID to direct or relay addresses. Both-role mode
+retains a dedicated client endpoint.
 
 The app prints verbose connection and protocol diagnostics to the terminal,
 but never private keys.
@@ -15,9 +16,9 @@ but never private keys.
 
 1. On computer A choose **Computer A · server + participant 1** and press
    **Start**.
-2. Copy the displayed server endpoint ID and bootstrap address.
-3. On computer B choose **Computer B · participant 2**, paste both server
-   values, and press **Start**.
+2. Copy the displayed Iroh ID.
+3. On computer B choose **Computer B · participant 2**, paste the Iroh ID, and
+   press **Start**.
 4. After both clients show one online peer, press **Create 2-of-2 key** on A.
 5. Press **Accept DKG** on B and wait until the same generated group key is
    displayed on both computers.
@@ -27,9 +28,10 @@ but never private keys.
 8. Both computers should display the same Schnorr signature and
    `Signature valid: true`.
 
-The demo uses deterministic participant keys so independently built copies
-share the same test `GroupConfig`. All identities, DKG shares, and signing
-state are in memory and are lost when the app exits.
+The demo displays each participant's ROAST public key and uses deterministic
+participant keys so independently built copies share the same test
+`GroupConfig`. All identities, DKG shares, and signing state are in memory and
+are lost when the app exits.
 
 ```sh
 flutter run -d linux

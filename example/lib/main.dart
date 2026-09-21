@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -39,8 +38,7 @@ final class NodeScreen extends StatefulWidget {
 }
 
 final class _NodeScreenState extends State<NodeScreen> {
-  final _serverId = TextEditingController();
-  final _serverAddress = TextEditingController();
+  final _irohId = TextEditingController();
   final _dkgName = TextEditingController(text: 'first-2of2');
   final _messageHash = TextEditingController(
     text: '0000000000000000000000000000000000000000000000000000000000000001',
@@ -69,7 +67,7 @@ final class _NodeScreenState extends State<NodeScreen> {
   StreamSubscription<Client>? _sessions;
   StreamSubscription<ClientEvent>? _events;
   Client? _client;
-  EndpointAddr? _publishedAddress;
+  EndpointId? _publishedIrohId;
   String _status = 'Stopped';
   String? _error;
   String? _signature;
@@ -80,6 +78,8 @@ final class _NodeScreenState extends State<NodeScreen> {
   bool get _running => _clientNode != null || _serverNode != null;
   Identifier get _participantId => Identifier.fromUint16(_machine.participant);
   ECPrivateKey get _participantKey => _keys[_machine.participant - 1];
+  ECCompressedPublicKey get _participantPublicKey =>
+      ECCompressedPublicKey.fromPubkey(_participantKey.pubkey);
 
   @override
   void dispose() {
@@ -89,21 +89,15 @@ final class _NodeScreenState extends State<NodeScreen> {
     unawaited(_events?.cancel());
     unawaited(_clientNode?.close());
     unawaited(_serverNode?.close());
-    for (final controller in [
-      _serverId,
-      _serverAddress,
-      _dkgName,
-      _messageHash,
-    ]) {
+    for (final controller in [_irohId, _dkgName, _messageHash]) {
       controller.dispose();
     }
     super.dispose();
   }
 
   Future<void> _start() async {
-    if (!_machine.hostsServer &&
-        (_serverId.text.trim().isEmpty || _serverAddress.text.trim().isEmpty)) {
-      setState(() => _error = 'Paste the server ID and bootstrap address.');
+    if (!_machine.hostsServer && _irohId.text.trim().isEmpty) {
+      setState(() => _error = 'Paste Computer A Iroh ID.');
       return;
     }
 
@@ -118,6 +112,7 @@ final class _NodeScreenState extends State<NodeScreen> {
 
     try {
       final EndpointAddr address;
+      final EndpointId pinnedId;
       if (_machine.hostsServer) {
         _serverNode = await NoosphereNode.start(
           server: EmbeddedServerOptions(
@@ -127,17 +122,17 @@ final class _NodeScreenState extends State<NodeScreen> {
         );
         _serverLifecycle = NoosphereLifecycleObserver(_serverNode!)..attach();
         address = await _reachableAddress(_serverNode!);
-        _publishedAddress = address;
-        _logAddress(address);
+        pinnedId = address.id;
+        _publishedIrohId = pinnedId;
+        _logIrohEndpoint(address);
       } else {
-        address = EndpointAddr.decode(base64Decode(_serverAddress.text.trim()));
+        pinnedId = PublicKey.fromZ32(_irohId.text.trim());
+        address = EndpointAddr(pinnedId);
       }
 
-      final pinnedId = _machine.hostsServer
-          ? address.id
-          : PublicKey.fromZ32(_serverId.text.trim());
       _log(
-        'Using deterministic test key for participant ${_machine.participant}.',
+        'ROAST participant ${_machine.participant} public key: '
+        '${_participantPublicKey.hex}',
       );
 
       _clientNode = await NoosphereNode.start(
@@ -292,7 +287,7 @@ final class _NodeScreenState extends State<NodeScreen> {
         setState(() {
           _busy = false;
           _status = 'Stopped';
-          _publishedAddress = null;
+          _publishedIrohId = null;
         });
       }
     }
@@ -348,21 +343,18 @@ final class _NodeScreenState extends State<NodeScreen> {
                 : (machine) =>
                       setState(() => _machine = machine ?? TestMachine.a),
           ),
+          const SizedBox(height: 8),
+          SelectableText(
+            'ROAST participant ${_machine.participant} public key: '
+            '${_participantPublicKey.hex}',
+          ),
           if (!_machine.hostsServer) ...[
             const SizedBox(height: 12),
             TextField(
-              controller: _serverId,
+              controller: _irohId,
               enabled: !_running,
               decoration: const InputDecoration(
-                labelText: 'Computer A server ID',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _serverAddress,
-              enabled: !_running,
-              decoration: const InputDecoration(
-                labelText: 'Computer A bootstrap address',
+                labelText: 'Computer A Iroh ID',
               ),
             ),
           ],
@@ -382,12 +374,8 @@ final class _NodeScreenState extends State<NodeScreen> {
           ),
           const SizedBox(height: 12),
           Text('State: $_status'),
-          if (_publishedAddress case final address?) ...[
-            SelectableText('Server ID: ${address.id.toZ32()}'),
-            SelectableText(
-              'Bootstrap address: ${base64Encode(address.encode())}',
-            ),
-          ],
+          if (_publishedIrohId case final id?)
+            SelectableText('Iroh ID: ${id.toZ32()}'),
           if (client != null) ...[
             Text(
               'Participant ${_machine.participant}; '
@@ -489,9 +477,8 @@ final class _MemoryIdentityStore implements ServerIdentityStore {
   }
 }
 
-void _logAddress(EndpointAddr address) => _log(
+void _logIrohEndpoint(EndpointAddr address) => _log(
   'Iroh ID: ${address.id.toZ32()}\n'
-  'Iroh address: ${base64Encode(address.encode())}\n'
   'Iroh IPs: ${address.ipAddrs}\n'
   'Iroh relays: ${address.relayUrls}',
 );
