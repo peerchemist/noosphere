@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -80,6 +81,8 @@ final class _NodeScreenState extends State<NodeScreen> {
   }
 
   Future<void> _start() async {
+    _log('Starting node with role: ${_role.name}');
+    _logSecret('ROAST participant private key', _participantKey.data);
     setState(() {
       _busy = true;
       _error = null;
@@ -101,6 +104,16 @@ final class _NodeScreenState extends State<NodeScreen> {
       final lifecycle = NoosphereLifecycleObserver(node)..attach();
       _node = node;
       _lifecycle = lifecycle;
+
+      final address = node.serverAddress;
+      if (address != null) {
+        _log(
+          'Iroh ID: ${address.id.toZ32()}\n'
+          'Iroh address: ${base64Encode(address.encode())}\n'
+          'Iroh IPs: ${address.ipAddrs}\n'
+          'Iroh relays: ${address.relayUrls}',
+        );
+      }
 
       final reconnecting = node.client;
       if (reconnecting != null) {
@@ -138,6 +151,7 @@ final class _NodeScreenState extends State<NodeScreen> {
         'bootstrap address.',
       );
     }
+    _log('Iroh bootstrap: ${_bootstrapController.text.trim()}');
     return ClientNodeOptions(
       clientConfig: ClientConfig(group: _group, id: Identifier.fromUint16(1)),
       bootstrapAddress: EndpointAddr.decode(
@@ -150,9 +164,11 @@ final class _NodeScreenState extends State<NodeScreen> {
   }
 
   void _replaceDisplayedClient(Client client) {
+    _log('ROAST session: ${identityHashCode(client)}');
     unawaited(_eventsSubscription?.cancel());
     _eventsSubscription = client.events.listen(
-      (_) {
+      (event) {
+        _log('ROAST event: ${event.runtimeType} ($event)');
         if (mounted) setState(() => _eventCount++);
       },
       onError: (Object error) {
@@ -288,11 +304,22 @@ final class _MemoryIdentityStore implements ServerIdentityStore {
   Uint8List? _secret;
 
   @override
-  Future<Uint8List?> read() async =>
-      _secret == null ? null : Uint8List.fromList(_secret!);
+  Future<Uint8List?> read() async {
+    if (_secret != null) _logSecret('Iroh server private key', _secret!);
+    return _secret == null ? null : Uint8List.fromList(_secret!);
+  }
 
   @override
   Future<void> write(Uint8List secret) async {
     _secret = Uint8List.fromList(secret);
+    _logSecret('Iroh server private key', secret);
   }
 }
+
+void _log(String message) => stdout.writeln('[noosphere] $message');
+
+void _logSecret(String name, Iterable<int> bytes) =>
+    stderr.writeln('[noosphere][SECRET] $name: ${_hex(bytes)}');
+
+String _hex(Iterable<int> bytes) =>
+    bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
