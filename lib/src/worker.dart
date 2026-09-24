@@ -171,22 +171,13 @@ final class NoosphereWorker {
     }
 
     final setup = _setups.putIfAbsent(setupId, _HostSetup.new);
-    final oldIdentity = setup.identityStore;
-    final oldIdentityId = setup.identityStorageId;
-    final oldStorage = setup.storage;
-    final oldGetPrivateKey = setup.getPrivateKey;
-    final oldParticipant = setup.participant;
-    if (server != null) {
-      setup
-        ..identityStore = server.identityStore
-        ..identityStorageId = identityStorageId ?? setupId;
-    }
-    if (client != null) {
-      setup
-        ..storage = client.storage
-        ..getPrivateKey = client.getPrivateKey
-        ..participant = client.clientConfig.id.toString();
-    }
+    final previousProviders = setup.providers;
+    setup.bind(
+      setupId: setupId,
+      server: server,
+      client: client,
+      identityStorageId: identityStorageId,
+    );
 
     try {
       final result = await _invoke(
@@ -197,16 +188,9 @@ final class NoosphereWorker {
           'client': client == null ? null : encodeClientOptions(client),
         },
       );
-      return NoosphereWorkerSnapshot.fromMessage(
-        result! as Map<Object?, Object?>,
-      );
+      return result! as NoosphereWorkerSnapshot;
     } catch (_) {
-      setup
-        ..identityStore = oldIdentity
-        ..identityStorageId = oldIdentityId
-        ..storage = oldStorage
-        ..getPrivateKey = oldGetPrivateKey
-        ..participant = oldParticipant;
+      setup.providers = previousProviders;
       if (!setup.hasProviders) _setups.remove(setupId);
       rethrow;
     }
@@ -223,17 +207,7 @@ final class NoosphereWorker {
     );
     final setup = _setups[setupId];
     if (setup == null) return;
-    if (roles != NoosphereWorkerRoles.server) {
-      setup
-        ..storage = null
-        ..getPrivateKey = null
-        ..participant = null;
-    }
-    if (roles != NoosphereWorkerRoles.signer) {
-      setup
-        ..identityStore = null
-        ..identityStorageId = null;
-    }
+    setup.unbind(roles);
     if (!setup.hasProviders) _setups.remove(setupId);
   }
 
@@ -244,9 +218,7 @@ final class NoosphereWorker {
 
   Future<NoosphereWorkerSnapshot> snapshot(String setupId) async {
     final result = await _invoke('snapshot', setupId: setupId);
-    return NoosphereWorkerSnapshot.fromMessage(
-      result! as Map<Object?, Object?>,
-    );
+    return result! as NoosphereWorkerSnapshot;
   }
 
   Future<void> requestDkg(String setupId, NewDkgDetails proposal) => _invoke(
@@ -453,7 +425,7 @@ final class NoosphereWorker {
     } catch (error) {
       failure = error;
     }
-    port.send({
+    var reply = <String, Object?>{
       'version': workerProtocolVersion,
       'generation': generation,
       'type': 'hostReply',
@@ -462,7 +434,19 @@ final class NoosphereWorker {
       if (failure == null) 'result': result,
       if (failure != null) 'code': _hostErrorCode(failure),
       if (failure != null) 'message': _safeHostFailure(failure),
-    });
+    };
+    if (approximateMessageBytes(reply) > maxMessageBytes) {
+      reply = {
+        'version': workerProtocolVersion,
+        'generation': generation,
+        'type': 'hostReply',
+        'hostRequestId': requestId,
+        'ok': false,
+        'code': 'message_too_large',
+        'message': 'Host reply exceeds the configured message limit.',
+      };
+    }
+    port.send(reply);
   }
 
   void _emitEvent(Map<Object?, Object?> message) {
@@ -470,64 +454,10 @@ final class NoosphereWorker {
         approximateMessageBytes(message) > maxMessageBytes) {
       return;
     }
-    final setupId = message['setupId']! as String;
-    final kind = message['kind']! as String;
-    final payload = message['payload']! as Map<Object?, Object?>;
-    final NoosphereWorkerEvent event = switch (kind) {
-      'snapshot' => WorkerSnapshotEvent(
-        NoosphereWorkerSnapshot.fromMessage(
-          payload['snapshot']! as Map<Object?, Object?>,
-        ),
-      ),
-      'participant' => WorkerParticipantEvent(
-        setupId,
-        generation,
-        participant: payload['participant']! as String,
-        online: payload['online']! as bool,
-      ),
-      'dkg' => WorkerDkgEvent(
-        setupId,
-        generation,
-        status: WorkerDkgStatus.fromMessage(
-          payload['status']! as Map<Object?, Object?>,
-        ),
-        rejected: payload['rejected'] == true,
-        failure: payload['failure'] as String?,
-      ),
-      'signingRequest' => WorkerSigningRequestEvent(
-        setupId,
-        generation,
-        request: WorkerSigningRequest.fromMessage(
-          payload['request']! as Map<Object?, Object?>,
-        ),
-      ),
-      'signingResult' => WorkerSigningResultEvent(
-        setupId,
-        generation,
-        requestId: asBytes(payload['id']),
-        proposalBytes: asBytes(payload['proposal']),
-        signatures: [
-          for (final value in payload['signatures']! as List) asBytes(value),
-        ],
-        creator: payload['creator']! as String,
-      ),
-      'keyUpdated' => WorkerKeyUpdatedEvent(
-        setupId,
-        generation,
-        key: WorkerKeyInfo.fromMessage(
-          payload['key']! as Map<Object?, Object?>,
-        ),
-      ),
-      'sessionReplaced' => WorkerSessionReplacedEvent(setupId, generation),
-      _ => WorkerFailureEvent(
-        setupId,
-        generation,
-        operation: payload['operation'] as String? ?? 'worker',
-        message: payload['message'] as String? ?? 'Worker operation failed.',
-        interrupted: payload['interrupted'] == true,
-      ),
-    };
-    _events.add(event);
+    final event = message['event'];
+    if (event is NoosphereWorkerEvent && event.generation == generation) {
+      _events.add(event);
+    }
   }
 
   void _finishExit(Object error, {required bool interrupted}) {
@@ -567,16 +497,69 @@ final class NoosphereWorker {
   }
 }
 
+typedef _HostProviders = ({
+  ServerIdentityStore? identityStore,
+  String? identityStorageId,
+  ClientStorageInterface? storage,
+  GetPrivateKey? getPrivateKey,
+  String? participant,
+});
+
 final class _HostSetup {
   ServerIdentityStore? identityStore;
   String? identityStorageId;
   ClientStorageInterface? storage;
   GetPrivateKey? getPrivateKey;
   String? participant;
-  Future<void> _storageSerial = Future<void>.value();
+  final _storageSerial = SerialExecutor();
 
   bool get hasProviders =>
       identityStore != null || storage != null || getPrivateKey != null;
+
+  _HostProviders get providers => (
+    identityStore: identityStore,
+    identityStorageId: identityStorageId,
+    storage: storage,
+    getPrivateKey: getPrivateKey,
+    participant: participant,
+  );
+
+  set providers(_HostProviders value) {
+    identityStore = value.identityStore;
+    identityStorageId = value.identityStorageId;
+    storage = value.storage;
+    getPrivateKey = value.getPrivateKey;
+    participant = value.participant;
+  }
+
+  void bind({
+    required String setupId,
+    required EmbeddedServerOptions? server,
+    required ClientNodeOptions? client,
+    required String? identityStorageId,
+  }) {
+    if (server != null) {
+      this.identityStorageId = identityStorageId ?? setupId;
+      identityStore = server.identityStore;
+    }
+    if (client != null) {
+      storage = client.storage;
+      getPrivateKey = client.getPrivateKey;
+      participant = client.clientConfig.id.toString();
+    }
+  }
+
+  void unbind(NoosphereWorkerRoles roles) {
+    if (roles != NoosphereWorkerRoles.server) {
+      storage = null;
+      getPrivateKey = null;
+      participant = null;
+    }
+    if (roles != NoosphereWorkerRoles.signer) {
+      identityStore = null;
+      identityStorageId = null;
+    }
+  }
 
   Future<Object?> dispatch(
     String operation,
@@ -608,17 +591,8 @@ final class _HostSetup {
     }
   }
 
-  Future<T> _serializeStorage<T>(Future<T> Function() operation) {
-    final result = Completer<T>();
-    _storageSerial = _storageSerial.then((_) async {
-      try {
-        result.complete(await operation());
-      } catch (error, stackTrace) {
-        result.completeError(error, stackTrace);
-      }
-    });
-    return result.future;
-  }
+  Future<T> _serializeStorage<T>(Future<T> Function() operation) =>
+      _storageSerial.run(operation);
 
   Future<Object?> _dispatchStorage(
     String operation,
@@ -637,7 +611,7 @@ final class _HostSetup {
       case 'storage.addNonces':
         await store.addSignaturesNonces(
           id!,
-          _decodeHostNonces(payload['nonces']! as Map<Object?, Object?>),
+          decodeSignaturesNonces(payload['nonces']! as Map<Object?, Object?>),
           payload['capacity']! as int,
         );
       case 'storage.prepareSignatures':
@@ -669,7 +643,7 @@ final class _HostSetup {
           for (final entry in (await store.loadSigNonces()).entries)
             {
               'id': entry.key.toBytes(),
-              'nonces': _encodeHostNonces(entry.value),
+              'nonces': encodeSignaturesNonces(entry.value),
             },
         ];
       case 'storage.loadPreparedSignatures':
@@ -723,26 +697,6 @@ abstract final class _IdentityRegistry {
     return generated;
   }
 }
-
-Map<String, Object?> _encodeHostNonces(SignaturesNonces nonces) => {
-  'expiryMicros': nonces.expiry.time.microsecondsSinceEpoch,
-  'values': [
-    for (final entry in nonces.map.entries)
-      {'index': entry.key, 'nonce': entry.value.toBytes()},
-  ],
-};
-
-SignaturesNonces _decodeHostNonces(Map<Object?, Object?> value) =>
-    SignaturesNonces(
-      {
-        for (final item in value['values']! as List)
-          (item as Map<Object?, Object?>)['index']! as int:
-              SigningNonces.fromBytes(asBytes(item['nonce'])),
-      },
-      Expiry.fromTime(
-        DateTime.fromMicrosecondsSinceEpoch(value['expiryMicros']! as int),
-      ),
-    );
 
 void _validateSetupId(String value) {
   if (value.isEmpty || value.length > 128) {

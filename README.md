@@ -191,8 +191,7 @@ flutter analyze
 flutter test test
 flutter test integration_test/native_transport_test.dart -d linux
 flutter test integration_test/roast_2_of_2_test.dart -d linux
-flutter test integration_test/worker_roast_2_of_2_test.dart -d linux
-flutter test integration_test/worker_roast_2_of_3_test.dart -d linux
+flutter test integration_test/worker_roast_test.dart -d linux
 
 cd example
 flutter analyze

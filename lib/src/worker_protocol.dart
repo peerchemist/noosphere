@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:iroh_flutter/iroh_flutter.dart';
@@ -6,6 +7,7 @@ import 'package:noosphere_roast_server/noosphere_roast_server.dart';
 import 'client_options.dart';
 import 'server_identity_store.dart';
 import 'server_options.dart';
+import 'worker_models.dart';
 
 const int workerProtocolVersion = 1;
 const int defaultWorkerMaxMessageBytes = 8 * 1024 * 1024;
@@ -157,5 +159,112 @@ int approximateMessageBytes(Object? value) => switch (value) {
         approximateMessageBytes(entry.key) +
         approximateMessageBytes(entry.value),
   ),
+  final WorkerCoordinatorAddress value => _workerDtoBytes(value),
+  final WorkerDkgStatus value => _workerDtoBytes(value),
+  final WorkerKeyInfo value => _workerDtoBytes(value),
+  final WorkerSigningRequest value => _workerDtoBytes(value),
+  final NoosphereWorkerSnapshot value => _workerDtoBytes(value),
+  final NoosphereWorkerEvent value => _workerDtoBytes(value),
   _ => 8,
 };
+
+int _workerDtoBytes(Object value) => switch (value) {
+  final WorkerCoordinatorAddress value => _strings([
+    value.id,
+    ...value.relayUrls,
+    ...value.ipAddrs,
+  ]),
+  final WorkerDkgStatus value =>
+    _strings([
+          value.name,
+          value.description,
+          value.creator,
+          value.stage,
+          ...value.completedParticipants,
+        ]) +
+        value.proposalBytes.length +
+        16,
+  final WorkerKeyInfo value => _strings([
+    value.groupKeyHex,
+    value.name,
+    value.description,
+  ]),
+  final WorkerSigningRequest value =>
+    _strings([value.creator, value.status]) +
+        value.id.length +
+        value.proposalBytes.length +
+        8,
+  final NoosphereWorkerSnapshot value =>
+    _strings([value.setupId, ...value.onlineParticipants]) +
+        (value.coordinator == null ? 0 : _workerDtoBytes(value.coordinator!)) +
+        value.dkgs.fold<int>(0, (sum, item) => sum + _workerDtoBytes(item)) +
+        value.signingRequests.fold<int>(
+          0,
+          (sum, item) => sum + _workerDtoBytes(item),
+        ) +
+        value.keys.fold<int>(0, (sum, item) => sum + _workerDtoBytes(item)) +
+        24,
+  final WorkerSnapshotEvent value => _workerDtoBytes(value.snapshot),
+  final WorkerParticipantEvent value => _strings([
+    value.setupId,
+    value.participant,
+  ]),
+  final WorkerDkgEvent value =>
+    _strings([value.setupId, ?value.failure]) + _workerDtoBytes(value.status),
+  final WorkerSigningRequestEvent value =>
+    _strings([value.setupId]) + _workerDtoBytes(value.request),
+  final WorkerSigningResultEvent value =>
+    _strings([value.setupId, value.creator]) +
+        value.requestId.length +
+        value.proposalBytes.length +
+        value.signatures.fold<int>(0, (sum, bytes) => sum + bytes.length),
+  final WorkerKeyUpdatedEvent value =>
+    _strings([value.setupId]) + _workerDtoBytes(value.key),
+  final WorkerSessionReplacedEvent value => _strings([value.setupId]),
+  final WorkerFailureEvent value => _strings([
+    value.setupId,
+    value.operation,
+    value.message,
+  ]),
+  _ => throw ArgumentError.value(value, 'value', 'not a worker DTO'),
+};
+
+int _strings(Iterable<String> values) =>
+    values.fold(0, (sum, value) => sum + value.length * 2);
+
+Map<String, Object?> encodeSignaturesNonces(SignaturesNonces nonces) => {
+  'expiryMicros': nonces.expiry.time.microsecondsSinceEpoch,
+  'values': [
+    for (final entry in nonces.map.entries)
+      {'index': entry.key, 'nonce': entry.value.toBytes()},
+  ],
+};
+
+SignaturesNonces decodeSignaturesNonces(Map<Object?, Object?> value) =>
+    SignaturesNonces(
+      {
+        for (final item in value['values']! as List)
+          (item as Map<Object?, Object?>)['index']! as int:
+              SigningNonces.fromBytes(asBytes(item['nonce'])),
+      },
+      Expiry.fromTime(
+        DateTime.fromMicrosecondsSinceEpoch(value['expiryMicros']! as int),
+      ),
+    );
+
+/// Minimal FIFO used where protocol or storage mutations must not overlap.
+final class SerialExecutor {
+  Future<void> _tail = Future<void>.value();
+
+  Future<T> run<T>(Future<T> Function() operation) {
+    final result = Completer<T>();
+    _tail = _tail.then((_) async {
+      try {
+        result.complete(await operation());
+      } catch (error, stackTrace) {
+        result.completeError(error, stackTrace);
+      }
+    });
+    return result.future;
+  }
+}

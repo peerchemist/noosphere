@@ -117,7 +117,7 @@ final class _WorkerRuntime {
               .stopRoles(NoosphereWorkerRoles.values[payload['roles']! as int]);
           if (!_setup(setupId).hasRoles) _setups.remove(setupId);
         case 'snapshot':
-          result = _setup(setupId!).snapshot().toMessage();
+          result = _setup(setupId!).snapshot();
         case 'requestDkg':
           result = await _setup(
             setupId!,
@@ -189,7 +189,7 @@ final class _WorkerRuntime {
         serverMessage: payload['server'] as Map<Object?, Object?>?,
         clientMessage: payload['client'] as Map<Object?, Object?>?,
       );
-      return setup.snapshot().toMessage();
+      return setup.snapshot();
     } catch (_) {
       if (!setup.hasRoles) _setups.remove(setupId);
       rethrow;
@@ -213,14 +213,12 @@ final class _WorkerRuntime {
     return null;
   }
 
-  void _emit(String setupId, String kind, Map<String, Object?> payload) {
+  void _emit(NoosphereWorkerEvent event) {
     final message = <String, Object?>{
       'version': workerProtocolVersion,
       'generation': generation,
       'type': 'event',
-      'setupId': setupId,
-      'kind': kind,
-      'payload': payload,
+      'event': event,
     };
     if (approximateMessageBytes(message) <= maxMessageBytes) {
       hostPort.send(message);
@@ -229,25 +227,31 @@ final class _WorkerRuntime {
         'version': workerProtocolVersion,
         'generation': generation,
         'type': 'event',
-        'setupId': setupId,
-        'kind': 'failure',
-        'payload': {
-          'operation': 'event',
-          'message': 'Worker event exceeded the configured message limit.',
-          'interrupted': false,
-        },
+        'event': WorkerFailureEvent(
+          event.setupId,
+          generation,
+          operation: 'event',
+          message: 'Worker event exceeded the configured message limit.',
+        ),
       });
     }
   }
 
-  void _reply(int id, Object? result) => hostPort.send({
-    'version': workerProtocolVersion,
-    'generation': generation,
-    'type': 'reply',
-    'commandId': id,
-    'ok': true,
-    'result': result,
-  });
+  void _reply(int id, Object? result) {
+    final message = <String, Object?>{
+      'version': workerProtocolVersion,
+      'generation': generation,
+      'type': 'reply',
+      'commandId': id,
+      'ok': true,
+      'result': result,
+    };
+    if (approximateMessageBytes(message) > maxMessageBytes) {
+      _replyError(id, 'message_too_large', 'Reply exceeds worker limit.');
+    } else {
+      hostPort.send(message);
+    }
+  }
 
   void _replyError(int id, String code, String message) => hostPort.send({
     'version': workerProtocolVersion,
@@ -260,11 +264,7 @@ final class _WorkerRuntime {
   });
 }
 
-typedef _Emit = void Function(
-  String setupId,
-  String kind,
-  Map<String, Object?> payload,
-);
+typedef _Emit = void Function(NoosphereWorkerEvent event);
 
 final class _SetupRuntime {
   _SetupRuntime({
@@ -286,7 +286,7 @@ final class _SetupRuntime {
   StreamSubscription<ClientEvent>? _events;
   StreamSubscription<EndpointAddr>? _serverAddresses;
   EndpointAddr? _serverAddress;
-  Future<void> _serial = Future<void>.value();
+  final _serial = SerialExecutor();
 
   bool get hasRoles => _serverNode != null || _clientNode != null;
 
@@ -357,7 +357,9 @@ final class _SetupRuntime {
       _onClientEvent,
       onError: (Object error) => _failure('session', error, true),
     );
-    if (replacement) emit(setupId, 'sessionReplaced', const {});
+    if (replacement) {
+      emit(WorkerSessionReplacedEvent(setupId, generation));
+    }
     _emitSnapshot();
   }
 
@@ -466,17 +468,8 @@ final class _SetupRuntime {
     if (firstError != null) throw firstError;
   });
 
-  Future<T> _synchronized<T>(Future<T> Function() operation) {
-    final result = Completer<T>();
-    _serial = _serial.then((_) async {
-      try {
-        result.complete(await operation());
-      } catch (error, stackTrace) {
-        result.completeError(error, stackTrace);
-      }
-    });
-    return result.future;
-  }
+  Future<T> _synchronized<T>(Future<T> Function() operation) =>
+      _serial.run(operation);
 
   NoosphereWorkerSnapshot snapshot() {
     final client = _client;
@@ -549,71 +542,88 @@ final class _SetupRuntime {
   void _onClientEvent(ClientEvent event) {
     switch (event) {
       case ParticipantStatusClientEvent():
-        emit(setupId, 'participant', {
-          'participant': event.id.toString(),
-          'online': event.loggedIn,
-        });
+        emit(
+          WorkerParticipantEvent(
+            setupId,
+            generation,
+            participant: event.id.toString(),
+            online: event.loggedIn,
+          ),
+        );
       case UpdatedDkgClientEvent():
-        emit(setupId, 'dkg', {
-          'status': _dkgStatus(event.progress).toMessage(),
-          'rejected': false,
-        });
+        emit(
+          WorkerDkgEvent(
+            setupId,
+            generation,
+            status: _dkgStatus(event.progress),
+          ),
+        );
       case RejectedDkgClientEvent():
-        emit(setupId, 'dkg', {
-          'status': WorkerDkgStatus(
-            name: event.details.name,
-            description: event.details.description,
-            threshold: event.details.threshold,
-            expiry: event.details.expiry.time,
-            creator: event.participant?.toString() ?? '',
-            stage: 'rejected',
-            completedParticipants: const [],
-            proposalBytes: event.details.toBytes(),
-          ).toMessage(),
-          'rejected': true,
-          'failure': event.fault.name,
-        });
+        emit(
+          WorkerDkgEvent(
+            setupId,
+            generation,
+            status: WorkerDkgStatus(
+              name: event.details.name,
+              description: event.details.description,
+              threshold: event.details.threshold,
+              expiry: event.details.expiry.time,
+              creator: event.participant?.toString() ?? '',
+              stage: 'rejected',
+              completedParticipants: const [],
+              proposalBytes: event.details.toBytes(),
+            ),
+            rejected: true,
+            failure: event.fault.name,
+          ),
+        );
       case SignaturesRequestClientEvent():
-        emit(setupId, 'signingRequest', {
-          'request': _signing(event.request).toMessage(),
-        });
+        emit(
+          WorkerSigningRequestEvent(
+            setupId,
+            generation,
+            request: _signing(event.request),
+          ),
+        );
       case SignaturesFailureClientEvent():
-        emit(setupId, 'failure', {
-          'operation': 'signatures',
-          'message': 'Signing request failed.',
-          'interrupted': false,
-        });
+        _failure('signatures', 'Signing request failed.', false);
       case SignaturesExpiryClientEvent():
-        emit(setupId, 'failure', {
-          'operation': 'signatures',
-          'message': 'Signing request expired.',
-          'interrupted': false,
-        });
+        _failure('signatures', 'Signing request expired.', false);
       case SignaturesCompleteClientEvent():
-        emit(setupId, 'signingResult', {
-          'id': event.details.id.toBytes(),
-          'proposal': event.details.toBytes(),
-          'creator': event.creator.toString(),
-          'signatures': [
-            for (final signature in event.signatures) signature.data,
-          ],
-        });
+        emit(
+          WorkerSigningResultEvent(
+            setupId,
+            generation,
+            requestId: event.details.id.toBytes(),
+            proposalBytes: event.details.toBytes(),
+            creator: event.creator.toString(),
+            signatures: [
+              for (final signature in event.signatures) signature.data,
+            ],
+          ),
+        );
       case SecretShareClientEvent():
-        emit(setupId, 'keyUpdated', {
-          'key': _key(event.keyDetails).toMessage(),
-        });
+        emit(
+          WorkerKeyUpdatedEvent(
+            setupId,
+            generation,
+            key: _key(event.keyDetails),
+          ),
+        );
     }
   }
 
-  void _emitSnapshot() =>
-      emit(setupId, 'snapshot', {'snapshot': snapshot().toMessage()});
+  void _emitSnapshot() => emit(WorkerSnapshotEvent(snapshot()));
 
-  void _failure(String operation, Object error, bool interrupted) =>
-      emit(setupId, 'failure', {
-        'operation': operation,
-        'message': _safeError(error),
-        'interrupted': interrupted,
-      });
+  void _failure(String operation, Object error, bool interrupted) => emit(
+    WorkerFailureEvent(
+      setupId,
+      generation,
+      operation: operation,
+      message: error is String ? error : _safeError(error),
+      interrupted: interrupted,
+    ),
+  );
 }
 
 final class _HostBridge {
@@ -726,7 +736,7 @@ final class _RemoteClientStorage(this.host, this.setupId)
   ) => host
       .request(setupId, 'storage.addNonces', {
         'id': id.toBytes(),
-        'nonces': _encodeNonces(nonces),
+        'nonces': encodeSignaturesNonces(nonces),
         'capacity': capacity,
       })
       .then((_) {});
@@ -784,7 +794,7 @@ final class _RemoteClientStorage(this.host, this.setupId)
       for (final value in values! as List)
         SignaturesRequestId.fromBytes(
           asBytes((value as Map<Object?, Object?>)['id']),
-        ): _decodeNonces(
+        ): decodeSignaturesNonces(
           value['nonces']! as Map<Object?, Object?>,
         ),
     };
@@ -825,26 +835,6 @@ final class _RemoteClientStorage(this.host, this.setupId)
     };
   }
 }
-
-Map<String, Object?> _encodeNonces(SignaturesNonces nonces) => {
-  'expiryMicros': nonces.expiry.time.microsecondsSinceEpoch,
-  'values': [
-    for (final entry in nonces.map.entries)
-      {'index': entry.key, 'nonce': entry.value.toBytes()},
-  ],
-};
-
-SignaturesNonces _decodeNonces(Map<Object?, Object?> value) => SignaturesNonces(
-  {
-    for (final item in value['values']! as List)
-      (item as Map<Object?, Object?>)['index']! as int: SigningNonces.fromBytes(
-        asBytes(item['nonce']),
-      ),
-  },
-  Expiry.fromTime(
-    DateTime.fromMicrosecondsSinceEpoch(value['expiryMicros']! as int),
-  ),
-);
 
 bool _bytesEqual(Uint8List first, Uint8List second) {
   if (first.length != second.length) return false;

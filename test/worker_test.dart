@@ -1,3 +1,4 @@
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -43,7 +44,7 @@ void main() {
     expect(worker.isClosed, isTrue);
   });
 
-  test('snapshot DTO defensively copies binary approval data', () {
+  test('snapshot DTO is sendable and copies binary approval data', () async {
     final bytes = Uint8List.fromList([1, 2, 3]);
     final request = WorkerSigningRequest(
       id: bytes,
@@ -56,8 +57,8 @@ void main() {
 
     expect(request.id, orderedEquals([1, 2, 3]));
     expect(request.proposalBytes, orderedEquals([1, 2, 3]));
-    final decoded = WorkerSigningRequest.fromMessage(request.toMessage());
+    final received = await Isolate.run(() => request);
     request.id[0] = 8;
-    expect(decoded.id, orderedEquals([1, 2, 3]));
+    expect(received.id, orderedEquals([1, 2, 3]));
   });
 }
