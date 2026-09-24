@@ -119,7 +119,18 @@ final class _NodeScreenState extends State<NodeScreen> {
       final EndpointAddr address;
       final EndpointId pinnedId;
       if (_machine.hostsServer) {
-        final serverSnapshot = await worker.startSetup(
+        final reachableCoordinator = worker.events
+            .where((event) => event is WorkerSnapshotEvent)
+            .cast<WorkerSnapshotEvent>()
+            .map((event) => event.snapshot)
+            .firstWhere(
+              (snapshot) =>
+                  snapshot.setupId == 'example' &&
+                  snapshot.coordinator != null &&
+                  (snapshot.coordinator!.ipAddrs.isNotEmpty ||
+                      snapshot.coordinator!.relayUrls.isNotEmpty),
+            );
+        await worker.startSetup(
           setupId: 'example',
           server: EmbeddedServerOptions(
             serverConfig: ServerConfig(group: _group),
@@ -127,9 +138,17 @@ final class _NodeScreenState extends State<NodeScreen> {
           ),
           identityStorageId: 'noosphere-example-coordinator',
         );
-        final coordinator = serverSnapshot.coordinator!;
+        final coordinator = (await reachableCoordinator.timeout(
+          const Duration(seconds: 15),
+        )).coordinator!;
         pinnedId = PublicKey.fromZ32(coordinator.id);
-        address = EndpointAddr(pinnedId);
+        address = EndpointAddr(
+          pinnedId,
+          relayUrls: [
+            for (final url in coordinator.relayUrls) RelayUrl.parse(url),
+          ],
+          ipAddrs: coordinator.ipAddrs,
+        );
         _publishedIrohId = coordinator.id;
         _logWorkerEndpoint(coordinator);
       } else {
@@ -174,10 +193,11 @@ final class _NodeScreenState extends State<NodeScreen> {
   }
 
   void _onWorkerEvent(NoosphereWorkerEvent event) {
-    _log('ROAST worker event: ${event.runtimeType}');
     if (event case WorkerSnapshotEvent()) {
       _snapshot = event.snapshot;
+      _logWorkerSnapshot(event.snapshot);
     } else if (event case WorkerSigningResultEvent()) {
+      _log('ROAST worker event: ${event.runtimeType}');
       final proposal = SignaturesRequestDetails.fromBytes(event.proposalBytes);
       if (proposal.requiredSigs.length == 1 && event.signatures.length == 1) {
         final details = proposal.requiredSigs.single;
@@ -190,8 +210,10 @@ final class _NodeScreenState extends State<NodeScreen> {
         );
       }
     } else if (event case WorkerFailureEvent()) {
+      _log('ROAST worker event: ${event.runtimeType}');
       _error = event.message;
     } else {
+      _log('ROAST worker event: ${event.runtimeType}');
       unawaited(_refreshSnapshot());
     }
     if (mounted) setState(() {});
@@ -479,6 +501,31 @@ void _logWorkerEndpoint(WorkerCoordinatorAddress address) => _log(
   'Iroh IPs: ${address.ipAddrs}\n'
   'Iroh relays: ${address.relayUrls}',
 );
+
+void _logWorkerSnapshot(NoosphereWorkerSnapshot snapshot) {
+  final coordinator = snapshot.coordinator;
+  final dkgs = [for (final dkg in snapshot.dkgs) '${dkg.name}:${dkg.stage}'];
+  final signingRequests = [
+    for (final request in snapshot.signingRequests)
+      '${request.creator}:${request.status}',
+  ];
+  final keys = [for (final key in snapshot.keys) key.name];
+  _log(
+    'ROAST worker event: WorkerSnapshotEvent\n'
+    '  setup: ${snapshot.setupId}\n'
+    '  generation: ${snapshot.generation}\n'
+    '  server running: ${snapshot.serverRunning}\n'
+    '  signer running: ${snapshot.signerRunning}\n'
+    '  signer connected: ${snapshot.connected}\n'
+    '  coordinator ID: ${coordinator?.id ?? '-'}\n'
+    '  coordinator IPs: ${coordinator?.ipAddrs ?? const <String>[]}\n'
+    '  coordinator relays: ${coordinator?.relayUrls ?? const <String>[]}\n'
+    '  online participants: ${snapshot.onlineParticipants}\n'
+    '  DKGs (${dkgs.length}): $dkgs\n'
+    '  signing requests (${signingRequests.length}): $signingRequests\n'
+    '  keys (${keys.length}): $keys',
+  );
+}
 
 void _log(String message) => stdout.writeln('[noosphere] $message');
 
