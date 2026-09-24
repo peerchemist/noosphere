@@ -1,6 +1,6 @@
 library;
 
-export 'package:coinlib_flutter/coinlib_flutter.dart'
+export 'package:coinlib/coinlib.dart'
     show ECCompressedPublicKey, ECPrivateKey, ECPublicKey;
 export 'package:iroh_flutter/iroh_flutter.dart'
     show EndpointAddr, EndpointId, PublicKey;

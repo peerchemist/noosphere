@@ -2,10 +2,6 @@
 cmake_minimum_required(VERSION 3.13)
 project(runner LANGUAGES CXX)
 
-# coinlib_flutter 4.x expects secp256k1 under lib/, including on distributions
-# whose GNUInstallDirs default is lib64/.
-set(CMAKE_INSTALL_LIBDIR "lib" CACHE STRING "Native library directory" FORCE)
-
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "noosphere_flutter_example")
@@ -77,20 +73,6 @@ set_target_properties(${BINARY_NAME}
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)
-
-# coinlib_flutter 4.0.0's ExternalProject does not forward
-# CMAKE_INSTALL_LIBDIR and therefore still selects lib64 on some Linux hosts.
-# Mirror its built library into the path the plugin declares to Flutter.
-add_custom_target(coinlib_flutter_libdir_compat ALL
-  COMMAND ${CMAKE_COMMAND} -E make_directory
-    "${CMAKE_BINARY_DIR}/secp256k1/lib"
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_BINARY_DIR}/secp256k1/lib64/libsecp256k1.so"
-    "${CMAKE_BINARY_DIR}/secp256k1/lib/libsecp256k1.so"
-)
-add_dependencies(coinlib_flutter_libdir_compat secp256k1)
-add_dependencies(${BINARY_NAME} coinlib_flutter_libdir_compat)
-
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build

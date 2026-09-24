@@ -4,6 +4,7 @@ dependency_overrides:
   noosphere_roast_server:
     path: ../../noosphere_roast_server
   frosty:
-    path: ../../frosty/frosty
-  frosty_flutter:
-    path: ../../frosty/frosty_flutter
+    git:
+      url: https://github.com/peerchemist/frosty.git
+      ref: refactor/native-assets
+      path: frosty

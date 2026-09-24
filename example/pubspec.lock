@@ -49,22 +49,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.3"
+  code_assets:
+    dependency: transitive
+    description:
+      name: code_assets
+      sha256: "828110d598123b5ea96c00c9f3c72105bf79f8ee36c20a39b26209ade421ec57"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.0"
   coinlib:
     dependency: transitive
     description:
       name: coinlib
-      sha256: "3515ed24055081f914b5c8afcd7c1e0421238d527a838ec5841997df9415608f"
+      sha256: "199988876053f6177f168014ffd92fe4db6c1f48787afa57da4fcb4debd625ce"
       url: "https://pub.dev"
     source: hosted
-    version: "4.1.0"
-  coinlib_flutter:
-    dependency: transitive
-    description:
-      name: coinlib_flutter
-      sha256: "15f385bd11559087e11df73acfdc45d34fef54c7a19b20b598572c7ba9d9d112"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.0.0"
+    version: "6.0.1"
   collection:
     dependency: transitive
     description:
@@ -121,6 +121,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
+  file:
+    dependency: transitive
+    description:
+      name: file
+      sha256: a3b4f84adafef897088c160faf7dfffb7696046cb13ae90b508c2cbc95d3b8d4
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.0.1"
   fixnum:
     dependency: transitive
     description:
@@ -155,33 +163,31 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_web_plugins:
-    dependency: transitive
-    description: flutter
-    source: sdk
-    version: "0.0.0"
   freezed_annotation:
     dependency: transitive
     description:
       name: freezed_annotation
-      sha256: c2e2d632dd9b8a2b7751117abcfc2b4888ecfe181bd9fca7170d9ef02e595fe2
+      sha256: "7294967ff0a6d98638e7acb774aac3af2550777accd8149c90af5b014e6d44d8"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.4"
+    version: "3.1.0"
   frosty:
     dependency: "direct overridden"
     description:
-      path: "../../frosty/frosty"
-      relative: true
-    source: path
+      path: frosty
+      ref: "refactor/native-assets"
+      resolved-ref: "2eb3fcc60d4ad1a8ff0200644acf2ef0eb360d94"
+      url: "https://github.com/peerchemist/frosty.git"
+    source: git
     version: "4.0.0"
-  frosty_flutter:
-    dependency: "direct overridden"
+  glob:
+    dependency: transitive
     description:
-      path: "../../frosty/frosty_flutter"
-      relative: true
-    source: path
-    version: "4.0.1"
+      name: glob
+      sha256: "218aeb56050c714f62a3182775320dfa04602b55074873e24e31bbd39bda96fb"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.0"
   hex:
     dependency: transitive
     description:
@@ -190,6 +196,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.0"
+  hooks:
+    dependency: transitive
+    description:
+      name: hooks
+      sha256: eaac480a35ec0814146c2c48d96aaa829e0e44a7662c88ae84c9edf4bc35651f
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.0"
   iroh_flutter:
     dependency: transitive
     description:
@@ -206,14 +220,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.3"
-  js:
-    dependency: transitive
-    description:
-      name: js
-      sha256: f2c445dce49627136094980615a031419f7f3eb393237e4ecd97ac15dea343f3
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.6.7"
   json_annotation:
     dependency: transitive
     description:
@@ -254,6 +260,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.0"
+  logging:
+    dependency: transitive
+    description:
+      name: logging
+      sha256: c8245ada5f1717ed44271ed1c26b8ce85ca3228fd2ffdb75468ab01979309d61
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.3.0"
   matcher:
     dependency: transitive
     description:
@@ -278,6 +292,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.19.0"
+  native_toolchain_c:
+    dependency: transitive
+    description:
+      name: native_toolchain_c
+      sha256: "90eaad8059ebc2004a63810a4696ea9acdb02473e47ed3b6b3bafb100ac77e31"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.19.5"
+  native_toolchain_rust:
+    dependency: transitive
+    description:
+      name: native_toolchain_rust
+      sha256: dc8e5f20c0cb7052372bc302f075607086d86354b37199e89ec9d3d35589e519
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.7"
   noosphere_flutter:
     dependency: "direct main"
     description:
@@ -307,22 +337,38 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.9.1"
-  plugin_platform_interface:
+  petitparser:
     dependency: transitive
     description:
-      name: plugin_platform_interface
-      sha256: "4820fbfdb9478b1ebae27888254d445073732dae3d6ea81f0b7e06d5dedc3f02"
+      name: petitparser
+      sha256: "91bd59303e9f769f108f8df05e371341b15d59e995e6806aefab827b58336675"
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.8"
+    version: "7.0.2"
+  platform:
+    dependency: transitive
+    description:
+      name: platform
+      sha256: a36d119c13416516a7b5913fbe8af8531e11633d784c550b2125f76c758524ec
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.2.0"
   pointycastle:
     dependency: transitive
     description:
       name: pointycastle
-      sha256: "4be0097fcf3fd3e8449e53730c631200ebc7b88016acecab2b0da2f0149222fe"
+      sha256: "92aa3841d083cc4b0f4709b5c74fd6409a3e6ba833ffc7dc6a8fee096366acf5"
       url: "https://pub.dev"
     source: hosted
-    version: "3.9.1"
+    version: "4.0.0"
+  process:
+    dependency: transitive
+    description:
+      name: process
+      sha256: "4242ba3508d37e01808bdf71ad1d5bb93a8d671bf2e7450e6b1b353fb0808891"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.0.6"
   protobuf:
     dependency: transitive
     description:
@@ -408,6 +454,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.12"
+  toml:
+    dependency: transitive
+    description:
+      name: toml
+      sha256: "35a35f782228656a2af31e8c73d1353cc4ef3d683fd68af1111b44631879c05e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.18.0"
   typed_data:
     dependency: transitive
     description:
@@ -432,14 +486,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "15.3.0"
-  wasm_interop:
-    dependency: transitive
-    description:
-      name: wasm_interop
-      sha256: b1b378f07a4cf0103c25faf34d9a64d2c3312135b9efb47e0ec116ec3b14e48f
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.1"
   web:
     dependency: transitive
     description:

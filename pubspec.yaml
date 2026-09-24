@@ -8,10 +8,10 @@ environment:
   flutter: '>=3.47.0'
 
 dependencies:
-  coinlib_flutter: '>=4.0.0 <5.0.0'
+  coinlib: 6.0.1
   flutter:
     sdk: flutter
-  frosty_flutter: '>=4.0.0 <5.0.0'
+  frosty: '>=4.0.0 <5.0.0'
   iroh_flutter: 1.0.3
   meta: ^1.18.0
   noosphere_roast_client: '>=4.0.0 <5.0.0'

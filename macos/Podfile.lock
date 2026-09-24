@@ -1,33 +1,20 @@
 PODS:
-  - coinlib_flutter (0.5.0):
-    - Flutter
-    - FlutterMacOS
   - FlutterMacOS (1.0.0)
-  - frosty_flutter (1.1.0):
-    - FlutterMacOS
   - iroh_flutter (1.0.0):
     - FlutterMacOS
 
 DEPENDENCIES:
-  - coinlib_flutter (from `Flutter/ephemeral/.symlinks/plugins/coinlib_flutter/darwin`)
   - FlutterMacOS (from `Flutter/ephemeral`)
-  - frosty_flutter (from `Flutter/ephemeral/.symlinks/plugins/frosty_flutter/macos`)
   - iroh_flutter (from `Flutter/ephemeral/.symlinks/plugins/iroh_flutter/macos`)
 
 EXTERNAL SOURCES:
-  coinlib_flutter:
-    :path: Flutter/ephemeral/.symlinks/plugins/coinlib_flutter/darwin
   FlutterMacOS:
     :path: Flutter/ephemeral
-  frosty_flutter:
-    :path: Flutter/ephemeral/.symlinks/plugins/frosty_flutter/macos
   iroh_flutter:
     :path: Flutter/ephemeral/.symlinks/plugins/iroh_flutter/macos
 
 SPEC CHECKSUMS:
-  coinlib_flutter: f6021acfc7efe2da4bb8393ab948235197ec1385
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
-  frosty_flutter: a192e1f59b9851518201ce4881ea5c7d6a601712
   iroh_flutter: f4d594893aa094b8dd63ae62618621b758ffc1c2
 
 PODFILE CHECKSUM: 1e95c36afbfd1cb6423ceca4de7a8e1b256fb6ac

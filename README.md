@@ -16,10 +16,10 @@ alive.
 - `noosphere_roast_server >=3.0.0 <4.0.0`.
 - `noosphere_roast_client >=4.0.0 <5.0.0`.
 - `iroh_flutter 1.0.3`; its `iroh_quic 1.0.3` dependency remains the core API.
-- `coinlib_flutter >=4.0.0 <5.0.0`.
-- `frosty` and `frosty_flutter` from commit
-  `dd921490f0cd6696328e89b18de767d87ed680a4` until a published Frosty 4.x
-  release is known to use Flutter Rust Bridge 2.12.
+- `coinlib 6.0.1`, which builds secp256k1 through Dart native assets.
+- `frosty` from `peerchemist/frosty` branch `refactor/native-assets`, which
+  builds its Rust library through Dart native assets. The deprecated
+  `coinlib_flutter` and the former `frosty_flutter` plugin are not used.
 - `record_use ^1.1.1`; the reachable initialization entry point is marked with
   `@RecordUse` for Dart 3.13's recorded-use/native-link pipeline.
 
@@ -29,20 +29,15 @@ not supported in this release.
 ## Required application override
 
 Dependency overrides do not propagate from packages. Every consuming
-application must pin both Frosty packages to the same commit:
+application must select Frosty's native-assets branch until it is published:
 
 ```yaml
 dependency_overrides:
   frosty:
     git:
-      url: https://github.com/peercoin/frosty.git
-      ref: dd921490f0cd6696328e89b18de767d87ed680a4
+      url: https://github.com/peerchemist/frosty.git
+      ref: refactor/native-assets
       path: frosty
-  frosty_flutter:
-    git:
-      url: https://github.com/peercoin/frosty.git
-      ref: dd921490f0cd6696328e89b18de767d87ed680a4
-      path: frosty_flutter
 ```
 
 This repository's `pubspec_overrides.yaml` additionally points both Noosphere
