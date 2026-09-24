@@ -1,7 +1,14 @@
 library;
 
 export 'package:coinlib/coinlib.dart'
-    show ECCompressedPublicKey, ECPrivateKey, ECPublicKey, SchnorrSignature;
+    show
+        ECCompressedPublicKey,
+        ECPrivateKey,
+        ECPublicKey,
+        Network,
+        P2TRAddress,
+        SchnorrSignature,
+        Taproot;
 export 'package:iroh_flutter/iroh_flutter.dart'
     show EndpointAddr, EndpointId, PublicKey, RelayUrl;
 export 'package:noosphere_roast_server/noosphere_roast_server.dart';

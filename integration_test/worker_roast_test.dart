@@ -128,7 +128,7 @@ Future<void> _runScenario({
     final details = SignaturesRequestDetails(
       requiredSigs: [
         SingleSignatureDetails(
-          signDetails: SignDetails.scriptSpend(message: message),
+          signDetails: SignDetails.keySpend(message: message),
           groupKey: frostKeys.first.groupKey,
           hdDerivation: const [],
         ),
@@ -155,8 +155,10 @@ Future<void> _runScenario({
     for (final result in results) {
       expect(result.signatures, hasLength(1));
       expect(
-        SchnorrSignature(result.signatures.single)
-            .verify(frostKeys.first.groupKey, message),
+        SchnorrSignature(result.signatures.single).verify(
+          Taproot(internalKey: frostKeys.first.groupKey).tweakedKey,
+          message,
+        ),
         isTrue,
       );
     }

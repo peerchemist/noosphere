@@ -204,8 +204,11 @@ final class _NodeScreenState extends State<NodeScreen> {
         final result = SchnorrSignature(event.signatures.single);
         _signature = _hex(event.signatures.single);
         _signedHash = _hex(details.signDetails.message);
+        final verificationKey = details.signDetails.mastHash == null
+            ? details.groupKey
+            : Taproot(internalKey: details.groupKey).tweakedKey;
         _signatureValid = result.verify(
-          details.groupKey,
+          verificationKey,
           details.signDetails.message,
         );
       }
@@ -262,6 +265,12 @@ final class _NodeScreenState extends State<NodeScreen> {
   }
 
   Future<void> _createDkg() => _perform('Creating 2-of-2 key…', (worker) {
+    final snapshot = _snapshot;
+    if (snapshot == null ||
+        snapshot.dkgs.isNotEmpty ||
+        snapshot.keys.isNotEmpty) {
+      throw StateError('A DKG is already active or the key already exists.');
+    }
     final name = _dkgName.text.trim();
     return worker.requestDkg(
       'example',
@@ -286,7 +295,7 @@ final class _NodeScreenState extends State<NodeScreen> {
           SignaturesRequestDetails(
             requiredSigs: [
               SingleSignatureDetails(
-                signDetails: SignDetails.scriptSpend(
+                signDetails: SignDetails.keySpend(
                   message: _parseHash(_messageHash.text),
                 ),
                 groupKey: ECCompressedPublicKey.fromHex(key.groupKeyHex),
@@ -398,15 +407,17 @@ final class _NodeScreenState extends State<NodeScreen> {
               'online peers: ${snapshot.onlineParticipants.length}',
             ),
             const Divider(height: 32),
-            TextField(
-              controller: _dkgName,
-              decoration: const InputDecoration(labelText: 'DKG name'),
-            ),
-            const SizedBox(height: 8),
-            FilledButton.tonal(
-              onPressed: _busy ? null : _createDkg,
-              child: const Text('Create 2-of-2 key'),
-            ),
+            if (snapshot.dkgs.isEmpty && snapshot.keys.isEmpty) ...[
+              TextField(
+                controller: _dkgName,
+                decoration: const InputDecoration(labelText: 'DKG name'),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.tonal(
+                onPressed: _busy ? null : _createDkg,
+                child: const Text('Create 2-of-2 key'),
+              ),
+            ],
             for (final dkg in snapshot.dkgs.where(
               (dkg) => dkg.stage == 'waiting',
             ))
@@ -427,10 +438,20 @@ final class _NodeScreenState extends State<NodeScreen> {
             ))
               Text(
                 '${dkg.name}: ${dkg.stage}, '
-                '${dkg.completedParticipants.length}/2',
+                '${dkg.completedParticipants.length}/2. '
+                'Waiting for the other signer; do not create another DKG.',
               ),
-            for (final key in snapshot.keys)
+            for (final key in snapshot.keys) ...[
               SelectableText('Group key: ${key.groupKeyHex}'),
+              SelectableText(
+                'Peercoin testnet address: '
+                '${_taprootAddress(key, Network.testnet)}',
+              ),
+              SelectableText(
+                'Peercoin mainnet address: '
+                '${_taprootAddress(key, Network.mainnet)}',
+              ),
+            ],
             const Divider(height: 32),
             TextField(
               controller: _messageHash,
@@ -531,6 +552,12 @@ void _log(String message) => stdout.writeln('[noosphere] $message');
 
 String _hex(Iterable<int> bytes) =>
     bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+
+P2TRAddress _taprootAddress(WorkerKeyInfo key, Network network) =>
+    P2TRAddress.fromTaproot(
+      Taproot(internalKey: ECCompressedPublicKey.fromHex(key.groupKeyHex)),
+      hrp: network.bech32Hrp,
+    );
 
 Uint8List _parseHash(String value) {
   final hex = value.trim();

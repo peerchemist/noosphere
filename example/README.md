@@ -19,9 +19,11 @@ but never private keys.
 2. Copy the displayed Iroh ID.
 3. On computer B choose **Computer B · participant 2**, paste the Iroh ID, and
    press **Start**.
-4. After both clients show one online peer, press **Create 2-of-2 key** on A.
+4. After both clients show one online peer, press **Create 2-of-2 key** once on
+   A.
 5. Press **Accept DKG** on B and wait until the same generated group key is
-   displayed on both computers.
+   displayed on both computers. The corresponding Peercoin testnet and mainnet
+   Taproot addresses are derived and displayed automatically.
 6. On A enter a 32-byte hash (the default test value is valid) and press
    **Request 2-of-2 signature**.
 7. Verify the displayed hash on B, then press **Accept signature**.
