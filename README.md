@@ -44,12 +44,19 @@ This repository's `pubspec_overrides.yaml` additionally points both Noosphere
 packages at the sibling repositories during local development. The published
 constraints stay in `pubspec.yaml`.
 
-## Initialization and roles
+## Worker facade (recommended for Flutter UI)
 
 ```dart
 await NoosphereFlutter.initialize();
 
-final node = await NoosphereNode.start(
+final worker = await NoosphereWorker.start();
+final subscription = worker.events.listen((event) {
+  // Subscribe before startSetup: every client session begins with a snapshot.
+});
+
+final snapshot = await worker.startSetup(
+  setupId: 'primary-wallet',
+  identityStorageId: 'main-coordinator', // stable across worker instances
   server: EmbeddedServerOptions(
     serverConfig: serverConfig,
     identityStore: identityStore,
@@ -63,38 +70,94 @@ final node = await NoosphereNode.start(
   ),
 );
 
+await worker.requestDkg('primary-wallet', proposal);
+
+// Consent is bound to the exact public proposal received from the worker.
+await worker.acceptDkg('primary-wallet', reviewedDkg);
+await worker.acceptSignatures('primary-wallet', reviewedSigningRequest);
+
+// Stop local key use without stopping an embedded coordinator.
+await worker.lockSigner('primary-wallet');
+
+await worker.close();
+await subscription.cancel();
+```
+
+`NoosphereWorker` owns a long-lived Dart isolate and can own several setup IDs.
+Each setup has independent server and signer roles. Calling `startSetup` again
+for an existing setup can add the missing role; `stopSetup` can stop `server`,
+`signer`, or `both`. Share one worker between accounts derived from the same
+setup instead of creating an isolate per wallet.
+
+The transport is versioned and carries primitives, byte arrays and deliberate
+public DTOs only. Native handles, `Client` objects, callbacks and database
+objects never cross the isolate boundary. Replies carry command and worker
+generation IDs; stale replies are ignored, payload size and outstanding-command
+counts are bounded, and pending commands fail if the isolate exits. A
+replacement reconnecting session emits `WorkerSessionReplacedEvent` followed
+by a fresh `WorkerSnapshotEvent`; mutating RPCs are never replayed.
+Graceful close is idempotent. Forced or unexpected native-worker termination
+marks in-process restart unsafe; restart the application rather than assuming
+native sockets/tasks were released.
+
+Subscribe to `events` before starting setups. A session snapshot is ordered
+before later events from that session. The stream is a broadcast controller
+bridge because the native source is imperative; events are not accumulated into
+a list.
+
+`NoosphereFlutter.initialize()` remains idempotent and initializes root-isolate
+Flutter plus native bindings for direct-node callers and host code that handles
+Frosty storage values. `NoosphereWorker.start()` only prepares the root Flutter
+binding; its isolate calls `NoosphereFlutter.initializeNative()` without
+touching `WidgetsFlutterBinding`. Native library paths remain internal so the
+macOS Iroh/Frosty FRB symbol namespaces stay isolated.
+
+The original direct API remains available:
+
+```dart
+final node = await NoosphereNode.start(
+  server: serverOptions,
+  client: clientOptions,
+);
 final initialClient = node.client?.current;
 final replacements = node.client?.sessions;
-
 await node.close();
 ```
 
-Initialization is idempotent and concurrent callers share the same in-flight
-future. Native library paths are intentionally not configurable: the Flutter
-plugins bundle and load the libraries.
-
-For both roles, the server starts first and the client uses its own endpoint.
-The client requires an independently trusted pinned Iroh ID. Its
+The client always requires an independently trusted pinned Iroh ID. Its
 `bootstrapAddress` may contain only that ID and rely on Iroh discovery, or add
-direct/relay address hints. Listen to `ReconnectingIrohClient.sessions` and
-replace any cached `Client` when a new authenticated session arrives.
-Reconnection never retries an in-flight mutating DKG or signing RPC.
+direct/relay hints. Direct API consumers must replace cached `Client` objects
+from `ReconnectingIrohClient.sessions`.
 
-`NoosphereLifecycleObserver` optionally attempts a bounded close on the
-terminal `detached` lifecycle state. It does not close on `inactive`, because a
-desktop window may merely have lost focus. Applications remain responsible for
-explicitly calling `close()` during logout and shutdown.
+`NoosphereLifecycleObserver` and `NoosphereWorkerLifecycleObserver` optionally
+attempt a bounded close on terminal `detached`. They do nothing on `inactive`,
+because a desktop window may merely have lost focus. Explicitly await node or
+worker shutdown during logout/application shutdown whenever possible.
 
 ## Persistence and key custody
 
 Implement `ServerIdentityStore` with the OS keychain or keystore. It stores
-exactly 32 bytes losslessly. Node startup uses
-`IrohServer.startWithSecretKey`; the core config's
+exactly 32 bytes losslessly. Give each coordinator store a stable
+`identityStorageId`; creation is serialized by this ID across worker instances.
+Node startup uses `IrohServer.startWithSecretKey`; the core config's
 `host-managed://iroh-secret` sentinel is never read or written and no external
 `chmod` process is launched by this package.
 
 Production client calls must provide both `ClientStorageInterface` and
-`GetPrivateKey`. Do not put participant private keys in preferences or logs.
+`GetPrivateKey`. The worker keeps these application-owned providers on the host
+isolate and invokes them through correlated requests. Storage operations for a
+setup are serialized. `prepareSignaturesOperation` remains one proxy call, and
+the worker waits for durable completion before sending the network request.
+
+A provider timeout reports an unknown outcome and is never blindly retried.
+Reconcile the durable prepared-operation record before allowing another signing
+attempt. Key requests are scoped internally to setup ID, `KeyPurpose`, and
+worker generation. Returning a key is not user consent: approve only the exact
+`WorkerDkgStatus` or `WorkerSigningRequest` reviewed by the user. Canonical
+proposal bytes are echoed on approval and stale or changed proposals are
+rejected. Secret bytes are absent from public events, logs and errors. Ordinary
+Dart-managed memory cannot guarantee reliable zeroization.
+
 A durable client store must implement `prepareSignaturesOperation` as one
 database transaction that atomically:
 
@@ -104,6 +167,16 @@ database transaction that atomically:
 before the network request can proceed. A crash or ambiguous network outcome
 must leave that prepared record present so the operation cannot be replayed.
 `InMemoryClientStorage` does not satisfy production durability requirements.
+
+`shareKeySecret` is deliberately absent from `NoosphereWorker`; recovery needs
+a separate explicit workflow. DKG temporary secrets and embedded-server
+protocol sessions are in memory. After an unexpected exit, recreate sessions
+from durable state, reconcile completed keys/prepared signing records, and do
+not assume an unfinished mutation continued.
+
+An isolate is not an OS service, native-crash boundary, or security boundary.
+Closing the desktop app stops its embedded coordinator. Android/iOS background
+execution remains outside this package's Linux/macOS scope.
 
 ## Example and verification
 
@@ -118,6 +191,8 @@ flutter analyze
 flutter test test
 flutter test integration_test/native_transport_test.dart -d linux
 flutter test integration_test/roast_2_of_2_test.dart -d linux
+flutter test integration_test/worker_roast_2_of_2_test.dart -d linux
+flutter test integration_test/worker_roast_2_of_3_test.dart -d linux
 
 cd example
 flutter analyze

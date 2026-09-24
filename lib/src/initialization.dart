@@ -16,14 +16,41 @@ import 'package:meta/meta.dart';
 /// second native initialization attempt.
 abstract final class NoosphereFlutter {
   static Future<void>? _initialization;
-  static Future<void> Function() _initializer = _initializePlugins;
+  static Future<void>? _rootPreparation;
+  static Future<void>? _nativeInitialization;
+  static Future<void> Function() _rootPreparer = _prepareRoot;
+  static Future<void> Function() _nativeInitializer = _initializeNative;
 
+  /// Preserves the original direct-node initialization contract.
+  ///
+  /// Worker isolates use [initializeNative] instead, because Flutter bindings
+  /// may only be prepared by the root isolate.
   @RecordUse()
-  static Future<void> initialize() =>
-      _initialization ??= Future<void>.sync(_initializer);
+  static Future<void> initialize() => _initialization ??= _initializeAll();
 
-  static Future<void> _initializePlugins() async {
+  static Future<void> _initializeAll() async {
+    await prepareRootIsolate();
+    await initializeNative();
+  }
+
+  /// Performs Flutter-only root isolate preparation without loading native
+  /// libraries. This is safe to call before spawning [NoosphereWorker].
+  static Future<void> prepareRootIsolate() =>
+      _rootPreparation ??= Future<void>.sync(_rootPreparer);
+
+  /// Initializes Noosphere's native bindings in the calling isolate.
+  ///
+  /// Native binding state is isolate-local even when the underlying dynamic
+  /// libraries and Rust runtimes are process-wide.
+  @RecordUse()
+  static Future<void> initializeNative() =>
+      _nativeInitialization ??= Future<void>.sync(_nativeInitializer);
+
+  static Future<void> _prepareRoot() async {
     WidgetsFlutterBinding.ensureInitialized();
+  }
+
+  static Future<void> _initializeNative() async {
     await coinlib.loadCoinlib();
     await iroh_flutter.Iroh.init(libraryPath: _irohMacOsFrameworkPath());
     await _loadFrosty();
@@ -57,8 +84,17 @@ abstract final class NoosphereFlutter {
   }
 
   @visibleForTesting
-  static void debugResetInitialization({Future<void> Function()? initializer}) {
+  static void debugResetInitialization({
+    Future<void> Function()? initializer,
+    Future<void> Function()? rootPreparer,
+    Future<void> Function()? nativeInitializer,
+  }) {
     _initialization = null;
-    _initializer = initializer ?? _initializePlugins;
+    _rootPreparation = null;
+    _nativeInitialization = null;
+    _rootPreparer = rootPreparer ?? initializer ?? _prepareRoot;
+    _nativeInitializer =
+        nativeInitializer ??
+        (initializer == null ? _initializeNative : () async {});
   }
 }

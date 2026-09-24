@@ -29,6 +29,22 @@ final class NoosphereNode {
     );
   }
 
+  /// Starts after native bindings have already been initialized in the
+  /// calling isolate. Used by the package-owned worker entry point so it never
+  /// invokes root-isolate Flutter binding setup.
+  @internal
+  static Future<NoosphereNode> startInitialized({
+    EmbeddedServerOptions? server,
+    ClientNodeOptions? client,
+  }) {
+    _validateRoles(server, client);
+    return _start(
+      startServer: server != null,
+      startClient: client != null,
+      backend: _NativeBackend(server, client),
+    );
+  }
+
   @visibleForTesting
   static Future<NoosphereNode> startForTesting({
     required bool server,

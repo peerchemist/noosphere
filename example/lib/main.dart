@@ -25,9 +25,11 @@ final class NoosphereExampleApp extends StatelessWidget {
 
 enum TestMachine(final String label, final int participant) {
   a('Computer A · server + participant 1', 1),
-  b('Computer B · participant 2', 2);
+  b('Computer B · participant 2', 2),
+  coordinator('Coordinator only · no local signer', 1);
 
-  bool get hostsServer => this == a;
+  bool get hostsServer => this != b;
+  bool get runsSigner => this != coordinator;
 }
 
 final class NodeScreen extends StatefulWidget {
@@ -44,6 +46,7 @@ final class _NodeScreenState extends State<NodeScreen> {
     text: '0000000000000000000000000000000000000000000000000000000000000001',
   );
   final _identityStore = _MemoryIdentityStore();
+  final _clientStorage = InMemoryClientStorage();
   final _keys = [
     ECPrivateKey(Uint8List(32)..last = 1),
     ECPrivateKey(Uint8List(32)..last = 2),
@@ -60,14 +63,11 @@ final class _NodeScreenState extends State<NodeScreen> {
   );
 
   TestMachine _machine = TestMachine.a;
-  NoosphereNode? _serverNode;
-  NoosphereNode? _clientNode;
-  NoosphereLifecycleObserver? _serverLifecycle;
-  NoosphereLifecycleObserver? _clientLifecycle;
-  StreamSubscription<Client>? _sessions;
-  StreamSubscription<ClientEvent>? _events;
-  Client? _client;
-  EndpointId? _publishedIrohId;
+  NoosphereWorker? _worker;
+  NoosphereWorkerLifecycleObserver? _workerLifecycle;
+  StreamSubscription<NoosphereWorkerEvent>? _events;
+  NoosphereWorkerSnapshot? _snapshot;
+  String? _publishedIrohId;
   String _status = 'Stopped';
   String? _error;
   String? _signature;
@@ -75,7 +75,7 @@ final class _NodeScreenState extends State<NodeScreen> {
   bool? _signatureValid;
   bool _busy = false;
 
-  bool get _running => _clientNode != null || _serverNode != null;
+  bool get _running => _worker != null;
   Identifier get _participantId => Identifier.fromUint16(_machine.participant);
   ECPrivateKey get _participantKey => _keys[_machine.participant - 1];
   ECCompressedPublicKey get _participantPublicKey =>
@@ -83,12 +83,9 @@ final class _NodeScreenState extends State<NodeScreen> {
 
   @override
   void dispose() {
-    _serverLifecycle?.detach();
-    _clientLifecycle?.detach();
-    unawaited(_sessions?.cancel());
+    _workerLifecycle?.detach();
     unawaited(_events?.cancel());
-    unawaited(_clientNode?.close());
-    unawaited(_serverNode?.close());
+    unawaited(_worker?.close());
     for (final controller in [_irohId, _dkgName, _messageHash]) {
       controller.dispose();
     }
@@ -111,20 +108,30 @@ final class _NodeScreenState extends State<NodeScreen> {
     });
 
     try {
+      final worker = await NoosphereWorker.start();
+      _worker = worker;
+      _workerLifecycle = NoosphereWorkerLifecycleObserver(worker)..attach();
+      _events = worker.events.listen(
+        _onWorkerEvent,
+        onError: (Object error) => _setError(error),
+      );
+
       final EndpointAddr address;
       final EndpointId pinnedId;
       if (_machine.hostsServer) {
-        _serverNode = await NoosphereNode.start(
+        final serverSnapshot = await worker.startSetup(
+          setupId: 'example',
           server: EmbeddedServerOptions(
             serverConfig: ServerConfig(group: _group),
             identityStore: _identityStore,
           ),
+          identityStorageId: 'noosphere-example-coordinator',
         );
-        _serverLifecycle = NoosphereLifecycleObserver(_serverNode!)..attach();
-        address = await _reachableAddress(_serverNode!);
-        pinnedId = address.id;
-        _publishedIrohId = pinnedId;
-        _logIrohEndpoint(address);
+        final coordinator = serverSnapshot.coordinator!;
+        pinnedId = PublicKey.fromZ32(coordinator.id);
+        address = EndpointAddr(pinnedId);
+        _publishedIrohId = coordinator.id;
+        _logWorkerEndpoint(coordinator);
       } else {
         pinnedId = PublicKey.fromZ32(_irohId.text.trim());
         address = EndpointAddr(pinnedId);
@@ -135,26 +142,23 @@ final class _NodeScreenState extends State<NodeScreen> {
         '${_participantPublicKey.hex}',
       );
 
-      _clientNode = await NoosphereNode.start(
-        client: ClientNodeOptions(
-          clientConfig: ClientConfig(group: _group, id: _participantId),
-          bootstrapAddress: address,
-          pinnedServerId: pinnedId,
-          storage: InMemoryClientStorage(),
-          getPrivateKey: (_) async => _participantKey,
-        ),
-      );
-      _clientLifecycle = NoosphereLifecycleObserver(_clientNode!)..attach();
-
-      final reconnecting = _clientNode!.client!;
-      _useClient(reconnecting.current);
-      _sessions = reconnecting.sessions.listen(
-        _useClient,
-        onError: (Object error) => _setError(error),
-      );
+      if (_machine.runsSigner) {
+        _snapshot = await worker.startSetup(
+          setupId: 'example',
+          client: ClientNodeOptions(
+            clientConfig: ClientConfig(group: _group, id: _participantId),
+            bootstrapAddress: address,
+            pinnedServerId: pinnedId,
+            storage: _clientStorage,
+            getPrivateKey: (_) async => _participantKey,
+          ),
+        );
+      } else {
+        _snapshot = await worker.snapshot('example');
+      }
       setState(() {
         _busy = false;
-        _status = 'Connected';
+        _status = _machine.runsSigner ? 'Connected' : 'Serving';
       });
     } catch (error, stackTrace) {
       _log('Start failed: $error\n$stackTrace');
@@ -169,43 +173,39 @@ final class _NodeScreenState extends State<NodeScreen> {
     }
   }
 
-  Future<EndpointAddr> _reachableAddress(NoosphereNode node) async {
-    final server = node.server!;
-    final current = server.address;
-    if (current.ipAddrs.isNotEmpty || current.relayUrls.isNotEmpty) {
-      return current;
-    }
-    try {
-      return await server.endpoint
-          .watchAddr()
-          .firstWhere(
-            (address) =>
-                address.ipAddrs.isNotEmpty || address.relayUrls.isNotEmpty,
-          )
-          .timeout(const Duration(seconds: 15));
-    } on TimeoutException {
-      return server.address;
-    }
-  }
-
-  void _useClient(Client client) {
-    unawaited(_events?.cancel());
-    _client = client;
-    _events = client.events.listen((event) {
-      _log('ROAST event: ${event.runtimeType}');
-      if (event case SignaturesCompleteClientEvent()) {
-        final details = event.details.requiredSigs.single;
-        final result = event.signatures.single;
-        _signature = _hex(result.data);
+  void _onWorkerEvent(NoosphereWorkerEvent event) {
+    _log('ROAST worker event: ${event.runtimeType}');
+    if (event case WorkerSnapshotEvent()) {
+      _snapshot = event.snapshot;
+    } else if (event case WorkerSigningResultEvent()) {
+      final proposal = SignaturesRequestDetails.fromBytes(event.proposalBytes);
+      if (proposal.requiredSigs.length == 1 && event.signatures.length == 1) {
+        final details = proposal.requiredSigs.single;
+        final result = SchnorrSignature(event.signatures.single);
+        _signature = _hex(event.signatures.single);
         _signedHash = _hex(details.signDetails.message);
         _signatureValid = result.verify(
           details.groupKey,
           details.signDetails.message,
         );
       }
-      if (mounted) setState(() {});
-    }, onError: (Object error) => _setError(error));
+    } else if (event case WorkerFailureEvent()) {
+      _error = event.message;
+    } else {
+      unawaited(_refreshSnapshot());
+    }
     if (mounted) setState(() {});
+  }
+
+  Future<void> _refreshSnapshot() async {
+    final worker = _worker;
+    if (worker == null || worker.isClosed) return;
+    try {
+      final snapshot = await worker.snapshot('example');
+      if (mounted) setState(() => _snapshot = snapshot);
+    } catch (error) {
+      _setError(error);
+    }
   }
 
   void _setError(Object error) {
@@ -215,17 +215,17 @@ final class _NodeScreenState extends State<NodeScreen> {
 
   Future<void> _perform(
     String status,
-    Future<void> Function(Client client) operation,
+    Future<void> Function(NoosphereWorker worker) operation,
   ) async {
-    final client = _client;
-    if (client == null) return;
+    final worker = _worker;
+    if (worker == null) return;
     setState(() {
       _busy = true;
       _error = null;
       _status = status;
     });
     try {
-      await operation(client);
+      await operation(worker);
     } catch (error, stackTrace) {
       _log('$status failed: $error\n$stackTrace');
       _error = '$error';
@@ -239,9 +239,10 @@ final class _NodeScreenState extends State<NodeScreen> {
     }
   }
 
-  Future<void> _createDkg() => _perform('Creating 2-of-2 key…', (client) {
+  Future<void> _createDkg() => _perform('Creating 2-of-2 key…', (worker) {
     final name = _dkgName.text.trim();
-    return client.requestDkg(
+    return worker.requestDkg(
+      'example',
       NewDkgDetails(
         name: name,
         description: 'Two-computer Noosphere Flutter test',
@@ -252,19 +253,21 @@ final class _NodeScreenState extends State<NodeScreen> {
   });
 
   Future<void> _requestSignature() =>
-      _perform('Requesting signature…', (client) {
-        if (client.keys.isEmpty) {
+      _perform('Requesting signature…', (worker) {
+        final snapshot = _snapshot;
+        if (snapshot == null || snapshot.keys.isEmpty) {
           throw StateError('Complete the DKG first.');
         }
-        final key = client.keys.values.first;
-        return client.requestSignatures(
+        final key = snapshot.keys.first;
+        return worker.requestSignatures(
+          'example',
           SignaturesRequestDetails(
             requiredSigs: [
               SingleSignatureDetails(
                 signDetails: SignDetails.scriptSpend(
                   message: _parseHash(_messageHash.text),
                 ),
-                groupKey: key.groupKey,
+                groupKey: ECCompressedPublicKey.fromHex(key.groupKeyHex),
                 hdDerivation: const [],
               ),
             ],
@@ -294,33 +297,24 @@ final class _NodeScreenState extends State<NodeScreen> {
   }
 
   Future<void> _close({bool ignoreErrors = false}) async {
-    _serverLifecycle?.detach();
-    _clientLifecycle?.detach();
+    _workerLifecycle?.detach();
     try {
-      await _sessions?.cancel();
       await _events?.cancel();
-      try {
-        await _clientNode?.close().timeout(const Duration(seconds: 5));
-      } finally {
-        await _serverNode?.close().timeout(const Duration(seconds: 5));
-      }
+      await _worker?.close().timeout(const Duration(seconds: 10));
     } catch (error) {
       if (!ignoreErrors) rethrow;
       _log('Close failed: $error');
     } finally {
-      _sessions = null;
       _events = null;
-      _client = null;
-      _clientNode = null;
-      _serverNode = null;
-      _clientLifecycle = null;
-      _serverLifecycle = null;
+      _snapshot = null;
+      _worker = null;
+      _workerLifecycle = null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final client = _client;
+    final snapshot = _snapshot;
     return Scaffold(
       appBar: AppBar(title: const Text('Noosphere 2-of-2 test')),
       body: ListView(
@@ -344,10 +338,11 @@ final class _NodeScreenState extends State<NodeScreen> {
                       setState(() => _machine = machine ?? TestMachine.a),
           ),
           const SizedBox(height: 8),
-          SelectableText(
-            'ROAST participant ${_machine.participant} public key: '
-            '${_participantPublicKey.hex}',
-          ),
+          if (_machine.runsSigner)
+            SelectableText(
+              'ROAST participant ${_machine.participant} public key: '
+              '${_participantPublicKey.hex}',
+            ),
           if (!_machine.hostsServer) ...[
             const SizedBox(height: 12),
             TextField(
@@ -374,12 +369,11 @@ final class _NodeScreenState extends State<NodeScreen> {
           ),
           const SizedBox(height: 12),
           Text('State: $_status'),
-          if (_publishedIrohId case final id?)
-            SelectableText('Iroh ID: ${id.toZ32()}'),
-          if (client != null) ...[
+          if (_publishedIrohId case final id?) SelectableText('Iroh ID: $id'),
+          if (snapshot != null && snapshot.signerRunning) ...[
             Text(
               'Participant ${_machine.participant}; '
-              'online peers: ${client.onlineParticipants.length}',
+              'online peers: ${snapshot.onlineParticipants.length}',
             ),
             const Divider(height: 32),
             TextField(
@@ -391,26 +385,30 @@ final class _NodeScreenState extends State<NodeScreen> {
               onPressed: _busy ? null : _createDkg,
               child: const Text('Create 2-of-2 key'),
             ),
-            for (final dkg in client.dkgRequests)
+            for (final dkg in snapshot.dkgs.where(
+              (dkg) => dkg.stage == 'waiting',
+            ))
               ListTile(
-                title: Text('Pending DKG: ${dkg.details.name}'),
+                title: Text('Pending DKG: ${dkg.name}'),
                 trailing: FilledButton(
                   onPressed: _busy
                       ? null
                       : () => _perform(
                           'Accepting DKG…',
-                          (client) => client.acceptDkg(dkg.details.name),
+                          (worker) => worker.acceptDkg('example', dkg),
                         ),
                   child: const Text('Accept DKG'),
                 ),
               ),
-            for (final dkg in client.acceptedDkgs)
+            for (final dkg in snapshot.dkgs.where(
+              (dkg) => dkg.stage != 'waiting',
+            ))
               Text(
-                '${dkg.details.name}: ${dkg.stage.name}, '
-                '${dkg.completed.length}/2',
+                '${dkg.name}: ${dkg.stage}, '
+                '${dkg.completedParticipants.length}/2',
               ),
-            for (final key in client.keys.values)
-              SelectableText('Group key: ${key.groupKey.hex}'),
+            for (final key in snapshot.keys)
+              SelectableText('Group key: ${key.groupKeyHex}'),
             const Divider(height: 32),
             TextField(
               controller: _messageHash,
@@ -420,27 +418,26 @@ final class _NodeScreenState extends State<NodeScreen> {
             ),
             const SizedBox(height: 8),
             FilledButton.tonal(
-              onPressed: _busy || client.keys.isEmpty
+              onPressed: _busy || snapshot.keys.isEmpty
                   ? null
                   : _requestSignature,
               child: const Text('Request 2-of-2 signature'),
             ),
-            for (final request in client.signaturesRequests)
+            for (final request in snapshot.signingRequests)
               ListTile(
                 title: Text(
                   'Signature request: '
-                  '${_hex(request.details.requiredSigs.single.signDetails.message)}',
+                  '${_hex(request.decodeProposal().requiredSigs.single.signDetails.message)}',
                 ),
-                subtitle: Text(request.status.name),
-                trailing: request.status == SignaturesRequestStatus.waiting
+                subtitle: Text(request.status),
+                trailing: request.status == 'waiting'
                     ? FilledButton(
                         onPressed: _busy
                             ? null
                             : () => _perform(
                                 'Accepting signature…',
-                                (client) => client.acceptSignaturesRequest(
-                                  request.details.id,
-                                ),
+                                (worker) =>
+                                    worker.acceptSignatures('example', request),
                               ),
                         child: const Text('Accept signature'),
                       )
@@ -477,8 +474,8 @@ final class _MemoryIdentityStore implements ServerIdentityStore {
   }
 }
 
-void _logIrohEndpoint(EndpointAddr address) => _log(
-  'Iroh ID: ${address.id.toZ32()}\n'
+void _logWorkerEndpoint(WorkerCoordinatorAddress address) => _log(
+  'Iroh ID: ${address.id}\n'
   'Iroh IPs: ${address.ipAddrs}\n'
   'Iroh relays: ${address.relayUrls}',
 );

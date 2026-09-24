@@ -41,4 +41,30 @@ void main() {
     await expectLater(first, throwsA(same(failure)));
     await expectLater(second, throwsA(same(failure)));
   });
+
+  test(
+    'root preparation and native initialization have separate gates',
+    () async {
+      var rootCalls = 0;
+      var nativeCalls = 0;
+      NoosphereFlutter.debugResetInitialization(
+        rootPreparer: () async => rootCalls++,
+        nativeInitializer: () async => nativeCalls++,
+      );
+
+      await Future.wait([
+        NoosphereFlutter.prepareRootIsolate(),
+        NoosphereFlutter.prepareRootIsolate(),
+      ]);
+      expect(rootCalls, 1);
+      expect(nativeCalls, 0);
+
+      await Future.wait([
+        NoosphereFlutter.initializeNative(),
+        NoosphereFlutter.initializeNative(),
+      ]);
+      expect(rootCalls, 1);
+      expect(nativeCalls, 1);
+    },
+  );
 }
