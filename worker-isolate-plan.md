@@ -1,8 +1,9 @@
 # ROAST worker isolate implementation plan
 
 Status: v1 implemented locally on 2026-09-24. Linux unit, native 2-of-2,
-native 2-of-3, analysis and release-build checks pass. macOS execution, fault
-injection and performance measurements remain platform/release acceptance work.
+native 2-of-3, analysis and release-build checks pass. Manual macOS execution
+has also been confirmed. Fault injection, crash/restart acceptance, the full
+macOS test/build matrix and performance measurements remain acceptance work.
 Scope: make noosphere_flutter own a long-lived worker for the existing ROAST
 client/server runtime on Linux and macOS.
 
@@ -40,24 +41,24 @@ reuse their setup's node. Do not create an isolate per derived wallet.
 
 ## 1. Separate initialization
 
-- [ ] Refactor lib/src/initialization.dart into root-isolate Flutter preparation
+- [x] Refactor lib/src/initialization.dart into root-isolate Flutter preparation
   and worker-compatible native initialization. Preserve the current public
   NoosphereFlutter.initialize() behavior for direct-node callers.
-- [ ] Keep WidgetsFlutterBinding.ensureInitialized() on the root isolate. The
+- [x] Keep WidgetsFlutterBinding.ensureInitialized() on the root isolate. The
   worker entry point must not invoke that path indirectly through
   NoosphereNode.start(). Introduce an explicit initialization seam rather than
   inferring that a static initialized flag is shared between isolates.
-- [ ] Audit coinlib_flutter.loadCoinlib(), Iroh.init() and
+- [x] Audit coinlib_flutter.loadCoinlib(), Iroh.init() and
   frosty_flutter.loadFrosty() for worker use. Initialize each isolate's Dart/FRB
   bindings as required while respecting process-wide native runtime state.
   Verify the case where the consuming app already loaded coinlib on the root.
-- [ ] Preserve the macOS library-scoped Iroh framework lookup: Iroh and Frosty
+- [x] Preserve the macOS library-scoped Iroh framework lookup: Iroh and Frosty
   export colliding FRB symbols. Keep paths internal; do not introduce arbitrary
   user-configurable native-library paths.
-- [ ] If platform channels are required in the worker, explicitly pass the
+- [x] If platform channels are required in the worker, explicitly pass the
   root isolate token and initialize the background messenger. Verify each plugin
   operation; do not assume unsolicited platform events work there.
-- [ ] Keep initialization concurrency-safe within each isolate and retain the
+- [x] Keep initialization concurrency-safe within each isolate and retain the
   current failure semantics. Preserve @RecordUse reachability for release builds.
 - [ ] Prove create/use/close/restart of native objects in a worker on Linux and
   macOS before committing the public API. Audit native stream token uniqueness
@@ -65,26 +66,26 @@ reuse their setup's node. Do not create an isolate per derived wallet.
 
 ## 2. Add a typed worker facade
 
-- [ ] Add a facade, provisionally NoosphereWorker, that uses Isolate.spawn and
+- [x] Add a facade, provisionally NoosphereWorker, that uses Isolate.spawn and
   a ready/error startup handshake. Keep NoosphereNode available for direct use.
-- [ ] Define versioned, explicitly sendable messages with command IDs, setup IDs
+- [x] Define versioned, explicitly sendable messages with command IDs, setup IDs
   and worker-generation IDs. Use primitives, byte buffers and deliberate DTOs;
   do not send Client, endpoint/FRB handles, database objects or arbitrary captured
   callbacks across ports.
-- [ ] Support start/stop setup, server/client/both roles, public status snapshot,
+- [x] Support start/stop setup, server/client/both roles, public status snapshot,
   DKG request/accept/reject and signature request/accept/reject. Proposed names
   are not a commitment to expose every core operation automatically.
-- [ ] Keep reconstruction-capable shareKeySecret outside the default wallet
+- [x] Keep reconstruction-capable shareKeySecret outside the default wallet
   facade. Adding it requires an explicit separate recovery workflow.
-- [ ] Emit public DTOs for participant presence, coordinator address, session
+- [x] Emit public DTOs for participant presence, coordinator address, session
   status, DKG progress, signing requests/results and sanitized failures. Never
   forward raw core events without reviewing whether they contain secret data.
-- [ ] Correlate replies and guarantee that each pending command completes or
+- [x] Correlate replies and guarantee that each pending command completes or
   fails when its worker exits. Ignore replies from an older worker generation.
-- [ ] Bound message sizes and outstanding commands. Preserve proposal/result
+- [x] Bound message sizes and outstanding commands. Preserve proposal/result
   events; coalesce only replaceable status updates. Define snapshot plus event
   ordering so consumers cannot miss state changes while subscribing.
-- [ ] Handle reconnectingClient.sessions inside the worker, replacing the old
+- [x] Handle reconnectingClient.sessions inside the worker, replacing the old
   Client and event subscriptions without exposing session-bound objects to UI.
 
 ## 3. Bridge storage and key access explicitly
@@ -93,27 +94,27 @@ Existing ClientNodeOptions accepts ClientStorageInterface and GetPrivateKey;
 EmbeddedServerOptions accepts ServerIdentityStore. These are application-owned
 objects/callbacks, not a worker transport contract.
 
-- [ ] For the first implementation, provide worker-side proxies backed by
+- [x] For the first implementation, provide worker-side proxies backed by
   correlated requests to host-side storage/key providers. This lets applications
   retain existing platform secure-storage and database integrations without
   transferring their live objects into the worker.
-- [ ] Give each database one owner. Serialize conflicting mutations by setup/key
+- [x] Give each database one owner. Serialize conflicting mutations by setup/key
   as needed; do not open independent mutable caches in both isolates. A future
   worker-owned database adapter is a separate option, not required for v1.
-- [ ] Forward prepareSignaturesOperation as ONE storage operation covering its
+- [x] Forward prepareSignaturesOperation as ONE storage operation covering its
   prepared record and nonce replacements. Reply only after the host transaction
   is durably committed. The worker must wait before sending the network request.
-- [ ] A timeout, worker exit or lost storage reply leaves the outcome uncertain.
+- [x] A timeout, worker exit or lost storage reply leaves the outcome uncertain.
   Reconcile durable prepared state; never blindly retry signing or discard a
   prepared record because the command caller disappeared.
-- [ ] Scope key requests to the setup, participant, KeyPurpose and current worker
+- [x] Scope key requests to the setup, participant, KeyPurpose and current worker
   generation. UI authorization must bind the exact DKG/signing proposal; key
   retrieval alone is not user consent to an arbitrary proposal.
-- [ ] Return secret bytes only over the explicit internal custody/storage
+- [x] Return secret bytes only over the explicit internal custody/storage
   channel when necessary. Do not include them in public events, logs or error
   text. Minimize copies and references; do not promise reliable zeroization of
   ordinary Dart-managed buffers.
-- [ ] Preserve durable 32-byte coordinator identity storage. Prevent competing
+- [x] Preserve durable 32-byte coordinator identity storage. Prevent competing
   load-or-create operations by stable storage identity, not only object identity
   in an isolate-local Expando.
 - [ ] Test shutdown while storage/key requests are pending, host-provider failure
@@ -121,14 +122,14 @@ objects/callbacks, not a worker transport contract.
 
 ## 4. Define role and lifecycle behavior
 
-- [ ] Let server and local signer have independent lifetimes. Locking the wallet
+- [x] Let server and local signer have independent lifetimes. Locking the wallet
   must stop the signer from using cached shares, while optionally retaining a
   coordinator serving other peers. Reuse separate server-only/client-only nodes
   if that is simpler than changing NoosphereNode's combined close semantics.
-- [ ] Treat lifecycle events as explicit commands from the root isolate. Losing
+- [x] Treat lifecycle events as explicit commands from the root isolate. Losing
   desktop window focus must not stop coordination. Await explicit logout and
   application shutdown; detached remains a best-effort bounded fallback.
-- [ ] Implement idempotent graceful close: stop accepting new work, resolve or
+- [x] Implement idempotent graceful close: stop accepting new work, resolve or
   fail pending commands, close clients and servers, cancel subscriptions and
   ports, then acknowledge worker exit.
 - [ ] Reserve forced isolate termination for a bounded shutdown fallback. A
@@ -136,10 +137,10 @@ objects/callbacks, not a worker transport contract.
   and reject unsafe restarts when the previous owner may still be alive.
 - [ ] On unexpected worker exit, mark operations interrupted. Recreate sessions
   from durable state, but never replay an in-flight mutating DKG/signing RPC.
-- [ ] Do not advertise transparent continuation of unfinished DKG. The current
+- [x] Do not advertise transparent continuation of unfinished DKG. The current
   ClientStorageInterface does not persist its temporary secrets. Reconcile any
   completed key before offering a new ceremony.
-- [ ] Document that server protocol state is currently in memory: restoring the
+- [x] Document that server protocol state is currently in memory: restoring the
   Iroh identity is not restoration of outstanding signing/DKG sessions.
 
 An isolate shares the application process. It does not provide an OS background
@@ -149,13 +150,13 @@ background execution and other unsupported platforms remain separate work.
 
 ## 5. Keep integration small
 
-- [ ] Export the facade and DTOs through lib/noosphere_flutter.dart. Keep worker
+- [x] Export the facade and DTOs through lib/noosphere_flutter.dart. Keep worker
   transport details out of consuming application widgets.
-- [ ] Adapt the example's client-only, server-only and combined modes to exercise
+- [x] Adapt the example's client-only, server-only and combined modes to exercise
   the worker facade; keep its in-memory-storage limitation clearly visible.
-- [ ] Document how an application supplies storage/key providers and binds
+- [x] Document how an application supplies storage/key providers and binds
   reviewed proposals to approval commands. Explain how to lock only the signer.
-- [ ] Preserve the existing direct-node API and tests. Retain dependency pins
+- [x] Preserve the existing direct-node API and tests. Retain dependency pins
   and consuming-app overrides until independently validated replacements exist.
 
 Wallet account derivation conventions, account-index allocation, enrollment
@@ -169,7 +170,7 @@ provides the execution boundary they can use; it does not implement them.
 - [ ] Native initialization when coinlib is already loaded by the root isolate;
   macOS Iroh/Frosty symbol isolation; repeated worker starts without leaked tasks,
   stream-token collisions or stale events.
-- [ ] Real 2-of-2 DKG and signing through the worker facade. Verify signatures,
+- [x] Real 2-of-2 DKG and signing through the worker facade. Verify signatures,
   not just successful command replies. Exercise 2-of-3 quorum as well.
 - [ ] Reconnect replaces sessions/subscriptions and does not replay a mutation.
 - [ ] Locking prevents further local signing while a separately hosted server
