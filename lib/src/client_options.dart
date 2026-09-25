@@ -2,6 +2,13 @@ import 'package:iroh_flutter/iroh_flutter.dart';
 import 'package:noosphere_roast_client/iroh_protocol.dart';
 import 'package:noosphere_roast_server/noosphere_roast_server.dart';
 
+/// Maximum number of RPC streams a Flutter client opens concurrently.
+///
+/// The long-lived session/event stream is separate and does not count toward
+/// this limit. Two RPC slots allow one domain operation and one session or
+/// acknowledgement operation to make progress at the same time.
+const int defaultClientMaxConcurrentStreams = 2;
+
 /// Typed configuration for a reconnecting Noosphere client endpoint.
 final class ClientNodeOptions({
   required final ClientConfig clientConfig,
@@ -16,8 +23,7 @@ final class ClientNodeOptions({
   final Duration authTimeout = IrohClientTransportConfig.defaultAuthTimeout,
   final Duration rpcTimeout = IrohClientTransportConfig.defaultRpcTimeout,
   final int maxEnvelopeLength = defaultMaxEnvelopeLength,
-  final int maxConcurrentStreams =
-      IrohClientTransportConfig.defaultMaxConcurrentStreams,
+  final int maxConcurrentStreams = defaultClientMaxConcurrentStreams,
   final IrohReconnectConfig reconnect = const IrohReconnectConfig(),
 }) {
   IrohClientTransportConfig toTransportConfig() => IrohClientTransportConfig(

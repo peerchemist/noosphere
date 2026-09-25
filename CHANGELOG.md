@@ -9,3 +9,5 @@
   reconnect handling, and independent server/signer lifetimes.
 - Split root Flutter preparation from worker-safe native initialization while
   preserving the direct `NoosphereNode` API.
+- Default Flutter clients to two concurrent RPC streams and embedded servers
+  to four streams per client connection.

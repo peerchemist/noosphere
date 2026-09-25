@@ -129,6 +129,13 @@ The client always requires an independently trusted pinned Iroh ID. Its
 direct/relay hints. Direct API consumers must replace cached `Client` objects
 from `ReconnectingIrohClient.sessions`.
 
+Flutter clients default to two concurrent RPC streams. The long-lived session
+event stream is separate. Embedded servers accept four simultaneous streams per
+client connection by default: one event stream, two RPC streams, and one slot
+of transition headroom. Both limits remain configurable through
+`ClientNodeOptions` and `EmbeddedServerOptions`; the server limit is an
+independent protection against a faulty or hostile client.
+
 `NoosphereLifecycleObserver` and `NoosphereWorkerLifecycleObserver` optionally
 attempt a bounded close on terminal `detached`. They do nothing on `inactive`,
 because a desktop window may merely have lost focus. Explicitly await node or
