@@ -1,6 +1,0 @@
-dependency_overrides:
-  frosty:
-    git:
-      url: https://github.com/peerchemist/frosty.git
-      ref: refactor/native-assets
-      path: frosty

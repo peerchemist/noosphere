@@ -55,8 +55,8 @@ the Docker build context.
 
 ## Native development setup
 
-This branch requires Dart 3.13, Frosty 4.0.0 from the pinned FRB 2.12 commit
-and Coinlib 6.0.1. Install Iroh's signed native library with:
+This branch requires Dart 3.13, the published Frosty 5.0.0 native-assets
+release, and Coinlib 6.0.1. Install Iroh's signed native library with:
 
 ```sh
 dart pub get
@@ -64,8 +64,8 @@ dart run iroh_quic:setup
 ```
 
 Set `IROH_NATIVE_LIBRARY` to the cached `libirohdart_ffi.so` if it is not on the
-platform loader path. Frosty and Coinlib must likewise be able to locate
-`libfrosty_rust` and the standard secp256k1 0.5.0 `libsecp256k1`.
+platform loader path. Frosty and Coinlib provide their native libraries through
+Dart native assets.
 
 ## Embedding the server
 

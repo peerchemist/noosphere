@@ -37,32 +37,14 @@ alive.
 - `noosphere_client >=4.0.0 <5.0.0`.
 - `iroh_flutter 1.0.3`; its `iroh_quic 1.0.3` dependency remains the core API.
 - `coinlib 6.0.1`, which builds secp256k1 through Dart native assets.
-- `frosty` from `peerchemist/frosty` branch `refactor/native-assets`, which
-  builds its Rust library through Dart native assets. The deprecated
+- `frosty 5.0.0`, which builds its Rust library through Dart native assets.
+  The deprecated
   `coinlib_flutter` and the former `frosty_flutter` plugin are not used.
 - `record_use ^1.1.1`; the reachable initialization entry point is marked with
   `@RecordUse` for Dart 3.13's recorded-use/native-link pipeline.
 
 Only Linux and macOS runners are present. Android, iOS, Windows, and web are
 not supported in this release.
-
-## Required application override
-
-Dependency overrides do not propagate from packages. Every consuming
-application must select Frosty's native-assets branch until it is published:
-
-```yaml
-dependency_overrides:
-  frosty:
-    git:
-      url: https://github.com/peerchemist/frosty.git
-      ref: refactor/native-assets
-      path: frosty
-```
-
-This workspace keeps the override once at its root. Local Noosphere packages
-are resolved as workspace members while their version constraints remain
-explicit in each `pubspec.yaml`.
 
 ## Worker facade (recommended for Flutter UI)
 

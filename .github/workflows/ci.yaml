@@ -15,11 +15,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: noosphere
-      - uses: actions/checkout@v4
-        with:
-          repository: peerchemist/frosty
-          ref: dd921490f0cd6696328e89b18de767d87ed680a4
-          path: frosty
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.47.0
@@ -51,19 +46,6 @@ jobs:
         run: |
           flutter analyze
           flutter build linux --release
-      - name: Build core native test libraries
-        run: |
-          cargo build --locked --release --manifest-path frosty/frosty_flutter/rust/Cargo.toml
-          git clone --depth 1 --branch v0.5.0 https://github.com/bitcoin-core/secp256k1.git
-          cmake -S secp256k1 -B secp256k1-build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/secp256k1" \
-            -DSECP256K1_ENABLE_MODULE_RECOVERY=ON \
-            -DSECP256K1_BUILD_TESTS=OFF \
-            -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF \
-            -DSECP256K1_BUILD_BENCHMARK=OFF
-          cmake --build secp256k1-build --parallel
-          cmake --install secp256k1-build
       - name: Verify client core
         working-directory: noosphere/packages/noosphere_client
         run: |
@@ -73,7 +55,6 @@ jobs:
         env:
           IROHDART_CACHE_DIR: ${{ runner.temp }}/iroh-cache
           IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.0.3/x86_64-unknown-linux-gnu/libirohdart_ffi.so
-          LD_LIBRARY_PATH: ${{ github.workspace }}/frosty/frosty_flutter/rust/target/release:${{ runner.temp }}/secp256k1/lib
       - name: Verify server core
         working-directory: noosphere/packages/noosphere_server
         run: |
@@ -82,7 +63,6 @@ jobs:
         env:
           IROHDART_CACHE_DIR: ${{ runner.temp }}/iroh-cache
           IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.0.3/x86_64-unknown-linux-gnu/libirohdart_ffi.so
-          LD_LIBRARY_PATH: ${{ github.workspace }}/frosty/frosty_flutter/rust/target/release:${{ runner.temp }}/secp256k1/lib
       - name: Build server container
         working-directory: noosphere
         run: docker build --tag noosphere-server:test --file packages/noosphere_server/Containerfile .

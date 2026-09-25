@@ -48,8 +48,8 @@ reuse their setup's node. Do not create an isolate per derived wallet.
   worker entry point must not invoke that path indirectly through
   NoosphereNode.start(). Introduce an explicit initialization seam rather than
   inferring that a static initialized flag is shared between isolates.
-- [x] Audit coinlib_flutter.loadCoinlib(), Iroh.init() and
-  frosty_flutter.loadFrosty() for worker use. Initialize each isolate's Dart/FRB
+- [x] Audit coinlib.loadCoinlib(), Iroh.init() and frosty.loadFrosty() for
+  worker use. Initialize each isolate's Dart/FRB
   bindings as required while respecting process-wide native runtime state.
   Verify the case where the consuming app already loaded coinlib on the root.
 - [x] Preserve the macOS library-scoped Iroh framework lookup: Iroh and Frosty
@@ -156,8 +156,8 @@ background execution and other unsupported platforms remain separate work.
   the worker facade; keep its in-memory-storage limitation clearly visible.
 - [x] Document how an application supplies storage/key providers and binds
   reviewed proposals to approval commands. Explain how to lock only the signer.
-- [x] Preserve the existing direct-node API and tests. Retain dependency pins
-  and consuming-app overrides until independently validated replacements exist.
+- [x] Preserve the existing direct-node API and tests. Use validated published
+  dependency pins without consuming-application overrides.
 
 Wallet account derivation conventions, account-index allocation, enrollment
 invitations and application backup UX belong to separate tasks. This plan

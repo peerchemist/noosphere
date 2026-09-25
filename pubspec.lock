@@ -227,12 +227,11 @@ packages:
   frosty:
     dependency: "direct main"
     description:
-      path: frosty
-      ref: "refactor/native-assets"
-      resolved-ref: "2eb3fcc60d4ad1a8ff0200644acf2ef0eb360d94"
-      url: "https://github.com/peerchemist/frosty.git"
-    source: git
-    version: "4.0.0"
+      name: frosty
+      sha256: "648969cf5c500488c8dcdb28d930b93fe4cf3598da9ce2d32018228152dda1ea"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.0.0"
   fuchsia_remote_debug_protocol:
     dependency: transitive
     description: flutter
