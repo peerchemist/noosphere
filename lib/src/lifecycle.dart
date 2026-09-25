@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
-import 'node.dart';
+import 'iroh_node.dart';
 import 'worker.dart';
 
 /// Optional bridge from terminal Flutter lifecycle events to a bounded close.

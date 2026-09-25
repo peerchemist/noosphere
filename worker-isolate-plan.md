@@ -194,6 +194,6 @@ References:
 
 - [Flutter isolates](https://docs.flutter.dev/perf/isolates)
 - [FRB synchronous calls](https://cjycode.com/flutter_rust_bridge/guides/concurrency/sync-dart)
-- Current entry points: lib/src/initialization.dart, lib/src/node.dart,
+- Current entry points: lib/src/initialization.dart, lib/src/iroh_node.dart,
   lib/src/client_options.dart, lib/src/server_options.dart,
   lib/src/server_identity_store.dart and lib/src/lifecycle.dart.

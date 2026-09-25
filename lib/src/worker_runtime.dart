@@ -8,7 +8,7 @@ import 'package:meta/meta.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 
 import 'initialization.dart';
-import 'node.dart';
+import 'iroh_node.dart';
 import 'server_identity_store.dart';
 import 'worker_models.dart';
 import 'worker_protocol.dart';

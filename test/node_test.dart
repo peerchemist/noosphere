@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:noosphere_flutter/src/iroh_node.dart';
 import 'package:noosphere_flutter/src/lifecycle.dart';
-import 'package:noosphere_flutter/src/node.dart';
 import 'package:noosphere_flutter/src/node_testing.dart';
 
 void main() {
