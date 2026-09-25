@@ -1,4 +1,4 @@
-import 'package:noosphere_client/src/api/types/expiry.dart';
+import 'package:noosphere/api/types/expiry.dart';
 
 abstract interface class Expirable {
   Expiry get expiry;

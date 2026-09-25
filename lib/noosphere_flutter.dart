@@ -11,6 +11,8 @@ export 'package:coinlib/coinlib.dart'
         Taproot;
 export 'package:iroh_flutter/iroh_flutter.dart'
     show EndpointAddr, EndpointId, PublicKey, RelayUrl;
+export 'package:noosphere_client/iroh_transport.dart';
+export 'package:noosphere_client/noosphere_client.dart';
 export 'package:noosphere_server/noosphere_server.dart';
 
 export 'src/client_options.dart';

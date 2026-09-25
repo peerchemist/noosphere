@@ -1,10 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_client/src/api/types/dkg_ack.dart';
-import 'package:noosphere_client/src/api/types/signed.dart';
-import 'package:noosphere_client/src/api/types/signed_dkg_ack.dart';
-import 'package:noosphere_client/src/common/serial.dart';
+import 'package:noosphere/api/types/dkg_ack.dart';
+import 'package:noosphere/api/types/signed.dart';
+import 'package:noosphere/api/types/signed_dkg_ack.dart';
+import 'package:noosphere/common/serial.dart';
 import 'package:frosty/frosty.dart';
 
 import 'key_construction.dart';

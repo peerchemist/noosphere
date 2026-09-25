@@ -1,6 +1,6 @@
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_client/common.dart';
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/common.dart';
+import 'package:noosphere/domain.dart';
 
 import 'client_session.dart';
 import 'dkg.dart';

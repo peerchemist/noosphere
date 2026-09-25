@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 
 final ids = List.generate(10, (i) => Identifier.fromUint16(i + 1));

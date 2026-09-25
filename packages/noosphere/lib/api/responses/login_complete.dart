@@ -1,14 +1,14 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_client/src/api/types/signatures_request_details.dart';
-import 'package:noosphere_client/src/api/types/signed.dart';
-import 'package:noosphere_client/src/common/serial.dart';
+import 'package:noosphere/api/types/signatures_request_details.dart';
+import 'package:noosphere/api/types/signed.dart';
+import 'package:noosphere/common/serial.dart';
 import 'package:frosty/frosty.dart';
-import 'package:noosphere_client/src/api/events.dart';
-import 'package:noosphere_client/src/api/types/expirable.dart';
-import 'package:noosphere_client/src/api/types/expiry.dart';
-import 'package:noosphere_client/src/api/types/onetime_numbers.dart';
+import 'package:noosphere/api/events.dart';
+import 'package:noosphere/api/types/expirable.dart';
+import 'package:noosphere/api/types/expiry.dart';
+import 'package:noosphere/api/types/onetime_numbers.dart';
 
 /// Provides details of completed signatures upon login
 class CompletedSignaturesRequest with cl.Writable {

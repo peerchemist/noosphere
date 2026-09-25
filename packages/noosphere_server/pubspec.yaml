@@ -13,11 +13,11 @@ dependencies:
   coinlib: 6.0.1
   frosty: '>=4.0.0 <5.0.0'
   noosphere: ^0.1.0
-  noosphere_client: ^4.0.0
   collection: ^1.17.1
   iroh_quic: 1.0.3
   args: ^2.6.0
 
 dev_dependencies:
   lints: ^6.0.0
+  noosphere_client: ^4.0.0
   test: ^1.24.0

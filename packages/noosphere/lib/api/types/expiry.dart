@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_client/common.dart';
+import 'package:noosphere/common.dart';
 
 class Expiry with cl.Writable {
   final DateTime time;

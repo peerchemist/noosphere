@@ -87,9 +87,11 @@ mode-0600 identity management for CLI and container deployments.
 
 ## Protocol and migration
 
-The protocol schema, generated message classes and framing live in the sibling
-`noosphere` package. The 3.0.0 server and 4.0.0 client remove gRPC completely.
-Migrate by replacing
+The shared domain types, protocol schema, generated message classes and framing
+live in the sibling `noosphere` package. The server has no production
+dependency on `noosphere_client`; that package is used only by end-to-end tests
+and examples. The 3.0.0 server and 4.0.0 client remove gRPC completely. Migrate
+by replacing
 `GrpcClientApi`/`GrpcConfig` with `IrohClientApi`/`IrohConfig`, pinning the
 server endpoint ID and persisting the server identity key. Existing serialized
 domain messages retain their protobuf field numbers; the transport and session

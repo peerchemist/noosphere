@@ -1,3 +1,9 @@
+## Unreleased
+
+- Remove the production dependency on `noosphere_client`; shared protocol and
+  domain types now come directly from `noosphere`. Client-based end-to-end
+  tests retain a dev-only dependency.
+
 ## 3.0.0
 
 - Breaking: replace the gRPC server transport and CLI with Iroh QUIC.
@@ -8,7 +14,7 @@
 - Add an AOT container build with pinned Iroh, Frosty and secp256k1 native
   libraries and a persistent identity volume.
 - Remove gRPC code, configuration, dependencies and tests.
-- Require Dart 3.13, Frosty 4.0.0 and noosphere_client 4.0.0.
+- Require Dart 3.13 and Frosty 4.0.0.
 
 ## 2.0.0
 

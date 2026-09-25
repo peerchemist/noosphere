@@ -1,8 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_client/common.dart';
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/common.dart';
+import 'package:noosphere/config.dart';
+import 'package:noosphere/domain.dart';
 
 class ServerConfig with cl.Writable, MapWritable {
   static const defaultChallengeTTL = Duration(seconds: 20);

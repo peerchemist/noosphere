@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:noosphere/noosphere.dart' as protocol;
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/domain.dart';
 
-const int noosphereIrohWireVersion = 1;
+export 'package:noosphere/iroh.dart' show noosphereIrohWireVersion;
 
 extension SessionStartedDomainValues on protocol.SessionStarted {
   SessionID get domainSessionId =>

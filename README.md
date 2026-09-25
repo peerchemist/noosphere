@@ -6,10 +6,14 @@ coordinator implementations, and the Flutter facade used by end-user apps.
 
 | Package | Responsibility |
 | --- | --- |
-| `noosphere` | Transport-independent protobuf messages and framing |
+| `noosphere` | Shared ROAST domain model, configuration, protobuf messages and framing |
 | `noosphere_client` | Participant state, persistence and Iroh client transport |
 | `noosphere_server` | Coordinator state, Iroh server and standalone CLI |
 | `noosphere_flutter` | Flutter lifecycle and isolate facade for both roles |
+
+Both `noosphere_client` and `noosphere_server` depend on `noosphere` directly.
+The server has no production dependency on the client; it references the client
+only from integration tests and examples through a dev dependency.
 
 The root package is `noosphere_flutter`; the repository directory can be
 renamed without changing workspace resolution.

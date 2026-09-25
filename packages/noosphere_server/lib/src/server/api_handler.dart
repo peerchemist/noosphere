@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/domain.dart';
 import 'package:noosphere_server/src/config/server.dart';
 import 'package:noosphere_server/src/server/state/key_sharing.dart';
 
@@ -20,7 +20,7 @@ import 'state/state.dart';
 ///
 /// The methods should be called sequentially without concurrency.
 class ServerApiHandler implements ApiRequestInterface {
-  static const currentProtocolVersion = 2;
+  static const currentProtocolVersion = noosphereRoastProtocolVersion;
 
   final ServerConfig config;
   final ServerState state;

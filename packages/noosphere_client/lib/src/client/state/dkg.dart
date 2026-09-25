@@ -1,6 +1,6 @@
-import 'package:noosphere_client/src/api/types/expirable.dart';
-import 'package:noosphere_client/src/api/types/expiry.dart';
-import 'package:noosphere_client/src/api/types/new_dkg_details.dart';
+import 'package:noosphere/api/types/expirable.dart';
+import 'package:noosphere/api/types/expiry.dart';
+import 'package:noosphere/api/types/new_dkg_details.dart';
 import 'package:noosphere_client/src/client/dkg_in_progress.dart';
 import 'package:frosty/frosty.dart';
 

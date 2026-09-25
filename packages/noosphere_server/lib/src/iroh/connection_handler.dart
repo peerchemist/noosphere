@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere/noosphere.dart' hide DkgAckRequest;
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/domain.dart';
 
 import '../config/iroh.dart';
 import 'connection_context.dart';

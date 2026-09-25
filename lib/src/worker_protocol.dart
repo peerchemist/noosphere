@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:iroh_flutter/iroh_flutter.dart';
+import 'package:noosphere_client/iroh_transport.dart';
+import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 
 import 'client_options.dart';

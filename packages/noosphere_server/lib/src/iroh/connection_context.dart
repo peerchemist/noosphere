@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/domain.dart';
 
 enum IrohConnectionPhase {
   connected,

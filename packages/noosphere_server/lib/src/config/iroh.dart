@@ -1,8 +1,18 @@
+import 'package:iroh_quic/iroh_quic.dart';
+import 'package:noosphere/config.dart';
+import 'package:noosphere/iroh.dart';
 import 'package:noosphere/noosphere.dart';
-import 'package:noosphere_client/iroh_transport.dart';
-import 'package:noosphere_client/noosphere_client.dart';
 
 import 'server.dart';
+
+extension IrohServerRelayMode on IrohRelayConfig {
+  RelayMode toRelayMode() => switch (policy) {
+    IrohRelayPolicy.defaultNetwork => RelayMode.n0Default,
+    IrohRelayPolicy.disabled => RelayMode.disabled,
+    IrohRelayPolicy.staging => RelayMode.staging,
+    IrohRelayPolicy.custom => RelayMode.custom(RelayMap.fromUrls(urls)),
+  };
+}
 
 final class IrohConfig with MapWritable {
   static const defaultAuthTimeout = Duration(seconds: 10);

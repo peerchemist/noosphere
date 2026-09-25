@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:collection/collection.dart';
-import 'package:noosphere_client/src/common/serial.dart';
+import 'package:noosphere/common/serial.dart';
 
 import 'signatures_request_details.dart';
 import 'single_signature_details.dart';

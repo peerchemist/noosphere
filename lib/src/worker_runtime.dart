@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
 import 'package:meta/meta.dart';
-import 'package:noosphere_server/noosphere_server.dart';
+import 'package:noosphere_client/noosphere_client.dart';
 
 import 'initialization.dart';
 import 'iroh_node.dart';

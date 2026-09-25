@@ -1,5 +1,5 @@
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_server/noosphere_server.dart';
+import 'package:noosphere_client/noosphere_client.dart';
 
 import 'data.dart';
 

@@ -1,3 +1,8 @@
+## Unreleased
+
+- Move shared ROAST domain types, group configuration and utilities into the
+  `noosphere` package while preserving the client package's public exports.
+
 ## 4.0.0
 
 - Breaking: replace the gRPC transport with authenticated Iroh QUIC.

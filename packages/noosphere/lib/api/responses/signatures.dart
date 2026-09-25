@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_client/src/api/types/signature_round_start.dart';
-import 'package:noosphere_client/src/common/serial.dart';
+import 'package:noosphere/api/types/signature_round_start.dart';
+import 'package:noosphere/common/serial.dart';
 import 'package:frosty/frosty.dart';
 
 sealed class SignaturesResponse with cl.Writable {}

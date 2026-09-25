@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:frosty/frosty.dart';
-import 'package:noosphere_client/src/api/types/key_was_constructed.dart';
+import 'package:noosphere/api/types/key_was_constructed.dart';
 
 import 'events.dart';
 import 'responses/login_complete.dart';

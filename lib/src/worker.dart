@@ -4,7 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
-import 'package:noosphere_server/noosphere_server.dart';
+import 'package:noosphere_client/noosphere_client.dart';
 
 import 'client_options.dart';
 import 'initialization.dart';

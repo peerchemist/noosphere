@@ -1,12 +1,12 @@
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_client/src/api/types/dkg_ack_request.dart';
-import 'package:noosphere_client/src/api/types/expirable.dart';
-import 'package:noosphere_client/src/api/types/expiry.dart';
-import 'package:noosphere_client/src/api/types/signatures_request_details.dart';
-import 'package:noosphere_client/src/api/types/signed_dkg_ack.dart';
+import 'package:noosphere/api/types/dkg_ack_request.dart';
+import 'package:noosphere/api/types/expirable.dart';
+import 'package:noosphere/api/types/expiry.dart';
+import 'package:noosphere/api/types/signatures_request_details.dart';
+import 'package:noosphere/api/types/signed_dkg_ack.dart';
+import 'package:noosphere/common/expirable_map.dart';
 import 'package:noosphere_client/src/client/frost_key_with_details.dart';
 import 'package:noosphere_client/src/client/storage_interface.dart';
-import 'package:noosphere_client/src/common/expirable_map.dart';
 import 'package:frosty/frosty.dart';
 
 class ClientCachedStorage {

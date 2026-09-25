@@ -1,5 +1,5 @@
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/domain.dart';
 
 /// The ROAST round state for a single signature
 class SignatureRoundState {

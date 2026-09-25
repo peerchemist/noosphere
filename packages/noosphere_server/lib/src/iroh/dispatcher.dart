@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere/noosphere.dart';
+import 'package:noosphere/domain.dart';
 
 import '../server/api_handler.dart';
 import 'connection_context.dart';

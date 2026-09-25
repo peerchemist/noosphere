@@ -1,5 +1,5 @@
-import 'package:noosphere_client/noosphere_client.dart';
-import 'package:noosphere_client/src/common/expirable_map.dart';
+import 'package:noosphere/common.dart';
+import 'package:noosphere/domain.dart';
 import 'package:test/test.dart';
 
 class TestExpirable implements Expirable {

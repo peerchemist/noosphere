@@ -1,4 +1,4 @@
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/domain.dart';
 
 class KeyShareFromSender {
   final EncryptedKeyShare share;

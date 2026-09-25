@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/domain.dart';
 
 import 'ring_buffer.dart';
 

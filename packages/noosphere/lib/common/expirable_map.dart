@@ -1,6 +1,6 @@
 import 'dart:collection';
 
-import 'package:noosphere_client/src/api/types/expirable.dart';
+import 'package:noosphere/api/types/expirable.dart';
 
 /// Maps [K] to the [Expirable] [V] objects. These objects are removed when
 /// expired. [K] should have [Object.operator==] and [Object.hashCode]

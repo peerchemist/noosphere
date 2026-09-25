@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:collection/collection.dart';
-import 'package:noosphere_client/src/api/types/expirable.dart';
-import 'package:noosphere_client/src/api/types/signatures_request_details.dart';
+import 'package:noosphere/api/types/expirable.dart';
+import 'package:noosphere/api/types/signatures_request_details.dart';
 import 'package:noosphere_client/src/client/storage_interface.dart';
 import 'package:frosty/frosty.dart';
 

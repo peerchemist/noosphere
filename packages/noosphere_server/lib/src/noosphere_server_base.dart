@@ -1,5 +1,7 @@
-export "package:noosphere_client/noosphere_client.dart";
-export "package:noosphere_client/iroh_transport.dart";
+export 'package:noosphere/common.dart';
+export 'package:noosphere/config.dart';
+export 'package:noosphere/domain.dart';
+export 'package:noosphere/iroh.dart';
 
 export "config/iroh.dart";
 export "config/server.dart";

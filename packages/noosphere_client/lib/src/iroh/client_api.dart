@@ -5,31 +5,28 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:frosty/frosty.dart';
 import 'package:iroh_quic/iroh_quic.dart';
-
-import '../api/events.dart';
-import '../api/request_interface.dart';
-import '../api/responses/expirable_auth_challenge.dart';
-import '../api/responses/login_complete.dart';
-import '../api/responses/signatures.dart';
-import '../api/types/dkg_ack_request.dart';
-import '../api/types/dkg_encrypted_secret.dart';
-import '../api/types/encrypted_key_share.dart';
-import '../api/types/expiry.dart';
-import '../api/types/key_was_constructed.dart';
-import '../api/types/new_dkg_details.dart';
-import '../api/types/onetime_numbers.dart';
-import '../api/types/signature_reply.dart';
-import '../api/types/signatures_request_details.dart';
-import '../api/types/signed.dart';
-import '../api/types/signed_dkg_ack.dart';
-
 import 'package:noosphere/noosphere.dart' as protocol;
 import 'package:noosphere/noosphere.dart' show decodeEnvelopes, encodeEnvelope;
+import 'package:noosphere/api/events.dart';
+import 'package:noosphere/api/request_interface.dart';
+import 'package:noosphere/api/responses/expirable_auth_challenge.dart';
+import 'package:noosphere/api/responses/login_complete.dart';
+import 'package:noosphere/api/responses/signatures.dart';
+import 'package:noosphere/api/types/dkg_ack_request.dart';
+import 'package:noosphere/api/types/dkg_encrypted_secret.dart';
+import 'package:noosphere/api/types/encrypted_key_share.dart';
+import 'package:noosphere/api/types/expiry.dart';
+import 'package:noosphere/api/types/key_was_constructed.dart';
+import 'package:noosphere/api/types/new_dkg_details.dart';
+import 'package:noosphere/api/types/onetime_numbers.dart';
+import 'package:noosphere/api/types/signature_reply.dart';
+import 'package:noosphere/api/types/signatures_request_details.dart';
+import 'package:noosphere/api/types/signed.dart';
+import 'package:noosphere/api/types/signed_dkg_ack.dart';
+import 'package:noosphere/domain.dart' show noosphereRoastProtocolVersion;
 
 import 'config.dart';
 import 'endpoint.dart';
-
-const int _wireVersion = 1;
 
 final class IrohProtocolException implements Exception {
   const IrohProtocolException(this.message, {this.error});
@@ -94,7 +91,7 @@ final class IrohClientApi implements ApiRequestInterface {
   Future<ExpirableAuthChallengeResponse> login({
     required Uint8List groupFingerprint,
     required Identifier participantId,
-    int protocolVersion = 2,
+    int protocolVersion = noosphereRoastProtocolVersion,
   }) async {
     final response = await _rpc(
       protocol.RpcRequest(
@@ -137,7 +134,7 @@ final class IrohClientApi implements ApiRequestInterface {
     await _write(
       send,
       protocol.Envelope(
-        wireVersion: _wireVersion,
+        wireVersion: noosphereIrohWireVersion,
         startSession: protocol.StartSession(),
       ),
     );
@@ -163,7 +160,10 @@ final class IrohClientApi implements ApiRequestInterface {
     unawaited(_pumpEvents(iterator, events));
     await _write(
       send,
-      protocol.Envelope(wireVersion: _wireVersion, ready: protocol.Ready()),
+      protocol.Envelope(
+        wireVersion: noosphereIrohWireVersion,
+        ready: protocol.Ready(),
+      ),
     );
     return LoginCompleteResponse.fromBytes(
       Uint8List.fromList(envelope.sessionStarted.snapshot),
@@ -180,7 +180,7 @@ final class IrohClientApi implements ApiRequestInterface {
         await _write(
           send,
           protocol.Envelope(
-            wireVersion: _wireVersion,
+            wireVersion: noosphereIrohWireVersion,
             logout: protocol.Logout(),
           ),
         );
@@ -209,7 +209,10 @@ final class IrohClientApi implements ApiRequestInterface {
       try {
         await _write(
           send,
-          protocol.Envelope(wireVersion: _wireVersion, rpcRequest: request),
+          protocol.Envelope(
+            wireVersion: noosphereIrohWireVersion,
+            rpcRequest: request,
+          ),
         );
         await send.finish();
         final response = await decodeEnvelopes(
@@ -279,7 +282,7 @@ final class IrohClientApi implements ApiRequestInterface {
       );
 
   void _validateEnvelope(protocol.Envelope envelope) {
-    if (envelope.wireVersion != _wireVersion) {
+    if (envelope.wireVersion != noosphereIrohWireVersion) {
       throw IrohProtocolException(
         'unsupported wire version ${envelope.wireVersion}',
       );

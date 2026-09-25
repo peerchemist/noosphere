@@ -61,8 +61,9 @@ production. `InMemoryClientStorage` is intended for tests and examples only.
 
 ## Protocol
 
-Canonical messages and framing live in the sibling `noosphere` workspace
-package. This package implements the participant role and its Iroh transport.
+Canonical domain types, group configuration, messages and framing live in the
+sibling `noosphere` workspace package. This package implements the participant
+role and its Iroh transport.
 
 See `example/example.dart` for a minimal command-line login and DKG example.
 `example/reconnecting_client.dart` demonstrates the recommended application

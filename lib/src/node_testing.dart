@@ -1,3 +1,4 @@
+import 'package:noosphere_client/iroh_transport.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 
 /// Internal seam used by lifecycle unit tests. This library is not exported by

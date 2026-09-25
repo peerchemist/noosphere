@@ -2,9 +2,9 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:frosty/frosty.dart';
-import 'package:noosphere_client/src/api/types/key_was_constructed.dart';
-import 'package:noosphere_client/src/common/errors.dart';
-import 'package:noosphere_client/src/common/serial.dart';
+import 'package:noosphere/api/types/key_was_constructed.dart';
+import 'package:noosphere/common/errors.dart';
+import 'package:noosphere/common/serial.dart';
 
 import 'request_interface.dart';
 import 'types/dkg_ack_request.dart';
