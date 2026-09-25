@@ -1290,6 +1290,33 @@ void main() {
         },
       );
 
+      test(
+        'does not replay a signature request lost before the server',
+        () async {
+          final api = LostBeforeSignaturesRequestApi();
+          final store = InMemoryClientStorage();
+          for (final key in stores.first.keys.values) {
+            await store.addOrReplaceFrostKey(key);
+          }
+          final tc = await TestClient.login(api, 0, storage: store);
+          clientsToLogout.add(tc);
+
+          await expectLater(
+            tc.client.requestSignatures(reqDetails),
+            throwsStateError,
+          );
+          expect(api.requestCalls, 1);
+          expect(api.state.sigRequests.containsKey(reqDetails.id), isFalse);
+          expect(store.preparedSigOperations, contains(reqDetails.id));
+
+          await expectLater(
+            tc.client.requestSignatures(reqDetails),
+            throwsArgumentError,
+          );
+          expect(api.requestCalls, 1);
+        },
+      );
+
       test("rejects after a signature reply has an unknown outcome", () async {
         InMemoryClientStorage copyStore(InMemoryClientStorage source) {
           final copy = InMemoryClientStorage();

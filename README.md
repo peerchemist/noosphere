@@ -35,7 +35,8 @@ alive.
 - macOS 12.0 or newer.
 - `noosphere_server >=3.0.0 <4.0.0`.
 - `noosphere_client >=4.0.0 <5.0.0`.
-- `iroh_flutter 1.0.3`; its `iroh_quic 1.0.3` dependency remains the core API.
+- `iroh_flutter 1.0.3`; the workspace includes a patched `iroh_quic 1.0.3`
+  Dart binding with separate stream-token namespaces for worker isolates.
 - `coinlib 6.0.1`, which builds secp256k1 through Dart native assets.
 - `frosty 5.0.0`, which builds its Rust library through Dart native assets.
   The deprecated
@@ -74,6 +75,9 @@ final snapshot = await worker.startSetup(
 
 await worker.requestDkg('primary-wallet', proposal);
 
+// Refresh direct/relay hints after a coordinator moves. Its pinned ID stays fixed.
+await worker.updateSignerAddress('primary-wallet', refreshedAddress);
+
 // Consent is bound to the exact public proposal received from the worker.
 await worker.acceptDkg('primary-wallet', reviewedDkg);
 await worker.acceptSignatures('primary-wallet', reviewedSigningRequest);
@@ -98,9 +102,24 @@ generation IDs; stale replies are ignored, payload size and outstanding-command
 counts are bounded, and pending commands fail if the isolate exits. A
 replacement reconnecting session emits `WorkerSessionReplacedEvent` followed
 by a fresh `WorkerSnapshotEvent`; mutating RPCs are never replayed.
+`updateSignerAddress` accepts only an address with the existing pinned
+coordinator ID.
 Graceful close is idempotent. Forced or unexpected native-worker termination
 marks in-process restart unsafe; restart the application rather than assuming
 native sockets/tasks were released.
+
+Rust tracks Iroh stream cancellation tokens process-wide while Dart statics
+restart in each isolate. The workspace patch assigns each worker generation a
+different token namespace in the upper half of the token space. Ordinary
+direct-node isolates use random namespaces in the lower half. Two independently
+created direct-node isolates can still choose the same namespace; a native
+upstream token allocator would remove that residual chance.
+
+Dependency overrides from a package do not propagate to consuming apps. Apps
+using this worker outside this workspace must select the patched
+`vendor/iroh_quic` package themselves until an upstream release contains the
+token fix. The workspace includes that package directly, so its example and
+CI resolve it without an additional override.
 
 Subscribe to `events` before starting setups. A session snapshot is ordered
 before later events from that session. The stream is a broadcast controller
@@ -228,14 +247,22 @@ flutter test test
 flutter test integration_test/native_transport_test.dart -d linux
 flutter test integration_test/roast_2_of_2_test.dart -d linux
 flutter test integration_test/worker_roast_test.dart -d linux
+flutter test integration_test/worker_lifecycle_test.dart -d linux
+flutter test integration_test/worker_pending_key_test.dart -d linux
+flutter test integration_test/worker_unexpected_exit_test.dart -d linux
+flutter test integration_test/worker_forced_shutdown_test.dart -d linux
 
 cd example
 flutter analyze
 flutter build linux --release
 ```
 
-Run the equivalent integration test and `flutter build macos --release` on a
-macOS runner. The integration test uses real Iroh QUIC transport to verify
-authentication, initial snapshot delivery, live events, identity-preserving
-restart, reconnect session replacement, non-replay of a disconnected mutation,
-and clean shutdown.
+Run the equivalent integration tests and `flutter build macos --release` on a
+macOS runner. The direct transport test covers authentication, snapshots and
+events. Worker tests cover verified threshold signatures, signer lock,
+independent setups, session replacement, identity restart, unexpected native
+exit and bounded forced shutdown. The ROAST test prints command latency and
+frame timing samples for a four-input signing batch. A zero frame count means a
+separate UI profile run is needed. Run the unexpected-exit and forced-shutdown
+tests in fresh processes; they deliberately make further native worker starts
+unsafe in those processes.

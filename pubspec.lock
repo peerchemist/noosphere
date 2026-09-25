@@ -298,14 +298,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.3"
-  iroh_quic:
-    dependency: transitive
-    description:
-      name: iroh_quic
-      sha256: e262a88f4f02a287197d691851b6e0418fd168280a59f581cbe41d8c6b29aa13
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.3"
   json_annotation:
     dependency: transitive
     description:

@@ -1,5 +1,8 @@
-import 'dart:typed_data';
+import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
@@ -7,7 +10,8 @@ import 'package:noosphere_flutter/noosphere_flutter.dart';
 import 'test_support.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized().framePolicy =
+      LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
   for (final scenario in [
     (participants: 2, threshold: 2),
@@ -15,10 +19,17 @@ void main() {
   ]) {
     testWidgets(
       'worker completes and verifies ${scenario.threshold}-of-${scenario.participants} ROAST',
-      (_) => _runScenario(
-        participants: scenario.participants,
-        threshold: scenario.threshold,
-      ),
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: CircularProgressIndicator())),
+          ),
+        );
+        await _runScenario(
+          participants: scenario.participants,
+          threshold: scenario.threshold,
+        );
+      },
       timeout: const Timeout(Duration(minutes: 5)),
     );
   }
@@ -45,11 +56,30 @@ Future<void> _runScenario({
         ids[i]: ECCompressedPublicKey.fromPubkey(privateKeys[i].pubkey),
     },
   );
-  final stores = [
-    for (var i = 0; i < participants; i++) InMemoryClientStorage(),
-  ];
+  final stores = [for (var i = 0; i < participants; i++) _FaultingStorage()];
   final worker = await NoosphereWorker.start();
   final events = worker.events;
+  final commandTimes = <String, int>{};
+  final frameTimesMicros = <int>[];
+  void recordFrames(List<FrameTiming> timings) {
+    frameTimesMicros.addAll([
+      for (final timing in timings) timing.totalSpan.inMicroseconds,
+    ]);
+  }
+
+  SchedulerBinding.instance.addTimingsCallback(recordFrames);
+  final frameTicker = Timer.periodic(const Duration(milliseconds: 16), (_) {
+    SchedulerBinding.instance.scheduleFrame();
+  });
+
+  Future<T> timed<T>(String name, Future<T> Function() command) async {
+    final watch = Stopwatch()..start();
+    try {
+      return await command();
+    } finally {
+      commandTimes[name] = watch.elapsedMilliseconds;
+    }
+  }
 
   try {
     final reachableSnapshot = events
@@ -58,11 +88,11 @@ Future<void> _runScenario({
         .map((event) => event.snapshot)
         .firstWhere(
           (snapshot) =>
-              snapshot.setupId == 'server' &&
+              snapshot.setupId == 'signer-0' &&
               snapshot.coordinator?.ipAddrs.isNotEmpty == true,
         );
     var serverSnapshot = await worker.startSetup(
-      setupId: 'server',
+      setupId: 'signer-0',
       identityStorageId: 'worker-native-$threshold-of-$participants',
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
@@ -75,12 +105,12 @@ Future<void> _runScenario({
         const Duration(seconds: 15),
       );
     }
-    final identityBackup = await worker.exportIrohServerIdentity('server');
+    final identityBackup = await worker.exportIrohServerIdentity('signer-0');
     expect(identityBackup, hasLength(32));
     final originalLastByte = identityBackup.last;
     identityBackup.last ^= 0xff;
     expect(
-      (await worker.exportIrohServerIdentity('server')).last,
+      (await worker.exportIrohServerIdentity('signer-0')).last,
       originalLastByte,
     );
     final coordinator = serverSnapshot.coordinator!;
@@ -99,10 +129,12 @@ Future<void> _runScenario({
           storage: stores[i],
         ),
       );
-      await expectLater(
-        worker.exportIrohServerIdentity('signer-$i'),
-        throwsA(isA<StateError>()),
-      );
+      if (i != 0) {
+        await expectLater(
+          worker.exportIrohServerIdentity('signer-$i'),
+          throwsA(isA<StateError>()),
+        );
+      }
     }
 
     final dkgName = 'worker-$threshold-of-$participants';
@@ -116,13 +148,16 @@ Future<void> _runScenario({
                   event.setupId == 'signer-$i' && event.status.name == dkgName,
             ),
     ];
-    await worker.requestDkg(
-      'signer-0',
-      NewDkgDetails(
-        name: dkgName,
-        description: 'Native worker integration test',
-        threshold: threshold,
-        expiry: Expiry(const Duration(hours: 1)),
+    await timed(
+      'requestDkg',
+      () => worker.requestDkg(
+        'signer-0',
+        NewDkgDetails(
+          name: dkgName,
+          description: 'Native worker integration test',
+          threshold: threshold,
+          expiry: Expiry(const Duration(hours: 1)),
+        ),
       ),
     );
     final proposals = await Future.wait(pendingDkgs)
@@ -132,18 +167,25 @@ Future<void> _runScenario({
         store.waitForKeyWithName(dkgName, participants),
     ]);
     for (var i = 1; i < participants; i++) {
-      await worker.acceptDkg('signer-$i', proposals[i - 1].status);
+      await timed(
+        'acceptDkg-$i',
+        () => worker.acceptDkg('signer-$i', proposals[i - 1].status),
+      );
     }
     final frostKeys = await completedKeys.timeout(const Duration(minutes: 2));
 
-    final message = Uint8List(32)..last = 40 + participants;
+    final messages = [
+      for (var input = 0; input < 4; input++)
+        Uint8List(32)..last = 40 + participants + input,
+    ];
     final details = SignaturesRequestDetails(
       requiredSigs: [
-        SingleSignatureDetails(
-          signDetails: SignDetails.keySpend(message: message),
-          groupKey: frostKeys.first.groupKey,
-          hdDerivation: const [],
-        ),
+        for (final message in messages)
+          SingleSignatureDetails(
+            signDetails: SignDetails.keySpend(message: message),
+            groupKey: frostKeys.first.groupKey,
+            hdDerivation: const [],
+          ),
       ],
       expiry: Expiry(const Duration(minutes: 3)),
     );
@@ -158,23 +200,115 @@ Future<void> _runScenario({
             .cast<WorkerSigningResultEvent>()
             .firstWhere((event) => event.setupId == 'signer-$i'),
     ];
-    await worker.requestSignatures('signer-0', details);
+    await timed(
+      'requestSignatures',
+      () => worker.requestSignatures('signer-0', details),
+    );
     final request = await secondRequest.timeout(const Duration(seconds: 15));
-    await worker.acceptSignatures('signer-1', request.request);
+    final accepting = timed(
+      'acceptSignatures',
+      () => worker.acceptSignatures('signer-1', request.request),
+    );
+    await timed(
+      'otherSetupSnapshotDuringSigning',
+      () => worker.snapshot('signer-${participants - 1}'),
+    );
+    await accepting;
     final results = await Future.wait(resultFutures)
         .timeout(const Duration(minutes: 2));
 
     for (final result in results) {
-      expect(result.signatures, hasLength(1));
-      expect(
-        SchnorrSignature(result.signatures.single).verify(
-          Taproot(internalKey: frostKeys.first.groupKey).tweakedKey,
-          message,
-        ),
-        isTrue,
-      );
+      expect(result.signatures, hasLength(messages.length));
+      for (var input = 0; input < messages.length; input++) {
+        expect(
+          SchnorrSignature(result.signatures[input]).verify(
+            Taproot(internalKey: frostKeys.first.groupKey).tweakedKey,
+            messages[input],
+          ),
+          isTrue,
+        );
+      }
     }
+    debugPrint('worker $threshold-of-$participants command ms: $commandTimes');
+    if (frameTimesMicros.isNotEmpty) {
+      frameTimesMicros.sort();
+      final p95 = frameTimesMicros[(frameTimesMicros.length * 0.95).floor()];
+      debugPrint(
+        'worker $threshold-of-$participants frame total us: '
+        'count=${frameTimesMicros.length}, p95=$p95, '
+        'max=${frameTimesMicros.last}',
+      );
+    } else {
+      debugPrint('worker $threshold-of-$participants frame total us: count=0');
+    }
+
+    if (participants == 2) {
+      for (final afterWrite in [false, true]) {
+        final faultStore = stores[0];
+        faultStore.failAfterWrite = afterWrite;
+        final faultDetails = SignaturesRequestDetails(
+          requiredSigs: [
+            SingleSignatureDetails(
+              signDetails: SignDetails.keySpend(
+                message: Uint8List(32)..last = afterWrite ? 91 : 90,
+              ),
+              groupKey: frostKeys.first.groupKey,
+              hdDerivation: const [],
+            ),
+          ],
+          expiry: Expiry(const Duration(minutes: 3)),
+        );
+        await expectLater(
+          worker.requestSignatures('signer-0', faultDetails),
+          throwsA(isA<NoosphereWorkerException>()),
+        );
+        expect(
+          faultStore.preparedSigOperations.containsKey(faultDetails.id),
+          afterWrite,
+        );
+        expect(faultStore.sigNonces.containsKey(faultDetails.id), afterWrite);
+        faultStore.failAfterWrite = null;
+        final prepareCalls = faultStore.prepareCalls;
+        await expectLater(
+          worker.requestSignatures('signer-0', faultDetails),
+          throwsA(isA<NoosphereWorkerException>()),
+        );
+        expect(faultStore.prepareCalls, prepareCalls);
+      }
+    }
+
+    await worker.lockSigner('signer-0');
+    final locked = await worker.snapshot('signer-0');
+    expect(locked.signerRunning, isFalse);
+    expect(locked.serverRunning, isTrue);
+    await worker.requestDkg(
+      'signer-1',
+      NewDkgDetails(
+        name: 'after-signer-lock',
+        description: 'Coordinator remains available after local signer lock',
+        threshold: threshold,
+        expiry: Expiry(const Duration(hours: 1)),
+      ),
+    );
   } finally {
+    frameTicker.cancel();
+    SchedulerBinding.instance.removeTimingsCallback(recordFrames);
     await worker.close();
+  }
+}
+
+final class _FaultingStorage extends InMemoryClientStorage {
+  bool? failAfterWrite;
+  int prepareCalls = 0;
+
+  @override
+  Future<void> prepareSignaturesOperation(
+    PreparedSignaturesOperation operation,
+    int capacity,
+  ) async {
+    prepareCalls++;
+    if (failAfterWrite == false) throw StateError('Injected before commit.');
+    await super.prepareSignaturesOperation(operation, capacity);
+    if (failAfterWrite == true) throw StateError('Injected after commit.');
   }
 }

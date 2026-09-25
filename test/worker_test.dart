@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
@@ -17,6 +18,104 @@ void main() {
     await Future.wait([first, second]);
     expect(worker.isClosed, isTrue);
     await expectLater(worker.events, emitsDone);
+  });
+
+  test(
+    'unexpected exit fails an outstanding command and closes events',
+    () async {
+      final worker = await NoosphereWorker.startForTesting();
+      final pending = worker.debugPendingCommandForTesting();
+      final failure = expectLater(
+        pending,
+        throwsA(
+          isA<NoosphereWorkerException>().having(
+            (error) => error.code,
+            'code',
+            anyOf('worker_exited', 'worker_crashed'),
+          ),
+        ),
+      );
+      final done = expectLater(worker.events, emitsDone);
+
+      worker.debugKillForTesting();
+      await failure.timeout(const Duration(seconds: 2));
+      await done.timeout(const Duration(seconds: 2));
+      expect(worker.isClosed, isTrue);
+      await worker.close();
+    },
+  );
+
+  test('close has a bounded fallback with a pending command', () async {
+    final worker = await NoosphereWorker.startForTesting(
+      shutdownTimeout: const Duration(milliseconds: 100),
+    );
+    final pending = worker.debugPendingCommandForTesting();
+    final failure = expectLater(
+      pending,
+      throwsA(isA<NoosphereWorkerException>()),
+    );
+
+    await worker.close().timeout(const Duration(seconds: 2));
+    await failure;
+    expect(worker.isClosed, isTrue);
+    await worker.close();
+  });
+
+  test(
+    'host provider failures are sanitized and cancellation completes',
+    () async {
+      final provider = Completer<Object?>();
+      final called = Completer<void>();
+      final worker = await NoosphereWorker.startForTesting(
+        hostOperation: () {
+          called.complete();
+          return provider.future;
+        },
+      );
+      try {
+        final request = worker.debugHostRequestForTesting();
+        final failure = expectLater(
+          request,
+          throwsA(
+            isA<NoosphereWorkerException>()
+                .having((error) => error.code, 'code', 'host_state')
+                .having(
+                  (error) => error.message,
+                  'message',
+                  isNot(contains('sensitive-provider-detail')),
+                ),
+          ),
+        );
+        await called.future.timeout(const Duration(seconds: 2));
+        provider.completeError(StateError('sensitive-provider-detail'));
+        await failure.timeout(const Duration(seconds: 2));
+      } finally {
+        await worker.close();
+      }
+    },
+  );
+
+  test('pending host request and shutdown complete within the bound', () async {
+    final provider = Completer<Object?>();
+    final called = Completer<void>();
+    final worker = await NoosphereWorker.startForTesting(
+      hostOperation: () {
+        called.complete();
+        return provider.future;
+      },
+      hostOperationTimeout: const Duration(milliseconds: 100),
+      shutdownTimeout: const Duration(milliseconds: 100),
+    );
+    final request = worker.debugHostRequestForTesting();
+    final failure = expectLater(
+      request,
+      throwsA(isA<NoosphereWorkerException>()),
+    );
+    await called.future.timeout(const Duration(seconds: 2));
+    await worker.close().timeout(const Duration(seconds: 2));
+    await failure;
+    provider.complete(null);
+    expect(worker.isClosed, isTrue);
   });
 
   test('facade validates setup roles before sending a command', () async {
@@ -67,6 +166,26 @@ void main() {
       throwsA(isA<StateError>()),
     );
   });
+
+  test(
+    'partial startup failure is sanitized and leaves ports reusable',
+    () async {
+      await expectLater(
+        NoosphereWorker.startForTesting(failStartup: true),
+        throwsA(
+          isA<NoosphereWorkerException>()
+              .having((error) => error.code, 'code', 'invalid_state')
+              .having(
+                (error) => error.message,
+                'message',
+                isNot(contains('private startup detail')),
+              ),
+        ),
+      );
+      final worker = await NoosphereWorker.startForTesting();
+      await worker.close();
+    },
+  );
 
   test('worker lifecycle ignores inactive and closes on detached', () async {
     final worker = await NoosphereWorker.startForTesting();

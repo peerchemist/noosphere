@@ -1,9 +1,20 @@
 # ROAST worker isolate implementation plan
 
 Status: v1 implemented locally on 2026-09-24. Linux unit, native 2-of-2,
-native 2-of-3, analysis and release-build checks pass. Manual macOS execution
-has also been confirmed. Fault injection, crash/restart acceptance, the full
-macOS test/build matrix and performance measurements remain acceptance work.
+native 2-of-3, analysis and release-build checks passed for that revision.
+The current monorepo changes passed the macOS CI-equivalent integration tests,
+analysis, unit tests and example release build locally. Linux verification and
+foreground performance profiling remain acceptance work.
+The 2026-09-25 monorepo branch now includes bounded shutdown handling, worker
+stream-token namespaces, pinned coordinator address refresh, and additional
+acceptance tests for pending commands/providers, unexpected native exit, forced
+shutdown, reconnect, identity restart, independent setups, signer lock and
+four-input signing.
+The Linux matrix is wired into CI but has not run for these changes.
+With fully live test frames, the macOS integration runner collected 20 and 13
+frame timings for the two ROAST scenarios. A foreground profile run and a
+controlled overlapping crypto workload are still needed for a performance
+conclusion.
 Scope: make noosphere_flutter own a long-lived worker for the existing ROAST
 client/server runtime on Linux and macOS.
 
@@ -117,7 +128,7 @@ objects/callbacks, not a worker transport contract.
 - [x] Preserve durable 32-byte coordinator identity storage. Prevent competing
   load-or-create operations by stable storage identity, not only object identity
   in an isolate-local Expando.
-- [ ] Test shutdown while storage/key requests are pending, host-provider failure
+- [x] Test shutdown while storage/key requests are pending, host-provider failure
   and user cancellation without deadlocking either isolate.
 
 ## 4. Define role and lifecycle behavior
@@ -137,6 +148,9 @@ objects/callbacks, not a worker transport contract.
   and reject unsafe restarts when the previous owner may still be alive.
 - [ ] On unexpected worker exit, mark operations interrupted. Recreate sessions
   from durable state, but never replay an in-flight mutating DKG/signing RPC.
+  A macOS native test now verifies interruption events, pending-command failure
+  and refusal of unsafe in-process restart; Linux and process-relaunch recovery
+  remain to be checked.
 - [x] Do not advertise transparent continuation of unfinished DKG. The current
   ClientStorageInterface does not persist its temporary secrets. Reconcile any
   completed key before offering a new ceremony.
@@ -156,8 +170,10 @@ background execution and other unsupported platforms remain separate work.
   the worker facade; keep its in-memory-storage limitation clearly visible.
 - [x] Document how an application supplies storage/key providers and binds
   reviewed proposals to approval commands. Explain how to lock only the signer.
-- [x] Preserve the existing direct-node API and tests. Use validated published
-  dependency pins without consuming-application overrides.
+- [ ] Preserve the existing direct-node API and tests. Use validated published
+  dependency pins without consuming-application overrides. The direct API and
+  tests pass, but external consumers still need the local Iroh token patch
+  until it is released upstream.
 
 Wallet account derivation conventions, account-index allocation, enrollment
 invitations and application backup UX belong to separate tasks. This plan
@@ -172,17 +188,20 @@ provides the execution boundary they can use; it does not implement them.
   stream-token collisions or stale events.
 - [x] Real 2-of-2 DKG and signing through the worker facade. Verify signatures,
   not just successful command replies. Exercise 2-of-3 quorum as well.
-- [ ] Reconnect replaces sessions/subscriptions and does not replay a mutation.
-- [ ] Locking prevents further local signing while a separately hosted server
+- [x] Reconnect replaces sessions/subscriptions and does not replay a mutation.
+- [x] Locking prevents further local signing while a separately hosted server
   continues serving other participants.
-- [ ] Fault injection before/after storage commit and before/after RPC response:
+- [x] Fault injection before/after storage commit and before/after RPC response:
   unknown outcomes remain blocked/reconciled and nonces are never reused.
-- [ ] Worker exit with pending commands/storage requests, partial startup failure
+- [x] Worker exit with pending commands/storage requests, partial startup failure
   and repeated close calls produce bounded completion and sanitized errors.
-- [ ] Multiple setup nodes share one worker; stopping one does not close others.
+- [x] Multiple setup nodes share one worker; stopping one does not close others.
 - [ ] Record UI frame timing and worker command latency during DKG and signing,
   including a multi-input batch. Also measure whether a slow crypto operation
   delays other setup nodes enough to require later scheduling improvements.
+  The debug runner logs frame timings and command latency for four-input signing;
+  its short workload does not establish a foreground frame-rate distribution or
+  prove the other setup snapshot overlaps the slow signing step.
 - [ ] flutter analyze, existing unit tests, native integration tests and Linux/
   macOS release builds pass with the new worker-based example.
 

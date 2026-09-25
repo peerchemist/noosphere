@@ -181,6 +181,23 @@ class LostSignaturesRequestResponseApi extends ServerApiHandler {
   }
 }
 
+class LostBeforeSignaturesRequestApi extends ServerApiHandler {
+  int requestCalls = 0;
+
+  LostBeforeSignaturesRequestApi() : super(config: serverConfig);
+
+  @override
+  Future<void> requestSignatures({
+    required SessionID sid,
+    required Set<AggregateKeyInfo> keys,
+    required Signed<SignaturesRequestDetails> signedDetails,
+    required List<SigningCommitment> commitments,
+  }) async {
+    requestCalls++;
+    throw StateError('signature request was lost before reaching the server');
+  }
+}
+
 class LostSignatureRepliesResponseApi extends ServerApiHandler {
   late InMemoryClientStorage inspectedStore;
   int replyCalls = 0;

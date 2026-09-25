@@ -3,10 +3,12 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as coinlib;
-import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
+import 'package:iroh_flutter/iroh_flutter.dart'
+    show EndpointAddr, configureIrohStreamTokenNamespace;
 import 'package:meta/meta.dart';
 import 'package:noosphere_client/noosphere_client.dart';
 
+import 'client_options.dart';
 import 'initialization.dart';
 import 'iroh_node.dart';
 import 'server_identity_store.dart';
@@ -22,16 +24,24 @@ Future<void> runNoosphereWorker(Map<Object?, Object?> bootstrap) async {
   final maxOutstandingHostRequests =
       bootstrap['maxOutstandingHostRequests']! as int;
   final skipInitialization = bootstrap['skipInitialization'] == true;
+  final testing = bootstrap['testing'] == true;
   final receivePort = ReceivePort('Noosphere worker $generation');
 
   try {
-    if (!skipInitialization) await NoosphereFlutter.initializeNative();
+    if (bootstrap['failStartup'] == true && testing) {
+      throw StateError('Injected private startup detail.');
+    }
+    if (!skipInitialization) {
+      configureIrohStreamTokenNamespace(0x80000000 | generation);
+      await NoosphereFlutter.initializeNative();
+    }
     final runtime = _WorkerRuntime(
       generation: generation,
       hostPort: hostPort,
       receivePort: receivePort,
       maxMessageBytes: maxMessageBytes,
       maxOutstandingHostRequests: maxOutstandingHostRequests,
+      testing: testing,
     );
     hostPort.send({
       'version': workerProtocolVersion,
@@ -59,6 +69,7 @@ final class _WorkerRuntime {
     required this.receivePort,
     required this.maxMessageBytes,
     required int maxOutstandingHostRequests,
+    required this.testing,
   }) : _host = _HostBridge(
          hostPort,
          generation,
@@ -70,7 +81,9 @@ final class _WorkerRuntime {
   final SendPort hostPort;
   final ReceivePort receivePort;
   final int maxMessageBytes;
+  final bool testing;
   final _setups = <String, _SetupRuntime>{};
+  final _activeCommands = <Future<void>>{};
   final _done = Completer<void>();
   final _HostBridge _host;
   bool _closing = false;
@@ -87,7 +100,11 @@ final class _WorkerRuntime {
         _host.complete(message);
         return;
       }
-      unawaited(_handleCommand(message));
+      final command = _handleCommand(message);
+      if (message['type'] == 'command' && message['operation'] != 'close') {
+        _activeCommands.add(command);
+        command.whenComplete(() => _activeCommands.remove(command));
+      }
     });
     await _done.future;
   }
@@ -118,6 +135,10 @@ final class _WorkerRuntime {
           if (!_setup(setupId).hasRoles) _setups.remove(setupId);
         case 'snapshot':
           result = _setup(setupId!).snapshot();
+        case 'updateSignerAddress':
+          result = await _setup(setupId!).updateSignerAddress(
+            decodeEndpointAddress(payload['address']! as Map<Object?, Object?>),
+          );
         case 'requestDkg':
           result = await _setup(
             setupId!,
@@ -152,6 +173,13 @@ final class _WorkerRuntime {
           );
         case 'close':
           result = await _close();
+        case 'testPending':
+          if (!testing) throw StateError('Test command is unavailable.');
+          await Completer<void>().future;
+          result = null;
+        case 'testHost':
+          if (!testing) throw StateError('Test command is unavailable.');
+          result = await _host.request('', 'testHost', const {});
         default:
           throw ArgumentError.value(operation, 'operation', 'unknown command');
       }
@@ -199,6 +227,10 @@ final class _WorkerRuntime {
   Future<Object?> _close() async {
     if (_closing) return null;
     _closing = true;
+    // Commands already accepted may still be waiting on the host. Let them
+    // finish before closing the nodes they use. The host enforces the bounded
+    // fallback when a provider never replies.
+    await Future.wait(_activeCommands.toList());
     Object? firstError;
     for (final setup in _setups.values.toList().reversed) {
       try {
@@ -281,6 +313,7 @@ final class _SetupRuntime {
   NoosphereNode? _serverNode;
   NoosphereNode? _clientNode;
   Client? _client;
+  ClientNodeOptions? _clientOptions;
   String? _participant;
   StreamSubscription<Client>? _sessions;
   StreamSubscription<ClientEvent>? _events;
@@ -328,6 +361,7 @@ final class _SetupRuntime {
         _participant = options.clientConfig.id.toString();
         final node = await NoosphereNode.startInitialized(client: options);
         _clientNode = node;
+        _clientOptions = options;
         await _attachClient(node.client!.current, replacement: false);
         _sessions = node.client!.sessions.listen(
           (client) => unawaited(
@@ -373,6 +407,36 @@ final class _SetupRuntime {
 
   Future<Object?> requestDkg(NewDkgDetails details) =>
       _withClient((client) => client.requestDkg(details));
+
+  Future<Object?> updateSignerAddress(EndpointAddr address) =>
+      _synchronized(() async {
+        final options = _clientOptions;
+        final client = _clientNode?.client;
+        if (options == null || client == null) {
+          throw StateError('Signer is not running.');
+        }
+        if (address.id != options.pinnedServerId) {
+          throw ArgumentError('Coordinator ID does not match the pinned ID.');
+        }
+        final updated = ClientNodeOptions(
+          clientConfig: options.clientConfig,
+          bootstrapAddress: address,
+          pinnedServerId: options.pinnedServerId,
+          storage: options.storage,
+          getPrivateKey: options.getPrivateKey,
+          relay: options.relay,
+          alpn: options.alpn,
+          connectTimeout: options.connectTimeout,
+          authTimeout: options.authTimeout,
+          rpcTimeout: options.rpcTimeout,
+          maxEnvelopeLength: options.maxEnvelopeLength,
+          maxConcurrentStreams: options.maxConcurrentStreams,
+          reconnect: options.reconnect,
+        );
+        client.updateTransportConfig(updated.toTransportConfig());
+        _clientOptions = updated;
+        return null;
+      });
 
   Future<Object?> respondDkg({
     required String name,
@@ -436,6 +500,7 @@ final class _SetupRuntime {
     final node = _clientNode;
     _clientNode = null;
     _client = null;
+    _clientOptions = null;
     _participant = null;
     await _sessions?.cancel();
     await _events?.cancel();
@@ -845,6 +910,7 @@ bool _bytesEqual(Uint8List first, Uint8List second) {
 }
 
 String _errorCode(Object error) => switch (error) {
+  NoosphereWorkerException(:final code) => code,
   ArgumentError() => 'invalid_argument',
   StateError() => 'invalid_state',
   TimeoutException() => 'timeout',
@@ -853,10 +919,8 @@ String _errorCode(Object error) => switch (error) {
 
 String _safeError(Object error) {
   if (error is NoosphereWorkerException) return error.message;
-  if (error is ArgumentError) {
-    return error.message?.toString() ?? 'Invalid argument.';
-  }
-  if (error is StateError) return error.message;
+  if (error is ArgumentError) return 'Invalid argument.';
+  if (error is StateError) return 'Operation could not be completed.';
   if (error is TimeoutException) return 'Operation timed out.';
   return 'Noosphere operation failed (${error.runtimeType}).';
 }

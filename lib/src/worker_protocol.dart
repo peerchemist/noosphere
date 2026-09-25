@@ -58,13 +58,7 @@ Map<String, Object?> encodeClientOptions(ClientNodeOptions options) => {
   'maxDkg': options.clientConfig.maxDkgRequestTTL.inMicroseconds,
   'minSignatures': options.clientConfig.minSignaturesTTL.inMicroseconds,
   'maxSignatures': options.clientConfig.maxSignaturesTTL.inMicroseconds,
-  'address': {
-    'id': options.bootstrapAddress.id.asBytes(),
-    'relayUrls': [
-      for (final relay in options.bootstrapAddress.relayUrls) relay.value,
-    ],
-    'ipAddrs': options.bootstrapAddress.ipAddrs,
-  },
+  'address': encodeEndpointAddress(options.bootstrapAddress),
   'pinnedServerId': options.pinnedServerId.asBytes(),
   'relay': encodeRelay(options.relay),
   'alpn': options.alpn,
@@ -86,7 +80,6 @@ ClientNodeOptions decodeClientOptions(
   ClientStorageInterface storage,
   GetPrivateKey getPrivateKey,
 ) {
-  final address = value['address']! as Map<Object?, Object?>;
   final reconnect = value['reconnect']! as Map<Object?, Object?>;
   return ClientNodeOptions(
     clientConfig: ClientConfig(
@@ -97,13 +90,8 @@ ClientNodeOptions decodeClientOptions(
       minSignaturesTTL: micros(value['minSignatures']),
       maxSignaturesTTL: micros(value['maxSignatures']),
     ),
-    bootstrapAddress: EndpointAddr(
-      PublicKey.fromBytes(asBytes(address['id'])),
-      relayUrls: [
-        for (final url in address['relayUrls']! as List)
-          RelayUrl.parse(url as String),
-      ],
-      ipAddrs: (address['ipAddrs']! as List).cast<String>(),
+    bootstrapAddress: decodeEndpointAddress(
+      value['address']! as Map<Object?, Object?>,
     ),
     pinnedServerId: PublicKey.fromBytes(asBytes(value['pinnedServerId'])),
     storage: storage,
@@ -123,6 +111,21 @@ ClientNodeOptions decodeClientOptions(
     ),
   );
 }
+
+Map<String, Object?> encodeEndpointAddress(EndpointAddr address) => {
+  'id': address.id.asBytes(),
+  'relayUrls': [for (final relay in address.relayUrls) relay.value],
+  'ipAddrs': address.ipAddrs,
+};
+
+EndpointAddr decodeEndpointAddress(Map<Object?, Object?> value) => EndpointAddr(
+  PublicKey.fromBytes(asBytes(value['id'])),
+  relayUrls: [
+    for (final url in value['relayUrls']! as List)
+      RelayUrl.parse(url as String),
+  ],
+  ipAddrs: (value['ipAddrs']! as List).cast<String>(),
+);
 
 Map<String, Object?>? encodeRelay(IrohRelayConfig? relay) =>
     relay == null ? null : {'policy': relay.policy.index, 'urls': relay.urls};

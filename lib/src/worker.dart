@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
 import 'package:meta/meta.dart';
 import 'package:noosphere_client/noosphere_client.dart';
 
@@ -26,6 +27,8 @@ final class NoosphereWorker {
     required this.hostOperationTimeout,
     required this.shutdownTimeout,
     required this._usesNativeRuntime,
+    required this._testing,
+    required this._testHostOperation,
     required this._messages,
     required this._errors,
     required this._exits,
@@ -47,6 +50,21 @@ final class NoosphereWorker {
     maxOutstandingCommands: maxOutstandingCommands,
     maxMessageBytes: maxMessageBytes,
     skipInitialization: false,
+    testing: false,
+  );
+
+  @visibleForTesting
+  static Future<NoosphereWorker> startNativeForTesting({
+    Duration startupTimeout = const Duration(seconds: 30),
+    Duration shutdownTimeout = const Duration(seconds: 2),
+  }) => _start(
+    startupTimeout: startupTimeout,
+    hostOperationTimeout: const Duration(seconds: 5),
+    shutdownTimeout: shutdownTimeout,
+    maxOutstandingCommands: 64,
+    maxMessageBytes: defaultWorkerMaxMessageBytes,
+    skipInitialization: false,
+    testing: true,
   );
 
   @visibleForTesting
@@ -57,6 +75,8 @@ final class NoosphereWorker {
     int maxOutstandingCommands = 64,
     int maxMessageBytes = defaultWorkerMaxMessageBytes,
     Map<String, ServerIdentityStore?> identityStores = const {},
+    Future<Object?> Function()? hostOperation,
+    bool failStartup = false,
   }) async {
     final worker = await _start(
       startupTimeout: startupTimeout,
@@ -65,6 +85,9 @@ final class NoosphereWorker {
       maxOutstandingCommands: maxOutstandingCommands,
       maxMessageBytes: maxMessageBytes,
       skipInitialization: true,
+      testing: true,
+      testHostOperation: hostOperation,
+      failStartup: failStartup,
     );
     for (final entry in identityStores.entries) {
       final setup = worker._setups.putIfAbsent(entry.key, _HostSetup.new);
@@ -86,6 +109,9 @@ final class NoosphereWorker {
     required int maxOutstandingCommands,
     required int maxMessageBytes,
     required bool skipInitialization,
+    required bool testing,
+    Future<Object?> Function()? testHostOperation,
+    bool failStartup = false,
   }) async {
     if (maxOutstandingCommands < 1) {
       throw RangeError.value(maxOutstandingCommands, 'maxOutstandingCommands');
@@ -100,6 +126,9 @@ final class NoosphereWorker {
             'restart the application before starting another native worker.',
       );
     }
+    if (!skipInitialization && _nextGeneration > 0x7fffffff) {
+      throw StateError('Worker generation space is exhausted.');
+    }
     await NoosphereFlutter.prepareRootIsolate();
 
     final generation = _nextGeneration++;
@@ -113,6 +142,8 @@ final class NoosphereWorker {
       hostOperationTimeout: hostOperationTimeout,
       shutdownTimeout: shutdownTimeout,
       usesNativeRuntime: !skipInitialization,
+      testing: testing,
+      testHostOperation: testHostOperation,
       messages: messages,
       errors: errors,
       exits: exits,
@@ -127,6 +158,8 @@ final class NoosphereWorker {
           'maxMessageBytes': maxMessageBytes,
           'maxOutstandingHostRequests': maxOutstandingCommands,
           'skipInitialization': skipInitialization,
+          'testing': testing,
+          'failStartup': failStartup,
         },
         debugName: 'NoosphereWorker#$generation',
         errorsAreFatal: true,
@@ -136,6 +169,11 @@ final class NoosphereWorker {
       await worker._ready.future.timeout(startupTimeout);
       return worker;
     } catch (error, stackTrace) {
+      // Native initialization or startup may already have created process-wide
+      // tasks. Killing the isolate cannot establish that they were released.
+      if (!skipInitialization && worker._isolate != null) {
+        _nativeRestartUnsafe = true;
+      }
       worker._isolate?.kill(priority: Isolate.immediate);
       await worker._disposePorts();
       Error.throwWithStackTrace(error, stackTrace);
@@ -148,6 +186,8 @@ final class NoosphereWorker {
   final Duration hostOperationTimeout;
   final Duration shutdownTimeout;
   final bool _usesNativeRuntime;
+  final bool _testing;
+  final Future<Object?> Function()? _testHostOperation;
   final ReceivePort _messages;
   final ReceivePort _errors;
   final ReceivePort _exits;
@@ -165,12 +205,38 @@ final class NoosphereWorker {
   bool _closing = false;
   bool _closed = false;
   Future<void>? _closeFuture;
+  Future<void>? _disposeFuture;
 
   /// Broadcast public events. The worker sends a snapshot before subsequent
   /// events for every initial or replacement client session.
   Stream<NoosphereWorkerEvent> get events => _events.stream;
 
   bool get isClosed => _closed;
+
+  /// Interrupts the test isolate to exercise pending-command cleanup.
+  @visibleForTesting
+  void debugKillForTesting() {
+    if (!_testing) throw StateError('Only testing workers may be killed.');
+    _isolate?.kill(priority: Isolate.immediate);
+  }
+
+  /// Starts a command that intentionally waits until the test isolate exits.
+  @visibleForTesting
+  Future<void> debugPendingCommandForTesting() {
+    if (!_testing) {
+      throw StateError('Only testing workers support this command.');
+    }
+    return _invoke('testPending').then((_) {});
+  }
+
+  /// Invokes the injected host provider through the real correlated bridge.
+  @visibleForTesting
+  Future<Object?> debugHostRequestForTesting() {
+    if (!_testing) {
+      throw StateError('Only testing workers support this command.');
+    }
+    return _invoke('testHost');
+  }
 
   Future<NoosphereWorkerSnapshot> startSetup({
     required String setupId,
@@ -228,6 +294,14 @@ final class NoosphereWorker {
   /// coordinating other participants.
   Future<void> lockSigner(String setupId) =>
       stopSetup(setupId, roles: NoosphereWorkerRoles.signer);
+
+  /// Updates the reconnect hint without changing the pinned coordinator ID.
+  Future<void> updateSignerAddress(String setupId, EndpointAddr address) =>
+      _invoke(
+        'updateSignerAddress',
+        setupId: setupId,
+        payload: {'address': encodeEndpointAddress(address)},
+      ).then((_) {});
 
   Future<NoosphereWorkerSnapshot> snapshot(String setupId) async {
     final result = await _invoke('snapshot', setupId: setupId);
@@ -307,16 +381,25 @@ final class NoosphereWorker {
   Future<void> close() => _closeFuture ??= _close();
 
   Future<void> _close() async {
-    if (_closed) return;
+    if (_closed) {
+      await _disposePorts();
+      return;
+    }
     _closing = true;
+    var graceful = false;
     try {
       await _invoke('close', allowWhileClosing: true).timeout(shutdownTimeout);
       await _exited.future.timeout(shutdownTimeout);
-    } on TimeoutException {
-      if (_usesNativeRuntime) _nativeRestartUnsafe = true;
-      _isolate?.kill(priority: Isolate.immediate);
-      await _exited.future.timeout(shutdownTimeout, onTimeout: () {});
+      graceful = true;
+    } catch (_) {
+      // A failed close reply is as uncertain as a timeout: the worker may
+      // still own sockets or native tasks.
     } finally {
+      if (!graceful) {
+        if (_usesNativeRuntime) _nativeRestartUnsafe = true;
+        _isolate?.kill(priority: Isolate.immediate);
+        await _exited.future.timeout(shutdownTimeout, onTimeout: () {});
+      }
       _finishExit(
         const NoosphereWorkerException('worker_closed', 'Worker is closed.'),
         interrupted: false,
@@ -452,14 +535,20 @@ final class NoosphereWorker {
         throw StateError('Host request exceeds configured message limit.');
       }
       final setupId = message['setupId']! as String;
-      final setup = _setups[setupId];
-      if (setup == null) throw StateError('Unknown setup.');
-      result = await setup
-          .dispatch(
-            message['operation']! as String,
-            message['payload']! as Map<Object?, Object?>,
-          )
-          .timeout(hostOperationTimeout);
+      if (_testing && message['operation'] == 'testHost') {
+        final provider = _testHostOperation;
+        if (provider == null) throw StateError('No test host provider.');
+        result = await provider().timeout(hostOperationTimeout);
+      } else {
+        final setup = _setups[setupId];
+        if (setup == null) throw StateError('Unknown setup.');
+        result = await setup
+            .dispatch(
+              message['operation']! as String,
+              message['payload']! as Map<Object?, Object?>,
+            )
+            .timeout(hostOperationTimeout);
+      }
     } catch (error) {
       failure = error;
     }
@@ -523,9 +612,12 @@ final class NoosphereWorker {
     }
     _setups.clear();
     if (!_events.isClosed) unawaited(_events.close());
+    unawaited(_disposePorts());
   }
 
-  Future<void> _disposePorts() async {
+  Future<void> _disposePorts() => _disposeFuture ??= _cancelPorts();
+
+  Future<void> _cancelPorts() async {
     await _messageSubscription?.cancel();
     await _errorSubscription?.cancel();
     await _exitSubscription?.cancel();

@@ -43,8 +43,16 @@ class ClientCachedStorage {
     required PreparedSignaturesOperation operation,
     required int capacity,
   }) async {
-    await _underlying.prepareSignaturesOperation(operation, capacity);
     final id = operation.id;
+    try {
+      await _underlying.prepareSignaturesOperation(operation, capacity);
+    } catch (_) {
+      // A provider may have committed before reporting failure or timing out.
+      // Keep this request blocked in the current session until durable state
+      // is loaded again; no RPC follows a failed prepare call.
+      preparedSigOperations[id] = operation;
+      rethrow;
+    }
     final updated = Map<int, SigningNonces>.of(sigNonces[id]?.map ?? {});
     updated.addEntries(operation.nextNonces.map.entries);
     sigNonces[id] = SignaturesNonces(updated, operation.expiry);

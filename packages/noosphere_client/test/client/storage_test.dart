@@ -93,7 +93,7 @@ void main() {
   });
 
   test(
-    'interruption before prepare does not update cache or storage',
+    'interruption before prepare blocks the request until storage reload',
     () async {
       final underlying = InterruptingStorage(afterWrite: false);
       final cached = await ClientCachedStorage.load(underlying);
@@ -104,10 +104,12 @@ void main() {
         throwsStateError,
       );
 
-      expect(cached.preparedSigOperations.containsKey(prepared.id), isFalse);
+      expect(cached.preparedSigOperations.containsKey(prepared.id), isTrue);
       expect(cached.sigNonces.containsKey(prepared.id), isFalse);
       expect(underlying.preparedSigOperations, isEmpty);
       expect(underlying.sigNonces, isEmpty);
+      final reloaded = await ClientCachedStorage.load(underlying);
+      expect(reloaded.preparedSigOperations.containsKey(prepared.id), isFalse);
     },
   );
 
@@ -121,7 +123,7 @@ void main() {
       throwsStateError,
     );
 
-    expect(cached.preparedSigOperations.containsKey(prepared.id), isFalse);
+    expect(cached.preparedSigOperations.containsKey(prepared.id), isTrue);
     expect(cached.sigNonces.containsKey(prepared.id), isFalse);
 
     final reloaded = await ClientCachedStorage.load(underlying);
