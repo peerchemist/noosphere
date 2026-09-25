@@ -38,7 +38,7 @@ installs Iroh's signed upstream prebuilt, and bundles the AOT-compiled CLI with
 all three required native libraries.
 
 ```sh
-podman build -f packages/noosphere_server/Dockerfile -t noosphere-server .
+podman build -f packages/noosphere_server/Containerfile -t noosphere-server .
 podman run --rm \
   -v noosphere-identity:/var/lib/noosphere \
   -v "$PWD/config.yaml:/config/server.yaml:ro,Z" \

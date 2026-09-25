@@ -85,7 +85,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/frosty/frosty_flutter/rust/target/release:${{ runner.temp }}/secp256k1/lib
       - name: Build server container
         working-directory: noosphere
-        run: docker build --tag noosphere-server:test --file packages/noosphere_server/Dockerfile .
+        run: docker build --tag noosphere-server:test --file packages/noosphere_server/Containerfile .
 
   macos:
     runs-on: macos-15
