@@ -1,4 +1,20 @@
-# noosphere_flutter
+# Noosphere
+
+Reference implementation of the Noosphere protocol. This repository is a Dart
+workspace containing the canonical protocol schema, participant and
+coordinator implementations, and the Flutter facade used by end-user apps.
+
+| Package | Responsibility |
+| --- | --- |
+| `noosphere` | Transport-independent protobuf messages and framing |
+| `noosphere_client` | Participant state, persistence and Iroh client transport |
+| `noosphere_server` | Coordinator state, Iroh server and standalone CLI |
+| `noosphere_flutter` | Flutter lifecycle and isolate facade for both roles |
+
+The root package is `noosphere_flutter`; the repository directory can be
+renamed without changing workspace resolution.
+
+## Flutter facade
 
 Flutter lifecycle adapter for the Noosphere ROAST client and server. It can run
 a reconnecting client, an embedded server, or both roles without copying the
@@ -13,8 +29,8 @@ alive.
 - Dart `^3.13.0` and Flutter `>=3.47.0`.
 - Linux desktop with GTK 3 and CMake 3.13 or newer.
 - macOS 12.0 or newer.
-- `noosphere_roast_server >=3.0.0 <4.0.0`.
-- `noosphere_roast_client >=4.0.0 <5.0.0`.
+- `noosphere_server >=3.0.0 <4.0.0`.
+- `noosphere_client >=4.0.0 <5.0.0`.
 - `iroh_flutter 1.0.3`; its `iroh_quic 1.0.3` dependency remains the core API.
 - `coinlib 6.0.1`, which builds secp256k1 through Dart native assets.
 - `frosty` from `peerchemist/frosty` branch `refactor/native-assets`, which
@@ -40,9 +56,9 @@ dependency_overrides:
       path: frosty
 ```
 
-This repository's `pubspec_overrides.yaml` additionally points both Noosphere
-packages at the sibling repositories during local development. The published
-constraints stay in `pubspec.yaml`.
+This workspace keeps the override once at its root. Local Noosphere packages
+are resolved as workspace members while their version constraints remain
+explicit in each `pubspec.yaml`.
 
 ## Worker facade (recommended for Flutter UI)
 

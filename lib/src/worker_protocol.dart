@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:iroh_flutter/iroh_flutter.dart';
-import 'package:noosphere_roast_server/noosphere_roast_server.dart';
+import 'package:noosphere_server/noosphere_server.dart';
 
 import 'client_options.dart';
 import 'server_identity_store.dart';

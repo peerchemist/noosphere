@@ -1,0 +1,29 @@
+secret-key-path: /var/lib/noosphere/iroh-secret.key
+native-library-path: /app/build/libirohdart_ffi.so
+alpn: noosphere/roast/1
+relay:
+  policy: default-network
+timeouts-ms:
+  auth: 10000
+  rpc: 30000
+  shutdown: 5000
+limits:
+  max-envelope-bytes: 8388608
+  max-connections: 128
+  max-streams-per-connection: 32
+server:
+  ms-lifetimes:
+    challenge: 20000
+    session: 60000
+    min-dkg-request: 1740000
+    max-dkg-request: 604800000
+    min-signatures-request: 25000
+    max-signatures-request: 1209600000
+    min-completed-signatures: 86400000
+    ack-cache: 60000
+  keep-alive-event-ms: 30000
+  group:
+    id: replace-with-your-group-id
+    participant-keys:
+      000000000000000000000000000000000000000000000000000000000000000a: 02774ae7f858a9411e5ef4246b70c65aac5649980be5c17891bbec17895da008cb
+      000000000000000000000000000000000000000000000000000000000000000b: 03a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7

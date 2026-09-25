@@ -1,6 +1,6 @@
 import 'package:iroh_flutter/iroh_flutter.dart';
-import 'package:noosphere_roast_client/iroh_protocol.dart';
-import 'package:noosphere_roast_server/noosphere_roast_server.dart';
+import 'package:noosphere/noosphere.dart';
+import 'package:noosphere_server/noosphere_server.dart';
 
 /// Maximum number of RPC streams a Flutter client opens concurrently.
 ///

@@ -7,6 +7,10 @@ environment:
   sdk: ^3.13.0
   flutter: '>=3.47.0'
 
+workspace:
+  - packages/*
+  - example
+
 dependencies:
   coinlib: 6.0.1
   flutter:
@@ -14,8 +18,9 @@ dependencies:
   frosty: '>=4.0.0 <5.0.0'
   iroh_flutter: 1.0.3
   meta: ^1.18.0
-  noosphere_roast_client: '>=4.0.0 <5.0.0'
-  noosphere_roast_server: '>=3.0.0 <4.0.0'
+  noosphere: ^0.1.0
+  noosphere_client: '>=4.0.0 <5.0.0'
+  noosphere_server: '>=3.0.0 <4.0.0'
   record_use: ^1.1.1
 
 dev_dependencies:
