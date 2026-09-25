@@ -10,7 +10,6 @@ environment:
 workspace:
   - packages/*
   - example
-  - vendor/iroh_quic
 
 dependencies:
   coinlib: 6.0.1

@@ -175,8 +175,10 @@ Future<void> _runScenario({
     final frostKeys = await completedKeys.timeout(const Duration(minutes: 2));
 
     final messages = [
-      for (var input = 0; input < 4; input++)
-        Uint8List(32)..last = 40 + participants + input,
+      for (var input = 0; input < 32; input++)
+        Uint8List(32)
+          ..[30] = input
+          ..last = 40 + participants + input,
     ];
     final details = SignaturesRequestDetails(
       requiredSigs: [
@@ -205,12 +207,19 @@ Future<void> _runScenario({
       () => worker.requestSignatures('signer-0', details),
     );
     final request = await secondRequest.timeout(const Duration(seconds: 15));
+    stores[1].armSigningGate();
     final accepting = timed(
       'acceptSignatures',
       () => worker.acceptSignatures('signer-1', request.request),
     );
+    await stores[1].signingGateEntered.timeout(const Duration(seconds: 15));
+    stores[1].releaseSigningGate();
+    await stores[1].signingGateReturned.timeout(const Duration(seconds: 15));
+    // Let the host reply reach the worker first. Its next continuation enters
+    // the synchronous Frosty batch before this command can be serviced.
+    await Future<void>.delayed(Duration.zero);
     await timed(
-      'otherSetupSnapshotDuringSigning',
+      'controlledOverlapSnapshot',
       () => worker.snapshot('signer-${participants - 1}'),
     );
     await accepting;
@@ -300,6 +309,34 @@ Future<void> _runScenario({
 final class _FaultingStorage extends InMemoryClientStorage {
   bool? failAfterWrite;
   int prepareCalls = 0;
+  Completer<void>? _signingGateEntered;
+  Completer<void>? _signingGateRelease;
+  Completer<void>? _signingGateReturned;
+
+  Future<void> get signingGateEntered => _signingGateEntered!.future;
+
+  Future<void> get signingGateReturned => _signingGateReturned!.future;
+
+  void armSigningGate() {
+    _signingGateEntered = Completer<void>();
+    _signingGateRelease = Completer<void>();
+    _signingGateReturned = Completer<void>();
+  }
+
+  void releaseSigningGate() => _signingGateRelease!.complete();
+
+  @override
+  Future<void> removeRejectionOfSigsRequest(SignaturesRequestId id) async {
+    final entered = _signingGateEntered;
+    final release = _signingGateRelease;
+    if (entered != null && release != null) {
+      if (!entered.isCompleted) entered.complete();
+      await release.future;
+    }
+    await super.removeRejectionOfSigsRequest(id);
+    final returned = _signingGateReturned;
+    if (returned != null && !returned.isCompleted) returned.complete();
+  }
 
   @override
   Future<void> prepareSignaturesOperation(

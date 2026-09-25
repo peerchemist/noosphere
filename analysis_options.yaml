@@ -5,7 +5,6 @@ analyzer:
     - build/**
     - macos/**
     - linux/**
-    - vendor/iroh_quic/lib/src/rust/**
 
 linter:
   rules:

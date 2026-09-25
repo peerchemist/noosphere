@@ -46,6 +46,8 @@ jobs:
           xvfb-run -a flutter test integration_test/worker_pending_key_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_unexpected_exit_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_forced_shutdown_test.dart -d linux
+          xvfb-run -a flutter test integration_test/worker_process_relaunch_test.dart -d linux --dart-define=NOOSPHERE_RELAUNCH_PHASE=prepare
+          xvfb-run -a flutter test integration_test/worker_process_relaunch_test.dart -d linux --dart-define=NOOSPHERE_RELAUNCH_PHASE=recover
       - name: Analyze and build example
         working-directory: noosphere/example
         run: |
@@ -99,6 +101,8 @@ jobs:
           flutter test integration_test/worker_pending_key_test.dart -d macos
           flutter test integration_test/worker_unexpected_exit_test.dart -d macos
           flutter test integration_test/worker_forced_shutdown_test.dart -d macos
+          flutter test integration_test/worker_process_relaunch_test.dart -d macos --dart-define=NOOSPHERE_RELAUNCH_PHASE=prepare
+          flutter test integration_test/worker_process_relaunch_test.dart -d macos --dart-define=NOOSPHERE_RELAUNCH_PHASE=recover
       - name: Analyze and build example
         working-directory: noosphere/example
         run: |

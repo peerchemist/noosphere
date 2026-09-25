@@ -3,8 +3,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as coinlib;
-import 'package:iroh_flutter/iroh_flutter.dart'
-    show EndpointAddr, configureIrohStreamTokenNamespace;
+import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
 import 'package:meta/meta.dart';
 import 'package:noosphere_client/noosphere_client.dart';
 
@@ -32,7 +31,6 @@ Future<void> runNoosphereWorker(Map<Object?, Object?> bootstrap) async {
       throw StateError('Injected private startup detail.');
     }
     if (!skipInitialization) {
-      configureIrohStreamTokenNamespace(0x80000000 | generation);
       await NoosphereFlutter.initializeNative();
     }
     final runtime = _WorkerRuntime(
@@ -317,7 +315,7 @@ final class _SetupRuntime {
   String? _participant;
   StreamSubscription<Client>? _sessions;
   StreamSubscription<ClientEvent>? _events;
-  StreamSubscription<EndpointAddr>? _serverAddresses;
+  Timer? _serverAddressPoll;
   EndpointAddr? _serverAddress;
   final _serial = SerialExecutor();
 
@@ -347,10 +345,14 @@ final class _SetupRuntime {
         final node = await NoosphereNode.startInitialized(server: options);
         _serverNode = node;
         _serverAddress = node.server!.address;
-        _serverAddresses = node.server!.endpoint.watchAddr().listen((address) {
-          _serverAddress = address;
-          _emitSnapshot();
-        }, onError: (Object error) => _failure('serverAddress', error, false));
+        // Iroh's reactive-stream cancellation registry is process-wide while
+        // Dart library statics are isolate-local. Polling the cheap address
+        // snapshot keeps workers on the published Iroh API and avoids sharing
+        // stream tokens with direct-node isolates.
+        _serverAddressPoll = Timer.periodic(
+          const Duration(milliseconds: 100),
+          (_) => _refreshServerAddress(node),
+        );
       }
       if (clientMessage != null) {
         final options = decodeClientOptions(
@@ -513,9 +515,23 @@ final class _SetupRuntime {
     final node = _serverNode;
     _serverNode = null;
     _serverAddress = null;
-    await _serverAddresses?.cancel();
-    _serverAddresses = null;
+    _serverAddressPoll?.cancel();
+    _serverAddressPoll = null;
     await node?.close();
+  }
+
+  void _refreshServerAddress(NoosphereNode node) {
+    if (!identical(_serverNode, node)) return;
+    try {
+      final address = node.server!.address;
+      if (_sameAddress(_serverAddress, address)) return;
+      _serverAddress = address;
+      _emitSnapshot();
+    } catch (error) {
+      _serverAddressPoll?.cancel();
+      _serverAddressPoll = null;
+      _failure('serverAddress', error, false);
+    }
   }
 
   Future<void> close() => _synchronized(() async {
@@ -902,6 +918,23 @@ final class _RemoteClientStorage(this.host, this.setupId)
 }
 
 bool _bytesEqual(Uint8List first, Uint8List second) {
+  if (first.length != second.length) return false;
+  for (var i = 0; i < first.length; i++) {
+    if (first[i] != second[i]) return false;
+  }
+  return true;
+}
+
+bool _sameAddress(EndpointAddr? first, EndpointAddr second) {
+  if (first == null || first.id != second.id) return false;
+  return _sameList(
+        [for (final url in first.relayUrls) url.value],
+        [for (final url in second.relayUrls) url.value],
+      ) &&
+      _sameList(first.ipAddrs, second.ipAddrs);
+}
+
+bool _sameList<T>(List<T> first, List<T> second) {
   if (first.length != second.length) return false;
   for (var i = 0; i < first.length; i++) {
     if (first[i] != second[i]) return false;
