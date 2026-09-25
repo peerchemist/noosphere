@@ -75,6 +75,14 @@ Future<void> _runScenario({
         const Duration(seconds: 15),
       );
     }
+    final identityBackup = await worker.exportIrohServerIdentity('server');
+    expect(identityBackup, hasLength(32));
+    final originalLastByte = identityBackup.last;
+    identityBackup.last ^= 0xff;
+    expect(
+      (await worker.exportIrohServerIdentity('server')).last,
+      originalLastByte,
+    );
     final coordinator = serverSnapshot.coordinator!;
     final address = EndpointAddr(
       PublicKey.fromZ32(coordinator.id),
@@ -90,6 +98,10 @@ Future<void> _runScenario({
           address: address,
           storage: stores[i],
         ),
+      );
+      await expectLater(
+        worker.exportIrohServerIdentity('signer-$i'),
+        throwsA(isA<StateError>()),
       );
     }
 

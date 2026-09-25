@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:iroh_flutter/iroh_flutter.dart';
 import 'package:meta/meta.dart';
@@ -15,7 +16,7 @@ const _sentinelSecretKeyPath = 'host-managed://iroh-secret';
 
 /// A running Flutter-owned combination of server and client roles.
 final class NoosphereNode {
-  NoosphereNode._(this._serverRole, this._clientRole);
+  NoosphereNode._(this._serverRole, this._clientRole, this._identityStore);
 
   static Future<NoosphereNode> start({
     EmbeddedServerOptions? server,
@@ -27,6 +28,7 @@ final class NoosphereNode {
       startServer: server != null,
       startClient: client != null,
       backend: _NativeBackend(server, client),
+      identityStore: server?.identityStore,
     );
   }
 
@@ -43,6 +45,7 @@ final class NoosphereNode {
       startServer: server != null,
       startClient: client != null,
       backend: _NativeBackend(server, client),
+      identityStore: server?.identityStore,
     );
   }
 
@@ -51,11 +54,17 @@ final class NoosphereNode {
     required bool server,
     required bool client,
     required NoosphereNodeBackend backend,
+    ServerIdentityStore? identityStore,
   }) {
     if (!server && !client) {
       throw ArgumentError('At least one Noosphere node role is required.');
     }
-    return _start(startServer: server, startClient: client, backend: backend);
+    return _start(
+      startServer: server,
+      startClient: client,
+      backend: backend,
+      identityStore: identityStore,
+    );
   }
 
   static void _validateRoles(
@@ -71,13 +80,14 @@ final class NoosphereNode {
     required bool startServer,
     required bool startClient,
     required NoosphereNodeBackend backend,
+    required ServerIdentityStore? identityStore,
   }) async {
     NoosphereServerRole? serverRole;
     NoosphereClientRole? clientRole;
     try {
       if (startServer) serverRole = await backend.startServer();
       if (startClient) clientRole = await backend.startClient();
-      return NoosphereNode._(serverRole, clientRole);
+      return NoosphereNode._(serverRole, clientRole, identityStore);
     } catch (error, stackTrace) {
       await _ignoreCleanupErrors(clientRole?.close);
       await _ignoreCleanupErrors(serverRole?.close);
@@ -88,12 +98,31 @@ final class NoosphereNode {
 
   final NoosphereServerRole? _serverRole;
   final NoosphereClientRole? _clientRole;
+  final ServerIdentityStore? _identityStore;
   Future<void>? _closing;
 
   IrohServer? get server => _serverRole?.server;
   ReconnectingIrohClient? get client => _clientRole?.client;
   EndpointId? get serverId => server?.id;
   EndpointAddr? get serverAddress => server?.address;
+
+  /// Exports this embedded server's raw 32-byte Iroh secret key.
+  ///
+  /// The result is a secret key, not the public endpoint ID. Encrypt the
+  /// backup and never log it. A fresh defensive copy is returned, but Dart
+  /// managed memory cannot guarantee reliable zeroization. Restore it with
+  /// [restoreStoredIrohServerIdentity] before starting a replacement node.
+  ///
+  /// Throws [StateError] when this node has no embedded server role.
+  Future<Uint8List> exportIrohServerIdentity() async {
+    final store = _identityStore;
+    if (store == null) {
+      throw StateError(
+        'Cannot export an Iroh server identity from a client-only node.',
+      );
+    }
+    return await exportStoredIrohServerIdentity(store);
+  }
 
   Future<void> close() => _closing ??= _close();
 

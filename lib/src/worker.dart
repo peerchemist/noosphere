@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:isolate';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
@@ -57,14 +56,28 @@ final class NoosphereWorker {
     Duration shutdownTimeout = const Duration(seconds: 2),
     int maxOutstandingCommands = 64,
     int maxMessageBytes = defaultWorkerMaxMessageBytes,
-  }) => _start(
-    startupTimeout: startupTimeout,
-    hostOperationTimeout: hostOperationTimeout,
-    shutdownTimeout: shutdownTimeout,
-    maxOutstandingCommands: maxOutstandingCommands,
-    maxMessageBytes: maxMessageBytes,
-    skipInitialization: true,
-  );
+    Map<String, ServerIdentityStore?> identityStores = const {},
+  }) async {
+    final worker = await _start(
+      startupTimeout: startupTimeout,
+      hostOperationTimeout: hostOperationTimeout,
+      shutdownTimeout: shutdownTimeout,
+      maxOutstandingCommands: maxOutstandingCommands,
+      maxMessageBytes: maxMessageBytes,
+      skipInitialization: true,
+    );
+    for (final entry in identityStores.entries) {
+      final setup = worker._setups.putIfAbsent(entry.key, _HostSetup.new);
+      final store = entry.value;
+      if (store != null) {
+        setup
+          ..identityStore = store
+          ..identityStorageId = entry.key;
+        await _IdentityRegistry.loadOrCreate(entry.key, store);
+      }
+    }
+    return worker;
+  }
 
   static Future<NoosphereWorker> _start({
     required Duration startupTimeout,
@@ -219,6 +232,31 @@ final class NoosphereWorker {
   Future<NoosphereWorkerSnapshot> snapshot(String setupId) async {
     final result = await _invoke('snapshot', setupId: setupId);
     return result! as NoosphereWorkerSnapshot;
+  }
+
+  /// Exports an embedded server setup's raw 32-byte Iroh secret key.
+  ///
+  /// The result is a secret key, not the public endpoint ID. Encrypt the
+  /// backup and never log it. A fresh defensive copy is returned, but Dart
+  /// managed memory cannot guarantee reliable zeroization. Restore it with
+  /// [restoreStoredIrohServerIdentity] before starting the replacement setup.
+  ///
+  /// The secret remains on the host isolate. Throws [StateError] if [setupId]
+  /// is unknown or does not currently have an embedded server role.
+  Future<Uint8List> exportIrohServerIdentity(String setupId) async {
+    final setup = _setups[setupId];
+    if (setup == null) {
+      throw StateError('Cannot export identity for unknown setup "$setupId".');
+    }
+    final store = setup.identityStore;
+    final storageId = setup.identityStorageId;
+    if (store == null || storageId == null) {
+      throw StateError(
+        'Cannot export an Iroh server identity from setup "$setupId" '
+        'because it has no embedded server role.',
+      );
+    }
+    return await _IdentityRegistry.export(storageId, store);
   }
 
   Future<void> requestDkg(String setupId, NewDkgDetails proposal) => _invoke(
@@ -679,22 +717,21 @@ abstract final class _IdentityRegistry {
     ServerIdentityStore store,
   ) => _loads.putIfAbsent(storageId, () => _loadOrCreate(store));
 
+  static Future<Uint8List> export(
+    String storageId,
+    ServerIdentityStore store,
+  ) async {
+    final loaded = _loads[storageId];
+    if (loaded != null) return Uint8List.fromList(await loaded);
+
+    // A successfully started server setup always has a registry entry. Keep a
+    // store fallback for a setup whose host binding outlives worker teardown.
+    return exportStoredIrohServerIdentity(store);
+  }
+
   static Future<Uint8List> _loadOrCreate(ServerIdentityStore store) async {
-    final stored = await store.read();
-    if (stored != null) {
-      if (stored.length != 32) {
-        throw FormatException(
-          'Stored Iroh server identity must contain exactly 32 bytes.',
-        );
-      }
-      return Uint8List.fromList(stored);
-    }
-    final random = Random.secure();
-    final generated = Uint8List.fromList(
-      List<int>.generate(32, (_) => random.nextInt(256)),
-    );
-    await store.write(generated);
-    return generated;
+    final key = await loadOrCreateServerIdentity(store);
+    return Uint8List.fromList(key.toBytes());
   }
 }
 

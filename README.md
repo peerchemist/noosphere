@@ -170,6 +170,33 @@ Node startup uses `IrohServer.startWithSecretKey`; the core config's
 `host-managed://iroh-secret` sentinel is never read or written and no external
 `chmod` process is launched by this package.
 
+Back up an embedded server identity explicitly and send the returned bytes
+directly to encrypted storage. The value is the 32-byte secret key, not the
+public Iroh endpoint ID: never log it, and do not treat plain base64 as
+encryption. Dart-managed memory cannot guarantee reliable zeroization.
+
+```dart
+final backup = await node.exportIrohServerIdentity();
+await encryptedBackupVault.write('main-coordinator', backup);
+
+// In a replacement process, restore before starting the node or worker setup.
+final restored = await encryptedBackupVault.read('main-coordinator');
+await restoreStoredIrohServerIdentity(identityStore, restored);
+
+final replacement = await NoosphereNode.start(
+  server: EmbeddedServerOptions(
+    serverConfig: serverConfig,
+    identityStore: identityStore,
+  ),
+);
+```
+
+For a running worker server setup, use
+`await worker.exportIrohServerIdentity('main-coordinator')` and protect the
+result in the same way. Restore its store before calling `startSetup`. The
+standalone headless server already persists the same identity in its
+`secret-key-path`; backing up that protected file is sufficient.
+
 Production client calls must provide both `ClientStorageInterface` and
 `GetPrivateKey`. The worker keeps these application-owned providers on the host
 isolate and invokes them through correlated requests. Storage operations for a
