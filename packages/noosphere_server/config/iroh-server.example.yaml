@@ -1,5 +1,5 @@
 secret-key-path: /var/lib/noosphere/iroh-secret.key
-native-library-path: /app/build/libirohdart_ffi.so
+native-library-path: /app/lib/libirohdart_ffi.so
 alpn: noosphere/roast/1
 relay:
   policy: default-network

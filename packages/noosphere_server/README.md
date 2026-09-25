@@ -32,9 +32,10 @@ requires a `relay.urls` list.
 ## Container
 
 The multi-stage image consumes the protocol, client and server packages from
-the same workspace revision. It pins Dart, Rust, Frosty and the
-Coinlib-compatible secp256k1 revision, installs Iroh's signed upstream
-prebuilt, AOT-compiles the CLI and includes all three required native libraries.
+the same workspace revision. It pins the Dart and Rust toolchains, lets Dart's
+native-asset hooks build Frosty and Coinlib from the locked dependencies,
+installs Iroh's signed upstream prebuilt, and bundles the AOT-compiled CLI with
+all three required native libraries.
 
 ```sh
 podman build -f packages/noosphere_server/Dockerfile -t noosphere-server .
