@@ -71,9 +71,11 @@ reuse their setup's node. Do not create an isolate per derived wallet.
   operation; do not assume unsolicited platform events work there.
 - [x] Keep initialization concurrency-safe within each isolate and retain the
   current failure semantics. Preserve @RecordUse reachability for release builds.
-- [ ] Prove create/use/close/restart of native objects in a worker on Linux and
-  macOS before committing the public API. Audit native stream token uniqueness
-  and cleanup across worker restarts and any concurrent direct-node usage.
+- [x] Prove create/use/close/restart of native objects in a worker on macOS,
+  including concurrent direct-node usage. Give each worker generation a distinct
+  Iroh stream-token namespace and verify repeated graceful restarts.
+- [ ] Run the same native lifecycle and stream-token checks on Linux, and verify
+  native task/socket cleanup after forced termination where observable.
 
 ## 2. Add a typed worker facade
 
@@ -143,14 +145,14 @@ objects/callbacks, not a worker transport contract.
 - [x] Implement idempotent graceful close: stop accepting new work, resolve or
   fail pending commands, close clients and servers, cancel subscriptions and
   ports, then acknowledge worker exit.
-- [ ] Reserve forced isolate termination for a bounded shutdown fallback. A
-  killed isolate does not prove native sockets/tasks were released; test cleanup
-  and reject unsafe restarts when the previous owner may still be alive.
-- [ ] On unexpected worker exit, mark operations interrupted. Recreate sessions
-  from durable state, but never replay an in-flight mutating DKG/signing RPC.
-  A macOS native test now verifies interruption events, pending-command failure
-  and refusal of unsafe in-process restart; Linux and process-relaunch recovery
-  remain to be checked.
+- [x] Reserve forced isolate termination for a bounded shutdown fallback.
+  Pending commands fail within the bound; reject in-process native restarts
+  because killing an isolate cannot prove its sockets/tasks were released.
+- [x] On unexpected worker exit, mark operations interrupted, fail pending
+  commands and never replay an in-flight mutating DKG/signing RPC. A macOS
+  native test verifies interruption events and refusal of unsafe restart.
+- [ ] Verify forced-exit cleanup and interruption behavior on Linux. Test
+  process-relaunch recovery from durable state; do not resume in-memory sessions.
 - [x] Do not advertise transparent continuation of unfinished DKG. The current
   ClientStorageInterface does not persist its temporary secrets. Reconcile any
   completed key before offering a new ceremony.
@@ -170,10 +172,11 @@ background execution and other unsupported platforms remain separate work.
   the worker facade; keep its in-memory-storage limitation clearly visible.
 - [x] Document how an application supplies storage/key providers and binds
   reviewed proposals to approval commands. Explain how to lock only the signer.
-- [ ] Preserve the existing direct-node API and tests. Use validated published
-  dependency pins without consuming-application overrides. The direct API and
-  tests pass, but external consumers still need the local Iroh token patch
-  until it is released upstream.
+- [x] Preserve the existing direct-node API and tests; the macOS native
+  transport tests pass alongside the worker facade.
+- [ ] Use validated published dependency pins without consuming-application
+  overrides. External consumers still need the local Iroh token patch until it
+  is released upstream.
 
 Wallet account derivation conventions, account-index allocation, enrollment
 invitations and application backup UX belong to separate tasks. This plan
@@ -181,11 +184,15 @@ provides the execution boundary they can use; it does not implement them.
 
 ## 6. Acceptance checks
 
-- [ ] Real native worker startup, Iroh authentication, event delivery, clean
-  shutdown and identity-preserving restart on both Linux and macOS.
-- [ ] Native initialization when coinlib is already loaded by the root isolate;
-  macOS Iroh/Frosty symbol isolation; repeated worker starts without leaked tasks,
-  stream-token collisions or stale events.
+- [x] On macOS, verify real native worker startup, Iroh authentication, event
+  delivery, clean shutdown and identity-preserving restart.
+- [ ] Repeat the native worker startup, authentication, event and restart checks
+  on Linux.
+- [x] On macOS, initialize the worker after coinlib is loaded by the root
+  isolate, preserve Iroh/Frosty symbol isolation, and verify repeated worker
+  starts without observed stream-token collisions or stale events.
+- [ ] Verify the same initialization and repeated-start behavior on Linux, and
+  establish whether native tasks leak across worker generations.
 - [x] Real 2-of-2 DKG and signing through the worker facade. Verify signatures,
   not just successful command replies. Exercise 2-of-3 quorum as well.
 - [x] Reconnect replaces sessions/subscriptions and does not replay a mutation.
@@ -196,14 +203,16 @@ provides the execution boundary they can use; it does not implement them.
 - [x] Worker exit with pending commands/storage requests, partial startup failure
   and repeated close calls produce bounded completion and sanitized errors.
 - [x] Multiple setup nodes share one worker; stopping one does not close others.
-- [ ] Record UI frame timing and worker command latency during DKG and signing,
-  including a multi-input batch. Also measure whether a slow crypto operation
-  delays other setup nodes enough to require later scheduling improvements.
-  The debug runner logs frame timings and command latency for four-input signing;
-  its short workload does not establish a foreground frame-rate distribution or
-  prove the other setup snapshot overlaps the slow signing step.
-- [ ] flutter analyze, existing unit tests, native integration tests and Linux/
-  macOS release builds pass with the new worker-based example.
+- [x] Record debug-runner UI frame timings and worker command latency during
+  DKG and four-input signing. The macOS run collected 20 and 13 frame samples
+  for the two ROAST scenarios.
+- [ ] Profile a foreground UI over a longer workload and measure whether a
+  slow crypto operation delays other setup nodes. The current snapshot call is
+  not proven to overlap the slow signing step.
+- [x] `flutter analyze`, unit tests, macOS native integration tests and the
+  worker-based example's macOS release build pass locally.
+- [ ] Run the corresponding Linux checks and example release build for these
+  monorepo changes.
 
 Suggested implementation order: native initialization spike; typed facade and
 transport-only tests; storage/key proxies; DKG/signing; role lifecycle and crash
