@@ -1002,6 +1002,7 @@ bool _sameList<T>(List<T> first, List<T> second) {
 
 String _errorCode(Object error) => switch (error) {
   NoosphereWorkerException(:final code) => code,
+  IrohProtocolException() => 'iroh_protocol_error',
   ArgumentError() => 'invalid_argument',
   StateError() => 'invalid_state',
   TimeoutException() => 'timeout',
@@ -1010,6 +1011,9 @@ String _errorCode(Object error) => switch (error) {
 
 String _safeError(Object error) {
   if (error is NoosphereWorkerException) return error.message;
+  if (error is IrohProtocolException) {
+    return 'Iroh protocol error: ${error.message}';
+  }
   if (error is ArgumentError) return 'Invalid argument.';
   if (error is StateError) return 'Operation could not be completed.';
   if (error is TimeoutException) return 'Operation timed out.';
