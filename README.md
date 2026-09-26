@@ -162,9 +162,9 @@ worker shutdown during logout/application shutdown whenever possible.
 Implement `ServerIdentityStore` with the OS keychain or keystore. It stores
 exactly 32 bytes losslessly. Give each coordinator store a stable
 `identityStorageId`; creation is serialized by this ID across worker instances.
-Node startup uses `IrohServer.startWithSecretKey`; the core config's
-`host-managed://iroh-secret` sentinel is never read or written and no external
-`chmod` process is launched by this package.
+Node startup supplies the identity to `IrohServer.startWithSecretKey`.
+`IrohConfig` has no storage path and no placeholder path is needed. File-backed
+identity management belongs to the standalone CLI host.
 
 Back up an embedded server identity explicitly and send the returned bytes
 directly to encrypted storage. The value is the 32-byte secret key, not the
@@ -198,6 +198,19 @@ Production client calls must provide both `ClientStorageInterface` and
 isolate and invokes them through correlated requests. Storage operations for a
 setup are serialized. `prepareSignaturesOperation` remains one proxy call, and
 the worker waits for durable completion before sending the network request.
+
+Pass `roomPersistence` in `EmbeddedServerOptions` to enable durable room state
+for both direct nodes and workers. Workers retain this provider on the host
+isolate and proxy room reads/writes through the same correlated bridge. A
+provider timeout has an unknown outcome; it does not cancel a write. After a
+room write failure, restart the server role to reload its state. Reuse the same
+host provider instance so the replacement waits for any previous write; hosts
+with multiple provider instances/processes must enforce ordering themselves.
+
+The host implements the domain-specific `ClientStorageInterface`,
+`RoomPersistence` and `ServerIdentityStore` using its own storage backend.
+Server DKG/ROAST persistence is a subsequent step. See
+[architecture.md](architecture.md) for storage ownership and recovery boundaries.
 
 A provider timeout reports an unknown outcome and is never blindly retried.
 Reconcile the durable prepared-operation record before allowing another signing

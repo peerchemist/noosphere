@@ -12,8 +12,6 @@ import 'node_testing.dart';
 import 'server_identity_store.dart';
 import 'server_options.dart';
 
-const _sentinelSecretKeyPath = 'host-managed://iroh-secret';
-
 /// A running Flutter-owned combination of server and client roles.
 final class NoosphereNode {
   NoosphereNode._(this._serverRole, this._clientRole, this._identityStore);
@@ -176,7 +174,6 @@ final class _NativeBackend(
     final server = await IrohServer.startWithSecretKey(
       IrohConfig(
         server: options.serverConfig,
-        secretKeyPath: _sentinelSecretKeyPath,
         relay: options.relay,
         alpn: options.alpn,
         authTimeout: options.authTimeout,

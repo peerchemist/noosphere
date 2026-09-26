@@ -80,10 +80,16 @@ final server = await IrohServer.startWithSecretKey(
 unawaited(server.serve());
 ```
 
-`startWithSecretKey` does not read or write `IrohConfig.secretKeyPath`. This is
-the preferred entry point for Flutter hosts that keep the 32-byte secret in
-platform secure storage. The existing `start` method retains file-backed,
-mode-0600 identity management for CLI and container deployments.
+Both `start(config, secretKey: key)` and `startWithSecretKey` require an
+identity supplied by the host and perform no identity storage I/O. Persist a
+new identity before starting the server. `IrohConfig` no longer accepts
+`secretKeyPath`; remove that argument from embedding code and load the key in
+your wrapper instead.
+
+The standalone CLI still accepts `secret-key-path` in its YAML. Its provider
+lives under `bin/src/`, serializes cooperating processes with a file lock and
+writes the identity with mode 0600 on POSIX. Database, secure-storage and backup
+policy for other hosts belongs to those hosts.
 
 ## Protocol and migration
 

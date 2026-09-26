@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:iroh_quic/iroh_quic.dart';
@@ -15,7 +14,7 @@ import 'connection_handler.dart';
 import 'dispatcher.dart';
 import 'enrollment_connection_handler.dart';
 
-/// Bound Iroh endpoint and persistent server identity lifecycle.
+/// Bound Iroh endpoint using an identity supplied by the host.
 final class IrohServer {
   IrohServer._({
     required this.config,
@@ -24,23 +23,9 @@ final class IrohServer {
     required this.rooms,
   });
 
+  /// Starts with a host-owned identity. The host must persist a newly created
+  /// key before calling this method. No identity files are read or written.
   static Future<IrohServer> start(
-    IrohConfig config, {
-    ServerApiHandler? handler,
-    RoomManager? rooms,
-  }) async {
-    await Iroh.init(libraryPath: config.nativeLibraryPath);
-    final secretKey = await _loadOrCreateSecret(File(config.secretKeyPath));
-    return _bind(config, secretKey: secretKey, handler: handler, rooms: rooms);
-  }
-
-  /// Starts a server with an identity supplied by the embedding application.
-  ///
-  /// Unlike [start], this method does not read or write
-  /// [IrohConfig.secretKeyPath]. It is intended for hosts such as Flutter
-  /// applications that persist the endpoint identity in platform-provided
-  /// secure storage.
-  static Future<IrohServer> startWithSecretKey(
     IrohConfig config, {
     required SecretKey secretKey,
     ServerApiHandler? handler,
@@ -49,6 +34,14 @@ final class IrohServer {
     await Iroh.init(libraryPath: config.nativeLibraryPath);
     return _bind(config, secretKey: secretKey, handler: handler, rooms: rooms);
   }
+
+  /// Alias retained for existing embedding applications.
+  static Future<IrohServer> startWithSecretKey(
+    IrohConfig config, {
+    required SecretKey secretKey,
+    ServerApiHandler? handler,
+    RoomManager? rooms,
+  }) => start(config, secretKey: secretKey, handler: handler, rooms: rooms);
 
   static Future<IrohServer> _bind(
     IrohConfig config, {
@@ -246,42 +239,3 @@ ServerConfig _configForGroup(ServerConfig template, GroupConfig group) =>
       ackCacheTTL: template.ackCacheTTL,
       keepAliveFreq: template.keepAliveFreq,
     );
-
-Future<SecretKey> _loadOrCreateSecret(File file) async {
-  if (await file.exists()) {
-    await _restrictSecretPermissions(file);
-    return SecretKey.fromBytes(await file.readAsBytes());
-  }
-
-  await file.parent.create(recursive: true);
-  final generated = SecretKey.generate();
-  final temporary = File(
-    '${file.path}.tmp-$pid-${DateTime.now().microsecondsSinceEpoch}',
-  );
-  await temporary.writeAsBytes(generated.toBytes(), flush: true);
-  await _restrictSecretPermissions(temporary);
-
-  try {
-    await temporary.rename(file.path);
-    return generated;
-  } on FileSystemException {
-    // Another process may have won the create race. Never overwrite its key.
-    if (await file.exists()) {
-      if (await temporary.exists()) await temporary.delete();
-      return SecretKey.fromBytes(await file.readAsBytes());
-    }
-    if (await temporary.exists()) await temporary.delete();
-    rethrow;
-  }
-}
-
-Future<void> _restrictSecretPermissions(File file) async {
-  if (Platform.isWindows) return;
-  final result = await Process.run('chmod', ['600', file.path]);
-  if (result.exitCode != 0) {
-    throw FileSystemException(
-      'could not restrict Iroh secret key permissions: ${result.stderr}',
-      file.path,
-    );
-  }
-}

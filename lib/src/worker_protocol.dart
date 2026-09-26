@@ -11,6 +11,7 @@ import 'server_identity_store.dart';
 import 'server_options.dart';
 import 'worker_models.dart';
 
+// Host and worker ship together; R&D changes revise this baseline in place.
 const int workerProtocolVersion = 1;
 const int defaultWorkerMaxMessageBytes = 8 * 1024 * 1024;
 
@@ -24,6 +25,7 @@ Map<String, Object?> encodeServerOptions(EmbeddedServerOptions options) {
   }
   return {
     'serverConfig': options.serverConfig.toBytes(),
+    'roomPersistence': options.roomPersistence != null,
     'relay': encodeRelay(options.relay),
     'alpn': options.alpn,
     'authTimeout': options.authTimeout.inMicroseconds,
@@ -38,9 +40,11 @@ Map<String, Object?> encodeServerOptions(EmbeddedServerOptions options) {
 EmbeddedServerOptions decodeServerOptions(
   Map<Object?, Object?> value,
   ServerIdentityStore identityStore,
+  RoomPersistence roomPersistence,
 ) => EmbeddedServerOptions(
   serverConfig: ServerConfig.fromBytes(asBytes(value['serverConfig'])),
   identityStore: identityStore,
+  roomPersistence: value['roomPersistence'] == true ? roomPersistence : null,
   relay: decodeRelay(value['relay']),
   alpn: value['alpn']! as String,
   authTimeout: micros(value['authTimeout']),

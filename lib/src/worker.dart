@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
 import 'package:meta/meta.dart';
 import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere_server/noosphere_server.dart' show RoomPersistence;
 
 import 'client_options.dart';
 import 'initialization.dart';
@@ -75,6 +76,7 @@ final class NoosphereWorker {
     int maxOutstandingCommands = 64,
     int maxMessageBytes = defaultWorkerMaxMessageBytes,
     Map<String, ServerIdentityStore?> identityStores = const {},
+    Map<String, RoomPersistence> roomPersistences = const {},
     Future<Object?> Function()? hostOperation,
     bool failStartup = false,
   }) async {
@@ -98,6 +100,10 @@ final class NoosphereWorker {
           ..identityStorageId = entry.key;
         await _IdentityRegistry.loadOrCreate(entry.key, store);
       }
+    }
+    for (final entry in roomPersistences.entries) {
+      worker._setups.putIfAbsent(entry.key, _HostSetup.new).roomPersistence =
+          entry.value;
     }
     return worker;
   }
@@ -236,6 +242,37 @@ final class NoosphereWorker {
       throw StateError('Only testing workers support this command.');
     }
     return _invoke('testHost');
+  }
+
+  /// Exercises the room adapter over the actual worker/host boundary.
+  @visibleForTesting
+  Future<Map<String, Uint8List>> debugLoadRoomsForTesting(
+    String setupId,
+  ) async {
+    if (!_testing) {
+      throw StateError('Only testing workers support this command.');
+    }
+    final records = await _invoke('testRoomLoad', setupId: setupId);
+    return {
+      for (final entry in (records! as Map).entries)
+        entry.key as String: asBytes(entry.value),
+    };
+  }
+
+  @visibleForTesting
+  Future<void> debugWriteRoomForTesting(
+    String setupId,
+    String roomId,
+    Uint8List state,
+  ) async {
+    if (!_testing) {
+      throw StateError('Only testing workers support this command.');
+    }
+    await _invoke(
+      'testRoomWrite',
+      setupId: setupId,
+      payload: {'roomId': roomId, 'state': Uint8List.fromList(state)},
+    );
   }
 
   Future<NoosphereWorkerSnapshot> startSetup({
@@ -631,25 +668,38 @@ typedef _HostProviders = ({
   ServerIdentityStore? identityStore,
   String? identityStorageId,
   ClientStorageInterface? storage,
+  RoomPersistence? roomPersistence,
   GetPrivateKey? getPrivateKey,
   String? participant,
 });
+
+// A timed-out provider call is still running even after its worker closes.
+// Keep room reads/writes ordered for the same host provider across setup and
+// worker lifetimes, so a replacement cannot load ahead of an old commit.
+final _roomPersistenceQueues = Expando<SerialExecutor>(
+  'Room persistence queues',
+);
 
 final class _HostSetup {
   ServerIdentityStore? identityStore;
   String? identityStorageId;
   ClientStorageInterface? storage;
+  RoomPersistence? roomPersistence;
   GetPrivateKey? getPrivateKey;
   String? participant;
   final _storageSerial = SerialExecutor();
 
   bool get hasProviders =>
-      identityStore != null || storage != null || getPrivateKey != null;
+      identityStore != null ||
+      storage != null ||
+      roomPersistence != null ||
+      getPrivateKey != null;
 
   _HostProviders get providers => (
     identityStore: identityStore,
     identityStorageId: identityStorageId,
     storage: storage,
+    roomPersistence: roomPersistence,
     getPrivateKey: getPrivateKey,
     participant: participant,
   );
@@ -658,6 +708,7 @@ final class _HostSetup {
     identityStore = value.identityStore;
     identityStorageId = value.identityStorageId;
     storage = value.storage;
+    roomPersistence = value.roomPersistence;
     getPrivateKey = value.getPrivateKey;
     participant = value.participant;
   }
@@ -671,6 +722,7 @@ final class _HostSetup {
     if (server != null) {
       this.identityStorageId = identityStorageId ?? setupId;
       identityStore = server.identityStore;
+      roomPersistence = server.roomPersistence;
     }
     if (client != null) {
       storage = client.storage;
@@ -687,6 +739,7 @@ final class _HostSetup {
     }
     if (roles != NoosphereWorkerRoles.signer) {
       identityStore = null;
+      roomPersistence = null;
       identityStorageId = null;
     }
   }
@@ -706,6 +759,26 @@ final class _HostSetup {
         if (store == null) throw StateError('No identity store.');
         await store.write(asBytes(payload['secret']));
         return null;
+      case 'rooms.loadAll':
+      case 'rooms.write':
+        final rooms = roomPersistence;
+        if (rooms == null) throw StateError('No room persistence provider.');
+        final queue = _roomPersistenceQueues[rooms] ??= SerialExecutor();
+        return queue.run(
+          () => _serializeStorage(() async {
+            if (operation == 'rooms.loadAll') {
+              return {
+                for (final entry in (await rooms.loadAll()).entries)
+                  entry.key: Uint8List.fromList(entry.value),
+              };
+            }
+            await rooms.write(
+              payload['roomId']! as String,
+              asBytes(payload['state']),
+            );
+            return null;
+          }),
+        );
       case 'getPrivateKey':
         final provider = getPrivateKey;
         if (provider == null) throw StateError('Signer is locked.');

@@ -27,4 +27,5 @@ export 'api/types/signed_dkg_ack.dart';
 export 'api/types/single_signature_details.dart';
 export 'room.dart';
 
-const int noosphereRoastProtocolVersion = 2;
+/// R&D baseline; revised in place until the first stable protocol release.
+const int noosphereRoastProtocolVersion = 1;

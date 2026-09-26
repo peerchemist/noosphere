@@ -26,17 +26,15 @@ void main() {
   });
 
   test('client logs in, receives session events, and logs out', () async {
-    final temporary = await Directory.systemTemp.createTemp('iroh-api-');
-    addTearDown(() => temporary.delete(recursive: true));
     final handler = getApiHandler();
     final server = await IrohServer.start(
       IrohConfig(
         server: serverConfig,
-        secretKeyPath: '${temporary.path}/server.key',
         relay: IrohRelayConfig.disabled(),
         nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
       ),
       handler: handler,
+      secretKey: SecretKey.generate(),
     );
     unawaited(server.serve());
     addTearDown(server.close);
@@ -92,15 +90,13 @@ void main() {
   });
 
   test('server disconnect completes a waiting event stream', () async {
-    final temporary = await Directory.systemTemp.createTemp('iroh-api-');
-    addTearDown(() => temporary.delete(recursive: true));
     final server = await IrohServer.start(
       IrohConfig(
         server: serverConfig,
-        secretKeyPath: '${temporary.path}/server.key',
         relay: IrohRelayConfig.disabled(),
         nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
       ),
+      secretKey: SecretKey.generate(),
     );
     unawaited(server.serve());
     final api = await IrohClientApi.connect(
@@ -130,18 +126,17 @@ void main() {
   });
 
   test('runtime reconnects with a new session and snapshot', () async {
-    final temporary = await Directory.systemTemp.createTemp('iroh-reconnect-');
-    addTearDown(() => temporary.delete(recursive: true));
+    final secretKey = SecretKey.generate();
     final handler = getApiHandler();
     final serverConfigWithIdentity = IrohConfig(
       server: serverConfig,
-      secretKeyPath: '${temporary.path}/server.key',
       relay: IrohRelayConfig.disabled(),
       nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
     );
     var server = await IrohServer.start(
       serverConfigWithIdentity,
       handler: handler,
+      secretKey: secretKey,
     );
     unawaited(server.serve());
 
@@ -175,7 +170,11 @@ void main() {
 
     final nextSession = runtime.sessions.first;
     await server.close();
-    server = await IrohServer.start(serverConfigWithIdentity, handler: handler);
+    server = await IrohServer.start(
+      serverConfigWithIdentity,
+      handler: handler,
+      secretKey: secretKey,
+    );
     unawaited(server.serve());
     runtime.updateTransportConfig(
       IrohClientTransportConfig(
@@ -205,19 +204,15 @@ void main() {
   });
 
   test('client limits concurrent RPC streams', () async {
-    final temporary = await Directory.systemTemp.createTemp(
-      'iroh-client-limit-',
-    );
-    addTearDown(() => temporary.delete(recursive: true));
     final handler = BlockingExtendSessionApi();
     final server = await IrohServer.start(
       IrohConfig(
         server: serverConfig,
-        secretKeyPath: '${temporary.path}/server.key',
         relay: IrohRelayConfig.disabled(),
         nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
       ),
       handler: handler,
+      secretKey: SecretKey.generate(),
     );
     unawaited(server.serve());
     addTearDown(server.close);
@@ -257,21 +252,17 @@ void main() {
   });
 
   test('server enforces connection and stream limits', () async {
-    final temporary = await Directory.systemTemp.createTemp(
-      'iroh-server-limit-',
-    );
-    addTearDown(() => temporary.delete(recursive: true));
     final handler = BlockingExtendSessionApi();
     final server = await IrohServer.start(
       IrohConfig(
         server: serverConfig,
-        secretKeyPath: '${temporary.path}/server.key',
         relay: IrohRelayConfig.disabled(),
         maxConnections: 1,
         maxStreamsPerConnection: 2,
         nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
       ),
       handler: handler,
+      secretKey: SecretKey.generate(),
     );
     unawaited(server.serve());
     addTearDown(server.close);
@@ -322,13 +313,10 @@ void main() {
   test(
     'server times out a partial frame and shuts down a blocked RPC',
     () async {
-      final temporary = await Directory.systemTemp.createTemp('iroh-timeout-');
-      addTearDown(() => temporary.delete(recursive: true));
       final handler = BlockingExtendSessionApi();
       final server = await IrohServer.start(
         IrohConfig(
           server: serverConfig,
-          secretKeyPath: '${temporary.path}/server.key',
           relay: IrohRelayConfig.disabled(),
           authTimeout: const Duration(milliseconds: 100),
           rpcTimeout: const Duration(milliseconds: 100),
@@ -336,6 +324,7 @@ void main() {
           nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
         ),
         handler: handler,
+        secretKey: SecretKey.generate(),
       );
       unawaited(server.serve());
 
@@ -395,19 +384,17 @@ void main() {
       Platform.environment['IROH_INTEGRATION_RELAY'] == '1';
   test('client maps domain RPCs over Iroh '
       '${domainRpcViaRelay ? 'relay-only bootstrap' : 'directly'}', () async {
-    final temporary = await Directory.systemTemp.createTemp('iroh-api-dkg-');
-    addTearDown(() => temporary.delete(recursive: true));
     final handler = getApiHandler();
     final server = await IrohServer.start(
       IrohConfig(
         server: serverConfig,
-        secretKeyPath: '${temporary.path}/server.key',
         relay: domainRpcViaRelay
             ? IrohRelayConfig.defaultNetwork()
             : IrohRelayConfig.disabled(),
         nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
       ),
       handler: handler,
+      secretKey: SecretKey.generate(),
     );
     unawaited(server.serve());
     addTearDown(server.close);

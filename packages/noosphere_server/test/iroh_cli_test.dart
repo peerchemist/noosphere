@@ -20,19 +20,21 @@ void main() {
     addTearDown(() => temporary.delete(recursive: true));
     final configFile = File('${temporary.path}/server.yaml');
     final nativeLibrary = Platform.environment['IROH_NATIVE_LIBRARY'];
+    final secretPath = '${temporary.path}/identity/secret.key';
     final config = IrohConfig(
       server: serverConfig,
-      secretKeyPath: '${temporary.path}/identity/secret.key',
       relay: IrohRelayConfig.disabled(),
       nativeLibraryPath: nativeLibrary,
     );
-    await configFile.writeAsString(config.yaml);
+    await configFile.writeAsString(
+      'secret-key-path: $secretPath\n${config.yaml}',
+    );
 
     final firstId = await _startAndStop(configFile.path);
     final secondId = await _startAndStop(configFile.path);
 
     expect(secondId, firstId);
-    expect(await File(config.secretKeyPath).length(), SecretKey.lengthBytes);
+    expect(await File(secretPath).length(), SecretKey.lengthBytes);
   });
 }
 

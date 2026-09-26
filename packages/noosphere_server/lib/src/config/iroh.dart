@@ -23,7 +23,6 @@ final class IrohConfig with MapWritable {
 
   IrohConfig({
     required this.server,
-    required this.secretKeyPath,
     IrohRelayConfig? relay,
     this.alpn = noosphereIrohAlpn,
     this.authTimeout = defaultAuthTimeout,
@@ -34,9 +33,6 @@ final class IrohConfig with MapWritable {
     this.maxStreamsPerConnection = defaultMaxStreamsPerConnection,
     this.nativeLibraryPath,
   }) : relay = relay ?? IrohRelayConfig.defaultNetwork() {
-    if (secretKeyPath.isEmpty) {
-      throw ArgumentError.value(secretKeyPath, 'secretKeyPath', 'is empty');
-    }
     if (alpn.isEmpty) throw ArgumentError.value(alpn, 'alpn', 'is empty');
     if (authTimeout <= Duration.zero) {
       throw ArgumentError.value(authTimeout, 'authTimeout');
@@ -78,7 +74,6 @@ final class IrohConfig with MapWritable {
 
     return IrohConfig(
       server: ServerConfig.fromMapReader(reader['server']),
-      secretKeyPath: reader['secret-key-path'].require(),
       relay: relay,
       alpn: reader['alpn'].value<String>() ?? noosphereIrohAlpn,
       authTimeout:
@@ -104,7 +99,6 @@ final class IrohConfig with MapWritable {
       IrohConfig.fromMapReader(MapReader.fromYaml(yaml));
 
   final ServerConfig server;
-  final String secretKeyPath;
   final IrohRelayConfig relay;
   final String alpn;
   final Duration authTimeout;
@@ -118,7 +112,6 @@ final class IrohConfig with MapWritable {
   @override
   Map<Object, Object> map() {
     final result = <Object, Object>{
-      'secret-key-path': secretKeyPath,
       'alpn': alpn,
       'relay': {
         'policy': switch (relay.policy) {

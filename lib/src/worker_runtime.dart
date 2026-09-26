@@ -6,6 +6,7 @@ import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
 import 'package:meta/meta.dart';
 import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere_server/noosphere_server.dart' show RoomPersistence;
 
 import 'client_options.dart';
 import 'initialization.dart';
@@ -84,6 +85,7 @@ final class _WorkerRuntime {
   final _activeCommands = <Future<void>>{};
   final _done = Completer<void>();
   final _HostBridge _host;
+  final _testRoomStores = <String, _RemoteRoomPersistence>{};
   bool _closing = false;
 
   Future<void> run() async {
@@ -174,6 +176,23 @@ final class _WorkerRuntime {
         case 'testPending':
           if (!testing) throw StateError('Test command is unavailable.');
           await Completer<void>().future;
+          result = null;
+        case 'testRoomLoad':
+          if (!testing) throw StateError('Test command is unavailable.');
+          result = await _testRoomStores
+              .putIfAbsent(
+                setupId!,
+                () => _RemoteRoomPersistence(_host, setupId),
+              )
+              .loadAll();
+        case 'testRoomWrite':
+          if (!testing) throw StateError('Test command is unavailable.');
+          await _testRoomStores
+              .putIfAbsent(
+                setupId!,
+                () => _RemoteRoomPersistence(_host, setupId),
+              )
+              .write(payload['roomId']! as String, asBytes(payload['state']));
           result = null;
         case 'testHost':
           if (!testing) throw StateError('Test command is unavailable.');
@@ -341,6 +360,7 @@ final class _SetupRuntime {
         final options = decodeServerOptions(
           serverMessage,
           _RemoteIdentityStore(host, setupId),
+          _RemoteRoomPersistence(host, setupId),
         );
         final node = await NoosphereNode.startInitialized(server: options);
         _serverNode = node;
@@ -780,6 +800,43 @@ final class _HostBridge {
       );
     }
     _pending.clear();
+  }
+}
+
+final class _RemoteRoomPersistence(this.host, this.setupId)
+    implements RoomPersistence {
+  final _HostBridge host;
+  final String setupId;
+  bool _writeOutcomeUnknown = false;
+
+  @override
+  Future<Map<String, Uint8List>> loadAll() async {
+    final records = await host.request(setupId, 'rooms.loadAll', const {});
+    return {
+      for (final entry in (records! as Map).entries)
+        entry.key as String: asBytes(entry.value),
+    };
+  }
+
+  @override
+  Future<void> write(String roomId, Uint8List state) async {
+    if (_writeOutcomeUnknown) {
+      throw StateError(
+        'Room storage outcome is unknown; restart the server role.',
+      );
+    }
+    try {
+      await host.request(setupId, 'rooms.write', {
+        'roomId': roomId,
+        'state': Uint8List.fromList(state),
+      });
+    } catch (_) {
+      // The host may have committed even if its reply failed or timed out.
+      // RoomManager still has the previous snapshot. Do not let it overwrite
+      // newer host state; reopening the role constructs and reloads a manager.
+      _writeOutcomeUnknown = true;
+      rethrow;
+    }
   }
 }
 

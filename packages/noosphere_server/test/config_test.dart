@@ -26,7 +26,6 @@ void yamlTest<T extends MapWritable>(
 
 final irohConfig = IrohConfig(
   server: serverConfig,
-  secretKeyPath: '/var/lib/noosphere/identity.key',
   relay: IrohRelayConfig.custom(const ['https://relay.example']),
   nativeLibraryPath: '/app/libirohdart_ffi.so',
 );

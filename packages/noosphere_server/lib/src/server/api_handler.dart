@@ -67,7 +67,7 @@ class ServerApiHandler implements ApiRequestInterface {
     required Identifier participantId,
     int protocolVersion = currentProtocolVersion,
   }) async {
-    // Only allow version 1
+    // Only accept the current development protocol.
     if (protocolVersion != currentProtocolVersion) {
       throw InvalidRequest.invalidProtoVersion();
     }

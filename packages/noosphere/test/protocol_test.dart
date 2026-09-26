@@ -1,3 +1,4 @@
+import 'package:noosphere/domain.dart' show noosphereRoastProtocolVersion;
 import 'package:noosphere/noosphere.dart' as protocol;
 import 'package:protobuf/protobuf.dart';
 import 'package:test/test.dart';
@@ -28,7 +29,7 @@ void main() {
           protocol.LoginRequest(
             groupFingerprint: [1],
             participantId: [2],
-            protocolVersion: 2,
+            protocolVersion: noosphereRoastProtocolVersion,
           ),
           protocol.LoginRequest.fromBuffer,
         ),

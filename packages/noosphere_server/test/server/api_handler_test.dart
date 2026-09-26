@@ -40,7 +40,7 @@ void main() {
           () => ctx.api.login(
             groupFingerprint: groupConfig.fingerprint,
             participantId: ids.first,
-            protocolVersion: 1,
+            protocolVersion: noosphereRoastProtocolVersion + 1,
           ),
         );
 

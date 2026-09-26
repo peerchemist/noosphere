@@ -74,16 +74,16 @@ void main() async {
     },
   );
 
-  final temporary = await Directory.systemTemp.createTemp('noosphere-example-');
+  await Iroh.init();
   final server = await IrohServer.start(
     IrohConfig(
       server: ServerConfig(
         group: groupConfig,
         sessionTTL: Duration(minutes: 25),
       ),
-      secretKeyPath: '${temporary.path}/server.key',
       relay: IrohRelayConfig.disabled(),
     ),
+    secretKey: SecretKey.generate(),
   );
   unawaited(server.serve());
   final bootstrapAddress = EndpointAddr(
@@ -258,7 +258,6 @@ void main() async {
   // Shutdown everything
   await Future.wait(clients.map((client) => client.logout()));
   await server.close();
-  await temporary.delete(recursive: true);
 }
 
 List<String> _loopbackAddresses(List<String> boundAddresses) =>
