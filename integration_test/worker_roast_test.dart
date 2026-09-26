@@ -139,6 +139,25 @@ Future<void> _runScenario({
     }
 
     final dkgName = 'worker-$threshold-of-$participants';
+    await timed(
+      'requestDkgToCancel',
+      () => worker.requestDkg(
+        'signer-0',
+        NewDkgDetails(
+          name: dkgName,
+          description: 'Stale worker DKG to cancel',
+          threshold: threshold,
+          expiry: Expiry(const Duration(hours: 1)),
+        ),
+      ),
+    );
+    final staleDkg = (await worker.snapshot('signer-0')).dkgs
+        .singleWhere((dkg) => dkg.name == dkgName);
+    await timed(
+      'cancelAcceptedDkg',
+      () => worker.rejectDkg('signer-0', staleDkg),
+    );
+
     final pendingDkgs = [
       for (var i = 1; i < participants; i++)
         events
@@ -146,7 +165,11 @@ Future<void> _runScenario({
             .cast<WorkerDkgEvent>()
             .firstWhere(
               (event) =>
-                  event.setupId == 'signer-$i' && event.status.name == dkgName,
+                  event.setupId == 'signer-$i' &&
+                  event.status.name == dkgName &&
+                  event.status.description ==
+                      'Native worker integration test' &&
+                  !event.rejected,
             ),
     ];
     await timed(

@@ -467,7 +467,10 @@ final class _SetupRuntime {
     required Uint8List proposalBytes,
     required bool accept,
   }) => _withClient((client) async {
-    final current = client.dkgRequests.where((dkg) => dkg.details.name == name);
+    final candidates = accept
+        ? client.dkgRequests
+        : [...client.dkgRequests, ...client.acceptedDkgs];
+    final current = candidates.where((dkg) => dkg.details.name == name);
     if (current.isEmpty ||
         !_bytesEqual(current.single.details.toBytes(), proposalBytes)) {
       throw StateError('DKG proposal changed or is no longer pending.');
