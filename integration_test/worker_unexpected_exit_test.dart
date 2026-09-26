@@ -30,10 +30,10 @@ void main() {
     try {
       final snapshot = await worker.startSetup(
         setupId: 'interrupted',
-        identityStorageId: 'unexpected-exit',
         server: EmbeddedServerOptions(
           serverConfig: ServerConfig(group: group),
           identityStore: MemoryIdentityStore(),
+          serverPersistence: MemoryServerPersistence(),
           relay: IrohRelayConfig.disabled(),
         ),
       );

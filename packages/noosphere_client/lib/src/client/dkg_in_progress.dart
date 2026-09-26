@@ -21,6 +21,6 @@ class DkgInProgress {
     required this.expiry,
     required this.creator,
     required this.stage,
-    required this.completed,
-  });
+    required Set<Identifier> completed,
+  }) : completed = Set.unmodifiable(completed);
 }

@@ -94,7 +94,7 @@ class LoginRespMockApi extends ServerApiHandler {
     this.sigRounds = const [],
     this.completedSigs = const [],
     this.secretShares = const [],
-  }) : super(config: serverConfig);
+  }) : super(config: serverConfig, persistence: newServerPersistence());
 
   @override
   Future<LoginCompleteResponse> respondToChallenge(
@@ -118,7 +118,8 @@ class LoginRespMockApi extends ServerApiHandler {
 
 /// Gives false DkgAck that wasn't requested
 class MockUnrequestedAckApi extends ServerApiHandler {
-  MockUnrequestedAckApi() : super(config: serverConfig);
+  MockUnrequestedAckApi()
+    : super(config: serverConfig, persistence: newServerPersistence());
 
   @override
   Future<Set<SignedDkgAck>> requestDkgAcks({
@@ -143,7 +144,8 @@ class MockUnrequestedAckApi extends ServerApiHandler {
 }
 
 class MockPrematureSigsApi extends ServerApiHandler {
-  MockPrematureSigsApi() : super(config: serverConfig);
+  MockPrematureSigsApi()
+    : super(config: serverConfig, persistence: newServerPersistence());
 
   @override
   Future<SignaturesResponse?> submitSignatureReplies({
@@ -157,7 +159,8 @@ class LostSignaturesRequestResponseApi extends ServerApiHandler {
   late InMemoryClientStorage inspectedStore;
   int requestCalls = 0;
 
-  LostSignaturesRequestResponseApi() : super(config: serverConfig);
+  LostSignaturesRequestResponseApi()
+    : super(config: serverConfig, persistence: newServerPersistence());
 
   @override
   Future<void> requestSignatures({
@@ -185,7 +188,8 @@ class LostSignaturesRequestResponseApi extends ServerApiHandler {
 class LostBeforeSignaturesRequestApi extends ServerApiHandler {
   int requestCalls = 0;
 
-  LostBeforeSignaturesRequestApi() : super(config: serverConfig);
+  LostBeforeSignaturesRequestApi()
+    : super(config: serverConfig, persistence: newServerPersistence());
 
   @override
   Future<void> requestSignatures({
@@ -203,7 +207,8 @@ class LostSignatureRepliesResponseApi extends ServerApiHandler {
   late InMemoryClientStorage inspectedStore;
   int replyCalls = 0;
 
-  LostSignatureRepliesResponseApi() : super(config: serverConfig);
+  LostSignatureRepliesResponseApi()
+    : super(config: serverConfig, persistence: newServerPersistence());
 
   @override
   Future<SignaturesResponse?> submitSignatureReplies({
@@ -225,7 +230,8 @@ class LostSignatureRepliesResponseApi extends ServerApiHandler {
 }
 
 class BlockingExtendSessionApi extends ServerApiHandler {
-  BlockingExtendSessionApi() : super(config: serverConfig);
+  BlockingExtendSessionApi()
+    : super(config: serverConfig, persistence: newServerPersistence());
 
   final entered = Completer<void>();
   final release = Completer<void>();
@@ -250,7 +256,12 @@ class TestContext {
   final List<ServerTestClient> clients = [];
 
   TestContext([ServerApiHandler? api]) {
-    this.api = api ?? ServerApiHandler(config: serverConfig);
+    this.api =
+        api ??
+        ServerApiHandler(
+          config: serverConfig,
+          persistence: newServerPersistence(),
+        );
   }
 
   Future<ServerTestClient> login(int i) async {
@@ -274,7 +285,7 @@ class TestContext {
       Future.wait(List.generate(n, (i) => login(i + skip)));
 
   DkgState addDkg(Identifier creator, String name, {int threshold = 2}) {
-    return api.state.nameToDkg[name] = DkgState(
+    return api.debugState.nameToDkg[name] = DkgState(
       details: signObject(getDkgDetails(name: name, threshold: threshold)),
       creator: creator,
       commitments: [],
@@ -288,7 +299,7 @@ class TestContext {
     final signedDetails = signObject(
       getSignaturesDetails(singleSigTweaks: tweaks),
     );
-    return api.state.sigRequests[signedDetails.obj.id] =
+    return api.debugState.sigRequests[signedDetails.obj.id] =
         SignaturesCoordinationState(
           details: signedDetails,
           creator: creator,
@@ -299,13 +310,14 @@ class TestContext {
   CompletedSignatures addCompletedSig(Set<Identifier> acks, int tweak) {
     final details = getSignaturesDetails(singleSigTweaks: [tweak]);
     final signedDetails = Signed.sign(obj: details, key: getPrivkey(0));
-    final completed = api.state.completedSigs[details.id] = CompletedSignatures(
-      details: signedDetails,
-      // Dummy signature
-      signatures: [cl.SchnorrSignature.sign(getPrivkey(0), Uint8List(32))],
-      expiry: details.expiry,
-      creator: ids.first,
-    );
+    final completed = api.debugState.completedSigs[details.id] =
+        CompletedSignatures(
+          details: signedDetails,
+          // Dummy signature
+          signatures: [cl.SchnorrSignature.sign(getPrivkey(0), Uint8List(32))],
+          expiry: details.expiry,
+          creator: ids.first,
+        );
     completed.acks.addAll(acks);
     return completed;
   }

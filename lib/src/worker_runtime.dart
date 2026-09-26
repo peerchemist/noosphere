@@ -6,7 +6,8 @@ import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
 import 'package:meta/meta.dart';
 import 'package:noosphere_client/noosphere_client.dart';
-import 'package:noosphere_server/noosphere_server.dart' show RoomPersistence;
+import 'package:noosphere_server/noosphere_server.dart'
+    show RoomPersistence, ServerPersistence, ServerStateSnapshot;
 
 import 'client_options.dart';
 import 'initialization.dart';
@@ -360,6 +361,7 @@ final class _SetupRuntime {
         final options = decodeServerOptions(
           serverMessage,
           _RemoteIdentityStore(host, setupId),
+          _RemoteServerPersistence(host, setupId),
           _RemoteRoomPersistence(host, setupId),
         );
         final node = await NoosphereNode.startInitialized(server: options);
@@ -807,7 +809,6 @@ final class _RemoteRoomPersistence(this.host, this.setupId)
     implements RoomPersistence {
   final _HostBridge host;
   final String setupId;
-  bool _writeOutcomeUnknown = false;
 
   @override
   Future<Map<String, Uint8List>> loadAll() async {
@@ -819,25 +820,34 @@ final class _RemoteRoomPersistence(this.host, this.setupId)
   }
 
   @override
-  Future<void> write(String roomId, Uint8List state) async {
-    if (_writeOutcomeUnknown) {
-      throw StateError(
-        'Room storage outcome is unknown; restart the server role.',
-      );
-    }
-    try {
-      await host.request(setupId, 'rooms.write', {
+  Future<void> write(String roomId, Uint8List state) => host
+      .request(setupId, 'rooms.write', {
         'roomId': roomId,
         'state': Uint8List.fromList(state),
-      });
-    } catch (_) {
-      // The host may have committed even if its reply failed or timed out.
-      // RoomManager still has the previous snapshot. Do not let it overwrite
-      // newer host state; reopening the role constructs and reloads a manager.
-      _writeOutcomeUnknown = true;
-      rethrow;
-    }
+      })
+      .then((_) {});
+}
+
+final class _RemoteServerPersistence(this.host, this.setupId)
+    implements ServerPersistence {
+  final _HostBridge host;
+  final String setupId;
+
+  @override
+  Future<ServerStateSnapshot?> load(String groupId) async {
+    final value = await host.request(setupId, 'server.load', {
+      'groupId': groupId,
+    });
+    return value == null ? null : ServerStateSnapshot.fromBytes(asBytes(value));
   }
+
+  @override
+  Future<void> write(String groupId, ServerStateSnapshot state) => host
+      .request(setupId, 'server.write', {
+        'groupId': groupId,
+        'state': state.toBytes(),
+      })
+      .then((_) {});
 }
 
 final class _RemoteIdentityStore(this.host, this.setupId)
@@ -860,6 +870,46 @@ final class _RemoteClientStorage(this.host, this.setupId)
     implements ClientStorageInterface {
   final _HostBridge host;
   final String setupId;
+
+  @override
+  Future<ClientStorageSnapshot> loadState() async {
+    final value = await host.request(setupId, 'storage.loadState', const {});
+    final snapshot = value! as Map<Object?, Object?>;
+    final keys = {
+      for (final bytes in snapshot['keys']! as List)
+        FrostKeyWithDetails.fromBytes(asBytes(bytes)),
+    };
+    final nonces = {
+      for (final raw in snapshot['nonces']! as List)
+        SignaturesRequestId.fromBytes(
+          asBytes((raw as Map<Object?, Object?>)['id']),
+        ): decodeSignaturesNonces(
+          raw['nonces']! as Map<Object?, Object?>,
+        ),
+    };
+    final operations = [
+      for (final bytes in snapshot['prepared']! as List)
+        PreparedSignaturesOperation.fromBytes(asBytes(bytes)),
+    ];
+    final rejected = {
+      for (final raw in snapshot['rejected']! as List)
+        SignaturesRequestId.fromBytes(
+          asBytes((raw as Map<Object?, Object?>)['id']),
+        ): FinalExpirable(
+          Expiry.fromTime(
+            DateTime.fromMicrosecondsSinceEpoch(raw['expiryMicros']! as int),
+          ),
+        ),
+    };
+    return ClientStorageSnapshot(
+      keys: keys,
+      sigNonces: nonces,
+      preparedOperations: {
+        for (final operation in operations) operation.id: operation,
+      },
+      rejectedRequests: rejected,
+    );
+  }
 
   @override
   Future<void> addOrReplaceFrostKey(FrostKeyWithDetails newKey) => host
@@ -915,63 +965,6 @@ final class _RemoteClientStorage(this.host, this.setupId)
   Future<void> removeSigsRequest(SignaturesRequestId id) => host
       .request(setupId, 'storage.removeSignatures', {'id': id.toBytes()})
       .then((_) {});
-
-  @override
-  Future<Set<FrostKeyWithDetails>> loadKeys() async {
-    final values = await host.request(setupId, 'storage.loadKeys', const {});
-    return {
-      for (final value in values! as List)
-        FrostKeyWithDetails.fromBytes(asBytes(value)),
-    };
-  }
-
-  @override
-  Future<Map<SignaturesRequestId, SignaturesNonces>> loadSigNonces() async {
-    final values = await host.request(setupId, 'storage.loadNonces', const {});
-    return {
-      for (final value in values! as List)
-        SignaturesRequestId.fromBytes(
-          asBytes((value as Map<Object?, Object?>)['id']),
-        ): decodeSignaturesNonces(
-          value['nonces']! as Map<Object?, Object?>,
-        ),
-    };
-  }
-
-  @override
-  Future<Map<SignaturesRequestId, PreparedSignaturesOperation>>
-  loadPreparedSignaturesOperations() async {
-    final values = await host.request(
-      setupId,
-      'storage.loadPreparedSignatures',
-      const {},
-    );
-    final operations = [
-      for (final value in values! as List)
-        PreparedSignaturesOperation.fromBytes(asBytes(value)),
-    ];
-    return {for (final operation in operations) operation.id: operation};
-  }
-
-  @override
-  Future<Map<SignaturesRequestId, FinalExpirable>>
-  loadRejectedSigsRequests() async {
-    final values = await host.request(
-      setupId,
-      'storage.loadRejections',
-      const {},
-    );
-    return {
-      for (final value in values! as List)
-        SignaturesRequestId.fromBytes(
-          asBytes((value as Map<Object?, Object?>)['id']),
-        ): FinalExpirable(
-          Expiry.fromTime(
-            DateTime.fromMicrosecondsSinceEpoch(value['expiryMicros']! as int),
-          ),
-        ),
-    };
-  }
 }
 
 bool _bytesEqual(Uint8List first, Uint8List second) {

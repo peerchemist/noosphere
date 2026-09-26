@@ -4,7 +4,6 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere/api/types/expirable.dart';
 import 'package:noosphere/api/types/expiry.dart';
 import 'package:noosphere/api/types/signatures_request_details.dart';
-import 'package:noosphere/api/types/signed_dkg_ack.dart';
 import 'package:frosty/frosty.dart';
 
 import 'frost_key_with_details.dart';
@@ -14,7 +13,8 @@ class SignaturesNonces implements Expirable {
   final Map<int, SigningNonces> map;
   @override
   final Expiry expiry;
-  SignaturesNonces(this.map, this.expiry);
+  SignaturesNonces(Map<int, SigningNonces> map, this.expiry)
+    : map = Map.unmodifiable(map);
 }
 
 enum PreparedSignaturesOperationKind { request, replies }
@@ -29,10 +29,14 @@ class PreparedSignaturesOperation with cl.Writable implements Expirable {
   final PreparedSignaturesOperationKind kind;
 
   /// Canonical domain payload components sent by the operation.
-  final List<Uint8List> payloads;
+  final List<Uint8List> _payloads;
+  List<Uint8List> get payloads =>
+      List.unmodifiable(_payloads.map(Uint8List.fromList));
 
   /// Signing-round transcripts consumed while producing [payloads].
-  final List<Uint8List> transcripts;
+  final List<Uint8List> _transcripts;
+  List<Uint8List> get transcripts =>
+      List.unmodifiable(_transcripts.map(Uint8List.fromList));
 
   /// Nonces corresponding to commitments contained in [payloads].
   final SignaturesNonces nextNonces;
@@ -46,11 +50,11 @@ class PreparedSignaturesOperation with cl.Writable implements Expirable {
     required List<Uint8List> payloads,
     required List<Uint8List> transcripts,
     required this.nextNonces,
-  }) : payloads = payloads.map(Uint8List.fromList).toList(growable: false),
-       transcripts = transcripts
+  }) : _payloads = payloads.map(Uint8List.fromList).toList(growable: false),
+       _transcripts = transcripts
            .map(Uint8List.fromList)
            .toList(growable: false) {
-    if (payloads.length > 0xffff || transcripts.length > 0xffff) {
+    if (_payloads.length > 0xffff || _transcripts.length > 0xffff) {
       throw ArgumentError('too many prepared operation components');
     }
     if (nextNonces.map.length > 0xffff) {
@@ -108,14 +112,44 @@ class PreparedSignaturesOperation with cl.Writable implements Expirable {
       }
     }
 
-    writeComponents(payloads);
-    writeComponents(transcripts);
+    writeComponents(_payloads);
+    writeComponents(_transcripts);
   }
+}
+
+/// One transactionally consistent view of all client-owned protocol records.
+final class ClientStorageSnapshot {
+  ClientStorageSnapshot({
+    required Iterable<FrostKeyWithDetails> keys,
+    required Map<SignaturesRequestId, SignaturesNonces> sigNonces,
+    required Map<SignaturesRequestId, PreparedSignaturesOperation>
+    preparedOperations,
+    required Map<SignaturesRequestId, FinalExpirable> rejectedRequests,
+  }) : keys = Set.unmodifiable(
+         keys.map((key) => FrostKeyWithDetails.fromBytes(key.toBytes())),
+       ),
+       sigNonces = Map.unmodifiable(sigNonces),
+       preparedOperations = Map.unmodifiable({
+         for (final entry in preparedOperations.entries)
+           entry.key: PreparedSignaturesOperation.fromBytes(
+             entry.value.toBytes(),
+           ),
+       }),
+       rejectedRequests = Map.unmodifiable(rejectedRequests);
+
+  final Set<FrostKeyWithDetails> keys;
+  final Map<SignaturesRequestId, SignaturesNonces> sigNonces;
+  final Map<SignaturesRequestId, PreparedSignaturesOperation>
+  preparedOperations;
+  final Map<SignaturesRequestId, FinalExpirable> rejectedRequests;
 }
 
 /// These methods need to be implemented for permanent storage of key
 /// information.
 abstract interface class ClientStorageInterface {
+  /// Loads every related record from one consistent storage snapshot.
+  Future<ClientStorageSnapshot> loadState();
+
   /// Add or replace the key with details to the storage. If the
   /// [FrostKeyWithDetails.groupKey] is the same as an existing key, it must be
   /// replaced with the new details.
@@ -167,20 +201,4 @@ abstract interface class ClientStorageInterface {
 
   /// Remove all data (rejection and/or nonces) for a signatures request
   Future<void> removeSigsRequest(SignaturesRequestId id);
-
-  /// Load the key details including [SignedDkgAck]s.
-  Future<Set<FrostKeyWithDetails>> loadKeys();
-
-  /// For every non-expired signature request, this should return a map from the
-  // [SignaturesRequestId] to the [SignaturesNonces].
-  Future<Map<SignaturesRequestId, SignaturesNonces>> loadSigNonces();
-
-  /// Loads non-expired operations whose network outcome is not known to have
-  /// been received by the client.
-  Future<Map<SignaturesRequestId, PreparedSignaturesOperation>>
-  loadPreparedSignaturesOperations();
-
-  /// Loads the IDs of all of the signatures requests that were rejected by the
-  /// client
-  Future<Map<SignaturesRequestId, FinalExpirable>> loadRejectedSigsRequests();
 }

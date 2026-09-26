@@ -69,7 +69,10 @@ void main() {
     );
     final dispatcher = IrohDispatcher([
       getApiHandler(),
-      ServerApiHandler(config: ServerConfig(group: secondGroup)),
+      ServerApiHandler(
+        config: ServerConfig(group: secondGroup),
+        persistence: newServerPersistence(),
+      ),
     ]);
     addTearDown(dispatcher.close);
     final gate = Completer<void>();
@@ -186,7 +189,10 @@ void main() {
     );
     final dispatcher = IrohDispatcher([
       getApiHandler(),
-      ServerApiHandler(config: ServerConfig(group: secondGroup)),
+      ServerApiHandler(
+        config: ServerConfig(group: secondGroup),
+        persistence: newServerPersistence(),
+      ),
     ]);
     addTearDown(dispatcher.close);
     final context = connection();

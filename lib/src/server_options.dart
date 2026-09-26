@@ -13,6 +13,7 @@ const int defaultServerMaxStreamsPerConnection = 4;
 final class EmbeddedServerOptions({
   required final ServerConfig serverConfig,
   required final ServerIdentityStore identityStore,
+  required final ServerPersistence serverPersistence,
   final RoomPersistence? roomPersistence,
   final ServerApiHandler? handler,
   final IrohRelayConfig? relay,

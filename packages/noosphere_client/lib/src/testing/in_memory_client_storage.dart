@@ -42,7 +42,12 @@ class InMemoryClientStorage implements ClientStorageInterface {
   }
 
   @override
-  Future<Set<FrostKeyWithDetails>> loadKeys() async => keys.values.toSet();
+  Future<ClientStorageSnapshot> loadState() async => ClientStorageSnapshot(
+    keys: keys.values,
+    sigNonces: sigNonces,
+    preparedOperations: preparedSigOperations,
+    rejectedRequests: sigsRejected,
+  );
 
   @override
   Future<void> addRejectedSigsRequest(
@@ -59,7 +64,11 @@ class InMemoryClientStorage implements ClientStorageInterface {
     int capacity,
   ) async {
     if (sigNonces.containsKey(id)) {
-      sigNonces[id]!.map.addEntries(nonces.map.entries);
+      final previous = sigNonces[id]!;
+      sigNonces[id] = SignaturesNonces({
+        ...previous.map,
+        ...nonces.map,
+      }, previous.expiry);
     } else {
       sigNonces[id] = nonces;
     }
@@ -81,18 +90,6 @@ class InMemoryClientStorage implements ClientStorageInterface {
   Future<void> completeSignaturesOperation(SignaturesRequestId id) async {
     preparedSigOperations.remove(id);
   }
-
-  @override
-  Future<Map<SignaturesRequestId, FinalExpirable>>
-  loadRejectedSigsRequests() async => sigsRejected;
-
-  @override
-  Future<Map<SignaturesRequestId, SignaturesNonces>> loadSigNonces() async =>
-      sigNonces;
-
-  @override
-  Future<Map<SignaturesRequestId, PreparedSignaturesOperation>>
-  loadPreparedSignaturesOperations() async => preparedSigOperations;
 
   @override
   Future<void> removeRejectionOfSigsRequest(SignaturesRequestId id) async {

@@ -73,16 +73,18 @@ Applications that manage the Iroh identity themselves can start the server
 without filesystem access:
 
 ```dart
-final server = await IrohServer.startWithSecretKey(
+final server = await IrohServer.start(
   config,
   secretKey: persistedSecretKey,
+  persistence: durableServerPersistence,
 );
 unawaited(server.serve());
 ```
 
-Both `start(config, secretKey: key)` and `startWithSecretKey` require an
-identity supplied by the host and perform no identity storage I/O. Persist a
-new identity before starting the server. `IrohConfig` no longer accepts
+`start(config, secretKey: key, persistence: provider)` requires an identity and
+domain-specific server persistence supplied by the host, and performs no
+identity storage I/O. Persist a new identity before starting the server.
+`IrohConfig` no longer accepts
 `secretKeyPath`; remove that argument from embedding code and load the key in
 your wrapper instead.
 
@@ -90,6 +92,10 @@ The standalone CLI still accepts `secret-key-path` in its YAML. Its provider
 lives under `bin/src/`, serializes cooperating processes with a file lock and
 writes the identity with mode 0600 on POSIX. Database, secure-storage and backup
 policy for other hosts belongs to those hosts.
+
+The CLI stores protocol snapshots under `state-directory` (default:
+`<config-path>.state`). Embedders must implement `ServerPersistence.write` as
+an atomic durable replacement and must fail startup when loading fails.
 
 `RoomManager.open` requires an explicit `RoomPersistence` provider. Tests and
 examples can import `package:noosphere_server/testing.dart` and pass

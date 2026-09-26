@@ -5,7 +5,8 @@ import 'dart:typed_data';
 import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
 import 'package:meta/meta.dart';
 import 'package:noosphere_client/noosphere_client.dart';
-import 'package:noosphere_server/noosphere_server.dart' show RoomPersistence;
+import 'package:noosphere_server/noosphere_server.dart'
+    show RoomPersistence, ServerPersistence, ServerStateSnapshot;
 
 import 'client_options.dart';
 import 'initialization.dart';
@@ -95,10 +96,8 @@ final class NoosphereWorker {
       final setup = worker._setups.putIfAbsent(entry.key, _HostSetup.new);
       final store = entry.value;
       if (store != null) {
-        setup
-          ..identityStore = store
-          ..identityStorageId = entry.key;
-        await _IdentityRegistry.loadOrCreate(entry.key, store);
+        setup.identityStore = store;
+        await setup.loadOrCreateIdentity();
       }
     }
     for (final entry in roomPersistences.entries) {
@@ -279,7 +278,6 @@ final class NoosphereWorker {
     required String setupId,
     EmbeddedServerOptions? server,
     ClientNodeOptions? client,
-    String? identityStorageId,
   }) async {
     _validateSetupId(setupId);
     if (server == null && client == null) {
@@ -288,12 +286,7 @@ final class NoosphereWorker {
 
     final setup = _setups.putIfAbsent(setupId, _HostSetup.new);
     final previousProviders = setup.providers;
-    setup.bind(
-      setupId: setupId,
-      server: server,
-      client: client,
-      identityStorageId: identityStorageId,
-    );
+    setup.bind(server: server, client: client);
 
     try {
       final result = await _invoke(
@@ -360,14 +353,13 @@ final class NoosphereWorker {
       throw StateError('Cannot export identity for unknown setup "$setupId".');
     }
     final store = setup.identityStore;
-    final storageId = setup.identityStorageId;
-    if (store == null || storageId == null) {
+    if (store == null) {
       throw StateError(
         'Cannot export an Iroh server identity from setup "$setupId" '
         'because it has no embedded server role.',
       );
     }
-    return await _IdentityRegistry.export(storageId, store);
+    return exportStoredIrohServerIdentity(store);
   }
 
   Future<void> requestDkg(String setupId, NewDkgDetails proposal) => _invoke(
@@ -666,7 +658,7 @@ final class NoosphereWorker {
 
 typedef _HostProviders = ({
   ServerIdentityStore? identityStore,
-  String? identityStorageId,
+  ServerPersistence? serverPersistence,
   ClientStorageInterface? storage,
   RoomPersistence? roomPersistence,
   GetPrivateKey? getPrivateKey,
@@ -679,10 +671,15 @@ typedef _HostProviders = ({
 final _roomPersistenceQueues = Expando<SerialExecutor>(
   'Room persistence queues',
 );
+final _serverPersistenceQueues = Expando<SerialExecutor>(
+  'Server persistence queues',
+);
 
 final class _HostSetup {
   ServerIdentityStore? identityStore;
-  String? identityStorageId;
+  ServerPersistence? serverPersistence;
+  Future<Uint8List>? _identity;
+  ServerIdentityStore? _identityProvider;
   ClientStorageInterface? storage;
   RoomPersistence? roomPersistence;
   GetPrivateKey? getPrivateKey;
@@ -691,13 +688,14 @@ final class _HostSetup {
 
   bool get hasProviders =>
       identityStore != null ||
+      serverPersistence != null ||
       storage != null ||
       roomPersistence != null ||
       getPrivateKey != null;
 
   _HostProviders get providers => (
     identityStore: identityStore,
-    identityStorageId: identityStorageId,
+    serverPersistence: serverPersistence,
     storage: storage,
     roomPersistence: roomPersistence,
     getPrivateKey: getPrivateKey,
@@ -706,7 +704,11 @@ final class _HostSetup {
 
   set providers(_HostProviders value) {
     identityStore = value.identityStore;
-    identityStorageId = value.identityStorageId;
+    serverPersistence = value.serverPersistence;
+    if (!identical(_identityProvider, identityStore)) {
+      _identity = null;
+      _identityProvider = null;
+    }
     storage = value.storage;
     roomPersistence = value.roomPersistence;
     getPrivateKey = value.getPrivateKey;
@@ -714,14 +716,16 @@ final class _HostSetup {
   }
 
   void bind({
-    required String setupId,
     required EmbeddedServerOptions? server,
     required ClientNodeOptions? client,
-    required String? identityStorageId,
   }) {
     if (server != null) {
-      this.identityStorageId = identityStorageId ?? setupId;
+      if (!identical(identityStore, server.identityStore)) {
+        _identity = null;
+        _identityProvider = null;
+      }
       identityStore = server.identityStore;
+      serverPersistence = server.serverPersistence;
       roomPersistence = server.roomPersistence;
     }
     if (client != null) {
@@ -739,8 +743,10 @@ final class _HostSetup {
     }
     if (roles != NoosphereWorkerRoles.signer) {
       identityStore = null;
+      serverPersistence = null;
       roomPersistence = null;
-      identityStorageId = null;
+      _identity = null;
+      _identityProvider = null;
     }
   }
 
@@ -750,10 +756,7 @@ final class _HostSetup {
   ) async {
     switch (operation) {
       case 'identity.read':
-        final store = identityStore;
-        final id = identityStorageId;
-        if (store == null || id == null) throw StateError('No identity store.');
-        return _IdentityRegistry.loadOrCreate(id, store);
+        return loadOrCreateIdentity();
       case 'identity.write':
         final store = identityStore;
         if (store == null) throw StateError('No identity store.');
@@ -779,6 +782,26 @@ final class _HostSetup {
             return null;
           }),
         );
+      case 'server.load':
+      case 'server.write':
+        final server = serverPersistence;
+        if (server == null) {
+          throw StateError('No server persistence provider.');
+        }
+        final queue = _serverPersistenceQueues[server] ??= SerialExecutor();
+        return queue.run(
+          () => _serializeStorage(() async {
+            final groupId = payload['groupId']! as String;
+            if (operation == 'server.load') {
+              return (await server.load(groupId))?.toBytes();
+            }
+            await server.write(
+              groupId,
+              ServerStateSnapshot.fromBytes(asBytes(payload['state'])),
+            );
+            return null;
+          }),
+        );
       case 'getPrivateKey':
         final provider = getPrivateKey;
         if (provider == null) throw StateError('Signer is locked.');
@@ -797,6 +820,17 @@ final class _HostSetup {
   Future<T> _serializeStorage<T>(Future<T> Function() operation) =>
       _storageSerial.run(operation);
 
+  Future<Uint8List> loadOrCreateIdentity() {
+    final store = identityStore;
+    if (store == null) throw StateError('No identity store.');
+    if (!identical(_identityProvider, store)) {
+      _identityProvider = store;
+      _identity = null;
+    }
+    return _identity ??= loadOrCreateServerIdentity(store)
+        .then((key) => Uint8List.fromList(key.toBytes()));
+  }
+
   Future<Object?> _dispatchStorage(
     String operation,
     Map<Object?, Object?> payload,
@@ -807,6 +841,29 @@ final class _HostSetup {
         ? null
         : SignaturesRequestId.fromBytes(asBytes(payload['id']));
     switch (operation) {
+      case 'storage.loadState':
+        final snapshot = await store.loadState();
+        return {
+          'keys': [for (final key in snapshot.keys) key.toBytes()],
+          'nonces': [
+            for (final entry in snapshot.sigNonces.entries)
+              {
+                'id': entry.key.toBytes(),
+                'nonces': encodeSignaturesNonces(entry.value),
+              },
+          ],
+          'prepared': [
+            for (final operation in snapshot.preparedOperations.values)
+              operation.toBytes(),
+          ],
+          'rejected': [
+            for (final entry in snapshot.rejectedRequests.entries)
+              {
+                'id': entry.key.toBytes(),
+                'expiryMicros': entry.value.expiry.time.microsecondsSinceEpoch,
+              },
+          ],
+        };
       case 'storage.addKey':
         await store.addOrReplaceFrostKey(
           FrostKeyWithDetails.fromBytes(asBytes(payload['key'])),
@@ -839,30 +896,6 @@ final class _HostSetup {
         await store.removeRejectionOfSigsRequest(id!);
       case 'storage.removeSignatures':
         await store.removeSigsRequest(id!);
-      case 'storage.loadKeys':
-        return [for (final key in await store.loadKeys()) key.toBytes()];
-      case 'storage.loadNonces':
-        return [
-          for (final entry in (await store.loadSigNonces()).entries)
-            {
-              'id': entry.key.toBytes(),
-              'nonces': encodeSignaturesNonces(entry.value),
-            },
-        ];
-      case 'storage.loadPreparedSignatures':
-        return [
-          for (final operation
-              in (await store.loadPreparedSignaturesOperations()).values)
-            operation.toBytes(),
-        ];
-      case 'storage.loadRejections':
-        return [
-          for (final entry in (await store.loadRejectedSigsRequests()).entries)
-            {
-              'id': entry.key.toBytes(),
-              'expiryMicros': entry.value.expiry.time.microsecondsSinceEpoch,
-            },
-        ];
       default:
         throw ArgumentError.value(
           operation,
@@ -871,32 +904,6 @@ final class _HostSetup {
         );
     }
     return null;
-  }
-}
-
-abstract final class _IdentityRegistry {
-  static final _loads = <String, Future<Uint8List>>{};
-
-  static Future<Uint8List> loadOrCreate(
-    String storageId,
-    ServerIdentityStore store,
-  ) => _loads.putIfAbsent(storageId, () => _loadOrCreate(store));
-
-  static Future<Uint8List> export(
-    String storageId,
-    ServerIdentityStore store,
-  ) async {
-    final loaded = _loads[storageId];
-    if (loaded != null) return Uint8List.fromList(await loaded);
-
-    // A successfully started server setup always has a registry entry. Keep a
-    // store fallback for a setup whose host binding outlives worker teardown.
-    return exportStoredIrohServerIdentity(store);
-  }
-
-  static Future<Uint8List> _loadOrCreate(ServerIdentityStore store) async {
-    final key = await loadOrCreateServerIdentity(store);
-    return Uint8List.fromList(key.toBytes());
   }
 }
 

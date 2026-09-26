@@ -25,14 +25,16 @@ class ClientCachedStorage {
     this.sigsRejected,
   );
 
-  static Future<ClientCachedStorage> load(ClientStorageInterface store) async =>
-      ClientCachedStorage._(
-        store,
-        {for (final key in await store.loadKeys()) key.groupKey: key},
-        ExpirableMap.of(await store.loadSigNonces()),
-        ExpirableMap.of(await store.loadPreparedSignaturesOperations()),
-        ExpirableMap.of(await store.loadRejectedSigsRequests()),
-      );
+  static Future<ClientCachedStorage> load(ClientStorageInterface store) async {
+    final snapshot = await store.loadState();
+    return ClientCachedStorage._(
+      store,
+      {for (final key in snapshot.keys) key.groupKey: key},
+      ExpirableMap.of(snapshot.sigNonces),
+      ExpirableMap.of(snapshot.preparedOperations),
+      ExpirableMap.of(snapshot.rejectedRequests),
+    );
+  }
 
   Future<void> addOrReplaceFrostKey(FrostKeyWithDetails key) async {
     await _underlying.addOrReplaceFrostKey(key);
@@ -92,7 +94,11 @@ class ClientCachedStorage {
   }) async {
     await _underlying.addSignaturesNonces(id, nonces, capacity);
     if (sigNonces.containsKey(id)) {
-      sigNonces[id]!.map.addEntries(nonces.map.entries);
+      final previous = sigNonces[id]!;
+      sigNonces[id] = SignaturesNonces({
+        ...previous.map,
+        ...nonces.map,
+      }, previous.expiry);
     } else {
       sigNonces[id] = nonces;
     }

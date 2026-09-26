@@ -76,6 +76,16 @@ void main() {
     );
   });
 
+  test('prepared operation exposes defensive nested byte snapshots', () {
+    final original = operation();
+    final first = original.payloads;
+    final expected = first.first.first;
+    first.first[0] ^= 0xff;
+
+    expect(original.payloads.first.first, expected);
+    expect(() => original.nextNonces.map.clear(), throwsUnsupportedError);
+  });
+
   test('prepare atomically stores operation and next nonce', () async {
     final store = InMemoryClientStorage();
     final prepared = operation();

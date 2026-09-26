@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_server/noosphere_server.dart';
+import 'package:noosphere_server/testing.dart';
 
 final ids = List.generate(10, (i) => Identifier.fromUint16(i + 1));
 final badId = Identifier.fromUint16(11);
@@ -25,7 +26,9 @@ final serverConfig = ServerConfig(
   group: groupConfig,
   keepAliveFreq: Duration(seconds: 1),
 );
-ServerApiHandler getApiHandler() => ServerApiHandler(config: serverConfig);
+ServerPersistence newServerPersistence() => InMemoryServerPersistence();
+ServerApiHandler getApiHandler() =>
+    ServerApiHandler(config: serverConfig, persistence: newServerPersistence());
 
 final futureExpiry = Expiry(Duration(days: 1));
 final dummySig = cl.SchnorrSignature.sign(getPrivkey(0), Uint8List(32));

@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 
+import 'test_support.dart';
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -32,10 +34,10 @@ void main() {
     );
     final starting = worker.startSetup(
       setupId: 'blocked',
-      identityStorageId: 'blocked-provider',
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
         identityStore: store,
+        serverPersistence: MemoryServerPersistence(),
         relay: IrohRelayConfig.disabled(),
       ),
     );

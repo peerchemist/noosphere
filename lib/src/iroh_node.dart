@@ -172,7 +172,7 @@ final class _NativeBackend(
             coordinatorEndpointId: secretKey.publicKey.asBytes(),
             persistence: roomPersistence,
           );
-    final server = await IrohServer.startWithSecretKey(
+    final server = await IrohServer.start(
       IrohConfig(
         server: options.serverConfig,
         relay: options.relay,
@@ -185,6 +185,7 @@ final class _NativeBackend(
         maxStreamsPerConnection: options.maxStreamsPerConnection,
       ),
       secretKey: secretKey,
+      persistence: options.serverPersistence,
       handler: options.handler,
       rooms: rooms,
     );

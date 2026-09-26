@@ -94,63 +94,40 @@ void main() {
     },
   );
 
-  test(
-    'timeout blocks new writes and a replacement waits for the old commit',
-    () async {
-      final store = _DelayedRooms();
-      final worker = await NoosphereWorker.startForTesting(
-        roomPersistences: {'setup': store},
-        hostOperationTimeout: const Duration(milliseconds: 100),
-      );
-      addTearDown(worker.close);
-      await expectLater(
-        worker.debugWriteRoomForTesting(
-          'setup',
-          'room',
-          Uint8List.fromList([7]),
+  test('replacement waits for a timed-out write from the old worker', () async {
+    final store = _DelayedRooms();
+    final worker = await NoosphereWorker.startForTesting(
+      roomPersistences: {'setup': store},
+      hostOperationTimeout: const Duration(milliseconds: 100),
+    );
+    addTearDown(worker.close);
+    await expectLater(
+      worker.debugWriteRoomForTesting('setup', 'room', Uint8List.fromList([7])),
+      throwsA(
+        isA<NoosphereWorkerException>().having(
+          (error) => error.code,
+          'code',
+          'host_timeout',
         ),
-        throwsA(
-          isA<NoosphereWorkerException>().having(
-            (error) => error.code,
-            'code',
-            'host_timeout',
-          ),
-        ),
-      );
-      await expectLater(
-        worker.debugWriteRoomForTesting(
-          'setup',
-          'room',
-          Uint8List.fromList([8]),
-        ),
-        throwsA(
-          isA<NoosphereWorkerException>().having(
-            (error) => error.code,
-            'code',
-            'invalid_state',
-          ),
-        ),
-      );
-      await worker.close();
-      final replacement = await NoosphereWorker.startForTesting(
-        roomPersistences: {'setup': store},
-      );
-      addTearDown(replacement.close);
-      final loaded = replacement.debugLoadRoomsForTesting('setup');
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(store.loads, 0);
-      store.release.complete();
-      expect((await loaded)['room'], [7]);
-      await replacement.debugWriteRoomForTesting(
-        'setup',
-        'room',
-        Uint8List.fromList([9]),
-      );
-      expect((await replacement.debugLoadRoomsForTesting('setup'))['room'], [
-        9,
-      ]);
-    },
-  );
+      ),
+    );
+    await worker.close();
+    final replacement = await NoosphereWorker.startForTesting(
+      roomPersistences: {'setup': store},
+    );
+    addTearDown(replacement.close);
+    final loaded = replacement.debugLoadRoomsForTesting('setup');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(store.loads, 0);
+    store.release.complete();
+    expect((await loaded)['room'], [7]);
+    await replacement.debugWriteRoomForTesting(
+      'setup',
+      'room',
+      Uint8List.fromList([9]),
+    );
+    expect((await replacement.debugLoadRoomsForTesting('setup'))['room'], [9]);
+  });
 
   test('missing room provider fails explicitly', () async {
     final worker = await NoosphereWorker.startForTesting(

@@ -7,6 +7,7 @@ import 'package:noosphere_client/iroh_transport.dart';
 import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_client/testing.dart';
 import 'package:noosphere_server/noosphere_server.dart';
+import 'package:noosphere_server/testing.dart';
 
 String getCommandLineString(String prompt) {
   stdout.write("$prompt: ");
@@ -85,6 +86,7 @@ void main() async {
       relay: IrohRelayConfig.disabled(),
     ),
     secretKey: SecretKey.generate(),
+    persistence: InMemoryServerPersistence(),
   );
   unawaited(server.serve());
   final bootstrapAddress = EndpointAddr(

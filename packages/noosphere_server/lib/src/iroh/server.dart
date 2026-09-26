@@ -9,6 +9,7 @@ import 'package:noosphere/room.dart';
 import '../config/iroh.dart';
 import '../config/server.dart';
 import '../server/api_handler.dart';
+import '../server/persistence.dart';
 import '../room/manager.dart';
 import 'connection_handler.dart';
 import 'dispatcher.dart';
@@ -21,6 +22,7 @@ final class IrohServer {
     required this.endpoint,
     required this.dispatcher,
     required this.rooms,
+    required this.persistence,
   });
 
   /// Starts with a host-owned identity. The host must persist a newly created
@@ -28,24 +30,24 @@ final class IrohServer {
   static Future<IrohServer> start(
     IrohConfig config, {
     required SecretKey secretKey,
+    required ServerPersistence persistence,
     ServerApiHandler? handler,
     RoomManager? rooms,
   }) async {
     await Iroh.init(libraryPath: config.nativeLibraryPath);
-    return _bind(config, secretKey: secretKey, handler: handler, rooms: rooms);
+    return _bind(
+      config,
+      secretKey: secretKey,
+      persistence: persistence,
+      handler: handler,
+      rooms: rooms,
+    );
   }
-
-  /// Alias retained for existing embedding applications.
-  static Future<IrohServer> startWithSecretKey(
-    IrohConfig config, {
-    required SecretKey secretKey,
-    ServerApiHandler? handler,
-    RoomManager? rooms,
-  }) => start(config, secretKey: secretKey, handler: handler, rooms: rooms);
 
   static Future<IrohServer> _bind(
     IrohConfig config, {
     required SecretKey secretKey,
+    required ServerPersistence persistence,
     ServerApiHandler? handler,
     RoomManager? rooms,
   }) async {
@@ -64,7 +66,10 @@ final class IrohServer {
         'room coordinator endpoint ID does not match the Iroh identity',
       );
     }
-    final api = handler ?? ServerApiHandler(config: config.server);
+    final api =
+        handler ??
+        ServerApiHandler(config: config.server, persistence: persistence);
+    await api.ready;
     rooms?.updateBootstrap(
       relayUrls: [for (final relay in endpoint.addr.relayUrls) relay.value],
       ipAddrs: endpoint.addr.ipAddrs,
@@ -73,11 +78,12 @@ final class IrohServer {
     if (rooms != null) {
       for (final room in await rooms.getRooms()) {
         if (room.lifecycle == RoomLifecycle.frozen) {
-          dispatcher.addHandler(
-            ServerApiHandler(
-              config: _configForGroup(config.server, room.groupConfig!),
-            ),
+          final roomHandler = ServerApiHandler(
+            config: _configForGroup(config.server, room.groupConfig!),
+            persistence: persistence,
           );
+          await roomHandler.ready;
+          dispatcher.addHandler(roomHandler);
         }
       }
     }
@@ -86,6 +92,7 @@ final class IrohServer {
       endpoint: endpoint,
       dispatcher: dispatcher,
       rooms: rooms,
+      persistence: persistence,
     );
   }
 
@@ -93,6 +100,7 @@ final class IrohServer {
   final Endpoint endpoint;
   final IrohDispatcher dispatcher;
   final RoomManager? rooms;
+  final ServerPersistence persistence;
   Future<void>? _closing;
   Future<void>? _serving;
   final Set<Future<void>> _connections = {};
@@ -142,11 +150,12 @@ final class IrohServer {
   Future<RoomSnapshot> freezeRoom(String roomId) async {
     final manager = _roomManager();
     final room = await manager.freezeRoom(roomId);
-    dispatcher.addHandler(
-      ServerApiHandler(
-        config: _configForGroup(config.server, room.groupConfig!),
-      ),
+    final handler = ServerApiHandler(
+      config: _configForGroup(config.server, room.groupConfig!),
+      persistence: persistence,
     );
+    await handler.ready;
+    dispatcher.addHandler(handler);
     return room;
   }
 

@@ -149,6 +149,7 @@ final class RoomManager implements RoomEnrollmentApi {
 
   final Map<String, RoomSnapshot> _rooms = {};
   final Map<String, _PendingChallenge> _challenges = {};
+  bool _writeOutcomeUnknown = false;
   final _SerialExecutor _serial = _SerialExecutor();
   final _snapshots = StreamController<RoomSnapshot>.broadcast();
   final _rejections = StreamController<RoomEnrollmentRejected>.broadcast();
@@ -161,6 +162,7 @@ final class RoomManager implements RoomEnrollmentApi {
     required int expectedParticipants,
     required int threshold,
   }) => _serial.run(() async {
+    _requireWritable();
     if (expectedParticipants < 2 || expectedParticipants > 0xffff) {
       throw RangeError.range(
         expectedParticipants,
@@ -187,8 +189,7 @@ final class RoomManager implements RoomEnrollmentApi {
       participants: const [],
       groupConfig: null,
     );
-    await persistence.write(id, room.toBytes());
-    _rooms[id] = room;
+    await _commit(room);
     return _emit(room);
   });
 
@@ -207,6 +208,7 @@ final class RoomManager implements RoomEnrollmentApi {
     required DateTime expiresAt,
     DateTime? now,
   }) => _serial.run(() async {
+    _requireWritable();
     final time = now ?? DateTime.now();
     final current = _requireEnrolling(_requireRoom(roomId));
     if (!expiresAt.isAfter(time)) {
@@ -263,6 +265,7 @@ final class RoomManager implements RoomEnrollmentApi {
     required String inviteId,
     DateTime? now,
   }) => _serial.run(() async {
+    _requireWritable();
     final time = now ?? DateTime.now();
     final current = _requireEnrolling(_requireRoom(roomId));
     final index = current.invites.indexWhere(
@@ -284,6 +287,7 @@ final class RoomManager implements RoomEnrollmentApi {
     required cl.ECCompressedPublicKey participantPublicKey,
     DateTime? now,
   }) => _serial.run(() async {
+    _requireWritable();
     final time = now ?? DateTime.now();
     try {
       if (invite.version != noosphereEnrollmentProtocolVersion) {
@@ -337,6 +341,7 @@ final class RoomManager implements RoomEnrollmentApi {
     Signed<EnrollmentTranscript> proof, {
     DateTime? now,
   }) => _serial.run(() async {
+    _requireWritable();
     final time = now ?? DateTime.now();
     final transcript = proof.obj;
     final challengeKey = cl.bytesToHex(transcript.serverNonce);
@@ -409,6 +414,7 @@ final class RoomManager implements RoomEnrollmentApi {
   });
 
   Future<RoomSnapshot> freezeRoom(String roomId) => _serial.run(() async {
+    _requireWritable();
     final current = _requireEnrolling(_requireRoom(roomId));
     if (current.participants.length != current.expectedParticipants) {
       throw const RoomException(RoomFailureCode.rosterIncomplete);
@@ -437,6 +443,7 @@ final class RoomManager implements RoomEnrollmentApi {
   });
 
   Future<RoomSnapshot> closeRoom(String roomId) => _serial.run(() async {
+    _requireWritable();
     final current = _requireRoom(roomId);
     if (current.lifecycle == RoomLifecycle.closed) return _snapshot(current);
     final updated = current.copyWith(lifecycle: RoomLifecycle.closed);
@@ -451,8 +458,26 @@ final class RoomManager implements RoomEnrollmentApi {
   }
 
   Future<void> _commit(RoomSnapshot room) async {
-    await persistence.write(room.roomId, room.toBytes());
+    final bytes = room.toBytes();
+    try {
+      await persistence.write(room.roomId, bytes);
+    } catch (_) {
+      // A failed Future cannot tell us whether the host committed before its
+      // reply was lost. Retrying from this stale snapshot could overwrite a
+      // newer durable record, so only reopening (and reloading) may clear the
+      // latch.
+      _writeOutcomeUnknown = true;
+      rethrow;
+    }
     _rooms[room.roomId] = room;
+  }
+
+  void _requireWritable() {
+    if (_writeOutcomeUnknown) {
+      throw StateError(
+        'Room storage outcome is unknown; reopen RoomManager before mutating.',
+      );
+    }
   }
 
   RoomSnapshot _requireRoom(String roomId) {

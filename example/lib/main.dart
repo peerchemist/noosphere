@@ -47,6 +47,7 @@ final class _NodeScreenState extends State<NodeScreen> {
     text: '0000000000000000000000000000000000000000000000000000000000000001',
   );
   final _identityStore = _MemoryIdentityStore();
+  final _serverPersistence = InMemoryServerPersistence();
   final _clientStorage = InMemoryClientStorage();
   final _keys = [
     ECPrivateKey(Uint8List(32)..last = 1),
@@ -136,8 +137,8 @@ final class _NodeScreenState extends State<NodeScreen> {
           server: EmbeddedServerOptions(
             serverConfig: ServerConfig(group: _group),
             identityStore: _identityStore,
+            serverPersistence: _serverPersistence,
           ),
-          identityStorageId: 'noosphere-example-coordinator',
         );
         final coordinator = (await reachableCoordinator.timeout(
           const Duration(seconds: 15),

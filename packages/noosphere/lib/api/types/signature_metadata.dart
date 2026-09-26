@@ -86,8 +86,8 @@ class TaprootTransactionSignatureMetadata extends SignatureMetadata {
   /// to sign which must carry the same [transaction] object.
   TaprootTransactionSignatureMetadata({
     required this.transaction,
-    required this.signDetails,
-  }) {
+    required List<cl.TaprootSignDetails> signDetails,
+  }) : signDetails = List.unmodifiable(signDetails) {
     if (signDetails.any((details) => details.tx != transaction)) {
       throw InvalidMetaData("all details should carry the transaction object");
     }

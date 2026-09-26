@@ -47,11 +47,12 @@ class SignaturesRequestDetails with cl.Writable, Signable {
   final Expiry expiry;
 
   SignaturesRequestDetails._({
-    required this.requiredSigs,
+    required List<SingleSignatureDetails> requiredSigs,
     SignatureMetadata? metadata,
     required this.expiry,
     bool allowNegativeExpiry = false,
-  }) : metadata = metadata ?? EmptySignatureMetadata() {
+  }) : requiredSigs = List.unmodifiable(requiredSigs),
+       metadata = metadata ?? EmptySignatureMetadata() {
     if (requiredSigs.toSet().length != requiredSigs.length ||
         requiredSigs.length > 0xffff ||
         requiredSigs.isEmpty) {

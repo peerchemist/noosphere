@@ -32,6 +32,7 @@ void main() {
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
         identityStore: MemoryIdentityStore(),
+        serverPersistence: InMemoryServerPersistence(),
         relay: IrohRelayConfig.disabled(),
       ),
     );

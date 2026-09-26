@@ -94,10 +94,10 @@ Future<void> _runScenario({
         );
     var serverSnapshot = await worker.startSetup(
       setupId: 'signer-0',
-      identityStorageId: 'worker-native-$threshold-of-$participants',
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
         identityStore: MemoryIdentityStore(),
+        serverPersistence: MemoryServerPersistence(),
         relay: IrohRelayConfig.disabled(),
       ),
     );

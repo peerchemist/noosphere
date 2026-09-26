@@ -22,8 +22,8 @@ class SingleSignatureDetails with cl.Writable {
   SingleSignatureDetails({
     required this.signDetails,
     required this.groupKey,
-    required this.hdDerivation,
-  }) {
+    required List<int> hdDerivation,
+  }) : hdDerivation = List.unmodifiable(hdDerivation) {
     RangeError.checkValueInInterval(
       hdDerivation.length,
       0,

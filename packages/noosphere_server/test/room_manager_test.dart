@@ -225,6 +225,90 @@ void main() {
       before.participants.map((participant) => participant.identifier),
     );
   });
+
+  test('a used invitation stays consumed after restart', () async {
+    final (rooms, persistence) = await manager();
+    await rooms.createRoom(
+      roomId: 'room',
+      expectedParticipants: 2,
+      threshold: 1,
+    );
+    final key = cl.ECPrivateKey.generate();
+    final invite = await issue(rooms, 'room', key);
+    await RoomEnrollmentClient(rooms).joinRoom(invite, (_) async => key);
+
+    final restored = await RoomManager.open(
+      coordinatorEndpointId: endpointId,
+      persistence: persistence,
+    );
+    await expectLater(
+      restored.beginEnrollment(
+        invite: invite,
+        participantPublicKey: invite.expectedParticipantPublicKey,
+      ),
+      throwsA(
+        isA<RoomException>().having(
+          (error) => error.code,
+          'code',
+          RoomFailureCode.usedInvite,
+        ),
+      ),
+    );
+  });
+
+  test('unknown write outcome blocks every mutation until reload', () async {
+    final persistence = _UncertainRoomPersistence();
+    final rooms = await RoomManager.open(
+      coordinatorEndpointId: endpointId,
+      persistence: persistence,
+    );
+    await rooms.createRoom(
+      roomId: 'room',
+      expectedParticipants: 2,
+      threshold: 1,
+    );
+    final key = cl.ECPrivateKey.generate();
+    persistence.failAfterCommit = true;
+
+    await expectLater(issue(rooms, 'room', key), throwsStateError);
+    expect((await rooms.getRoom('room')).invites, isEmpty);
+    await expectLater(
+      rooms.createRoom(roomId: 'other', expectedParticipants: 2, threshold: 1),
+      throwsStateError,
+    );
+    await expectLater(issue(rooms, 'room', key), throwsStateError);
+
+    final restored = await RoomManager.open(
+      coordinatorEndpointId: endpointId,
+      persistence: persistence,
+    );
+    final durable = await restored.getRoom('room');
+    expect(durable.invites, hasLength(1));
+    await restored.revokeRoomInvite(
+      roomId: 'room',
+      inviteId: durable.invites.single.inviteId,
+    );
+  });
+}
+
+final class _UncertainRoomPersistence implements RoomPersistence {
+  final records = <String, Uint8List>{};
+  bool failAfterCommit = false;
+
+  @override
+  Future<Map<String, Uint8List>> loadAll() async => {
+    for (final entry in records.entries)
+      entry.key: Uint8List.fromList(entry.value),
+  };
+
+  @override
+  Future<void> write(String roomId, Uint8List state) async {
+    records[roomId] = Uint8List.fromList(state);
+    if (failAfterCommit) {
+      failAfterCommit = false;
+      throw StateError('reply was lost');
+    }
+  }
 }
 
 bool _containsSequence(Uint8List bytes, Uint8List sequence) {

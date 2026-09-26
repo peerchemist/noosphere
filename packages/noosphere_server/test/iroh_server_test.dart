@@ -23,12 +23,17 @@ void main() {
 
   test('host-supplied secret keeps the endpoint ID across restarts', () async {
     final secret = SecretKey.generate();
-    final first = await IrohServer.start(config(), secretKey: secret);
+    final first = await IrohServer.start(
+      config(),
+      secretKey: secret,
+      persistence: newServerPersistence(),
+    );
     final firstId = first.id;
     await first.close();
     final second = await IrohServer.start(
       config(),
       secretKey: SecretKey.fromBytes(secret.toBytes()),
+      persistence: newServerPersistence(),
     );
     addTearDown(second.close);
 
@@ -38,9 +43,10 @@ void main() {
 
   test('embedding alias uses the supplied identity', () async {
     final secret = SecretKey.generate();
-    final server = await IrohServer.startWithSecretKey(
+    final server = await IrohServer.start(
       config(),
       secretKey: secret,
+      persistence: newServerPersistence(),
     );
     addTearDown(server.close);
     expect(server.id, secret.publicKey);
@@ -50,6 +56,7 @@ void main() {
     final server = await IrohServer.start(
       config(),
       secretKey: SecretKey.generate(),
+      persistence: newServerPersistence(),
     );
     final accepted = server.accept();
     await Future.wait([server.close(), server.close()]);

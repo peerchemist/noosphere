@@ -86,7 +86,7 @@ void main() {
       signedChallenge: sign(challenge.challenge),
     );
 
-    expect(api.state.clientSessions[existing.id], isNotNull);
+    expect(api.debugState.clientSessions[existing.id], isNotNull);
     expect(context.sessionId, isNull);
 
     final replacement = await dispatcher.startSession(
@@ -95,8 +95,8 @@ void main() {
     );
     final replacementId = replacement.domainSessionId;
 
-    expect(api.state.clientSessions[existing.id], isNull);
-    expect(api.state.clientSessions[replacementId], isNotNull);
+    expect(api.debugState.clientSessions[existing.id], isNull);
+    expect(api.debugState.clientSessions[replacementId], isNotNull);
     expect(context.sessionId, replacementId);
     expect(context.phase, IrohConnectionPhase.sessionAttached);
   });
@@ -104,7 +104,7 @@ void main() {
   test('expired and already consumed challenges cannot be reused', () async {
     final expiredContext = connection(1);
     final expired = await begin(expiredContext);
-    api.state.challenges[expired.challenge] = ChallengeDetails(
+    api.debugState.challenges[expired.challenge] = ChallengeDetails(
       id: ids.first,
       expiry: Expiry(const Duration(seconds: -1)),
     );

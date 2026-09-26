@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
+import 'package:noosphere_flutter/testing.dart';
 
 const _phase = String.fromEnvironment('NOOSPHERE_RELAUNCH_PHASE');
 
@@ -22,10 +23,10 @@ void main() {
       );
       final snapshot = await worker.startSetup(
         setupId: 'durable',
-        identityStorageId: 'process-relaunch',
         server: EmbeddedServerOptions(
           serverConfig: ServerConfig(group: _group()),
           identityStore: _FileIdentityStore(_identityFile),
+          serverPersistence: InMemoryServerPersistence(),
           relay: IrohRelayConfig.disabled(),
         ),
       );
@@ -65,10 +66,10 @@ void main() {
       try {
         final snapshot = await worker.startSetup(
           setupId: 'durable',
-          identityStorageId: 'process-relaunch',
           server: EmbeddedServerOptions(
             serverConfig: ServerConfig(group: _group()),
             identityStore: _FileIdentityStore(_identityFile),
+            serverPersistence: InMemoryServerPersistence(),
             relay: IrohRelayConfig.disabled(),
           ),
         );

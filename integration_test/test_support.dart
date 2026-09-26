@@ -50,3 +50,14 @@ final class MemoryIdentityStore implements ServerIdentityStore {
     _secret = Uint8List.fromList(secret);
   }
 }
+
+final class MemoryServerPersistence implements ServerPersistence {
+  final _delegate = InMemoryServerPersistence();
+
+  @override
+  Future<ServerStateSnapshot?> load(String groupId) => _delegate.load(groupId);
+
+  @override
+  Future<void> write(String groupId, ServerStateSnapshot state) =>
+      _delegate.write(groupId, state);
+}

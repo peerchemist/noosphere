@@ -70,7 +70,7 @@ void main() {
         Future.wait(List.generate(n, (i) => login(i)));
 
     void sendEventToClient(TestClient tc, Event ev) {
-      final clientState = ctx.api.state.clientSessions.values.firstWhere(
+      final clientState = ctx.api.debugState.clientSessions.values.firstWhere(
         (state) => state.participantId == tc.client.config.id,
       );
       clientState.sendEvent(ev);
@@ -123,6 +123,11 @@ void main() {
       final TestClient(:client, :evCollector) = await login(2);
 
       expect(client.onlineParticipants, {ids[0], ids[1]});
+      expect(
+        () => client.onlineParticipants.add(ids[2]),
+        throwsUnsupportedError,
+      );
+      expect(() => client.keys.clear(), throwsUnsupportedError);
 
       // Expect round 1 DKG
       void expectRound1Dkg(Set<Identifier> commitmentIds) {
@@ -148,12 +153,14 @@ void main() {
       expect(client.onlineParticipants, {ids[0], ids[1], ids[3], ids[4]});
 
       // Logout client
-      ctx.api.state.clientSessions.values
+      ctx.api.debugState.clientSessions.values
           .firstWhere((v) => v.participantId == ids[0])
           .expiry = Expiry(
         Duration(minutes: -1),
       );
-      ctx.api.state.clientSessions.values; // Will expire
+      await ctx.api.extendSession(
+        ctx.api.debugState.participantToSession[ids[1]]!.sessionID,
+      );
 
       {
         final evs = await evCollector.getEvents();
@@ -200,7 +207,7 @@ void main() {
 
       test("online participant not in config", () {
         final mockSessionId = SessionID();
-        ctx.api.state.clientSessions[mockSessionId] = ClientSession(
+        ctx.api.debugState.clientSessions[mockSessionId] = ClientSession(
           participantId: badId,
           sessionID: mockSessionId,
           expiry: Expiry(serverConfig.sessionTTL),
@@ -220,7 +227,7 @@ void main() {
       });
 
       test("invalid DKG signature", () {
-        ctx.api.state.nameToDkg["mock"] = DkgState(
+        ctx.api.debugState.nameToDkg["mock"] = DkgState(
           // Creator should be ids[0] so signature is wrong
           details: dkgDetails,
           creator: ids[1],
@@ -243,16 +250,20 @@ void main() {
       });
 
       test("duplicate DKG", () {
-        ctx.api.state.nameToDkg["one"] = ctx.api.state.nameToDkg["two"] =
-            DkgState(details: dkgDetails, creator: ids.first, commitments: []);
+        ctx.api.debugState.nameToDkg["one"] =
+            ctx.api.debugState.nameToDkg["two"] = DkgState(
+              details: dkgDetails,
+              creator: ids.first,
+              commitments: [],
+            );
         expectLoginMisbehaviour();
       });
 
       test("duplicate signatures request", () {
         final sigsDetails1 = getSignaturesDetails();
         final sigsDetails2 = getSignaturesDetails(singleSigTweaks: [1]);
-        ctx.api.state.sigRequests[sigsDetails1.id] =
-            ctx.api.state.sigRequests[sigsDetails2.id] =
+        ctx.api.debugState.sigRequests[sigsDetails1.id] =
+            ctx.api.debugState.sigRequests[sigsDetails2.id] =
                 SignaturesCoordinationState(
                   details: signObject(sigsDetails1),
                   creator: ids.first,
@@ -286,7 +297,7 @@ void main() {
     test("handles error made on server stream and disconnects", () async {
       bool disconnected = false;
       final tc = await login(0, onDisconnect: () => disconnected = true);
-      ctx.api.state.clientSessions.values.first.eventController.addError(
+      ctx.api.debugState.clientSessions.values.first.eventController.addError(
         Exception("Test exception"),
       );
       await tc.evCollector.expectError<Exception>();
@@ -430,7 +441,7 @@ void main() {
 
       final reqExp = Expiry(Duration(days: 8));
 
-      ctx.api.state.sendEventToAll(
+      ctx.api.debugState.sendEventToAll(
         NewDkgEvent(
           details: signObject(getDkgDetails(expiry: reqExp)),
           creator: ids.first,
@@ -468,10 +479,10 @@ void main() {
         commitments: [],
       );
 
-      ctx.api.state.sendEventToAll(ev1);
+      ctx.api.debugState.sendEventToAll(ev1);
       await tc.evCollector.getExpectOneEvent<UpdatedDkgClientEvent>();
 
-      ctx.api.state.sendEventToAll(ev2);
+      ctx.api.debugState.sendEventToAll(ev2);
       final ev = await tc.evCollector
           .getExpectOneEvent<UpdatedDkgClientEvent>();
       expect(ev.progress.details.name, "123");
@@ -527,11 +538,11 @@ void main() {
     test("Non-existant DKG ignored", () async {
       final TestClient(:evCollector) = await login(0);
 
-      ctx.api.state.sendEventToAll(
+      ctx.api.debugState.sendEventToAll(
         DkgRejectEvent(name: "noexist", participant: ids.last),
       );
 
-      ctx.api.state.sendEventToAll(
+      ctx.api.debugState.sendEventToAll(
         DkgCommitmentEvent(
           name: "noexist",
           participant: ids.last,
@@ -539,7 +550,7 @@ void main() {
         ),
       );
 
-      ctx.api.state.sendEventToAll(
+      ctx.api.debugState.sendEventToAll(
         getRound2ShareEvent(
           dummyCommitmentSet,
           1,
@@ -654,10 +665,11 @@ void main() {
       final client2 = (await login(1)).client;
 
       await client1.requestDkg(getDkgDetails());
+      await waitFor(() => client2.dkgRequests.length == 1);
       await client2.acceptDkg("123");
 
       for (final client in [client1, client2]) {
-        expectLater(() => client.acceptDkg("123"), throwsArgumentError);
+        await expectLater(client.acceptDkg("123"), throwsArgumentError);
       }
     });
 
@@ -680,7 +692,7 @@ void main() {
       final tc2 = await login(0);
 
       for (int i = 0; i < 2; i++) {
-        ctx.api.state.sendEventToAll(
+        ctx.api.debugState.sendEventToAll(
           DkgCommitmentEvent(
             name: "123",
             participant: ids[1],
@@ -725,7 +737,7 @@ void main() {
 
       // Give wrong commitment for i = 4
       for (int i = 1; i < 10; i++) {
-        ctx.api.state.sendEventToAll(
+        ctx.api.debugState.sendEventToAll(
           DkgCommitmentEvent(
             name: "123",
             participant: ids[i],
@@ -782,7 +794,7 @@ void main() {
         // Obtain part1 commitment for requestor so commitment set can be known
         commitmentSet = DkgCommitmentSet([
           ...List.generate(9, (i) => (ids[i], part1s[i].public)),
-          ctx.api.state.round1Dkgs.first.round1.commitments.first,
+          ctx.api.debugState.round1Dkgs.first.round1.commitments.first,
         ]);
 
         commonHash = dkgDetails.obj.hashWithCommitments(commitmentSet);
@@ -827,7 +839,7 @@ void main() {
         DkgFault fault, [
         bool hasCulprit = true,
       ]) async {
-        ctx.api.state.sendEventToAll(sendEv);
+        ctx.api.debugState.sendEventToAll(sendEv);
 
         await tc.evCollector.expectNoError();
 
@@ -849,7 +861,7 @@ void main() {
       );
 
       test("handles logout causing DKG to return to round 1", () async {
-        ctx.api.state.sendEventToAll(
+        ctx.api.debugState.sendEventToAll(
           ParticipantStatusEvent(id: ids.first, loggedIn: false),
         );
 
@@ -893,7 +905,7 @@ void main() {
 
       test("handles wrong secret", () async {
         // Send in bad secret
-        ctx.api.state.sendEventToAll(
+        ctx.api.debugState.sendEventToAll(
           // A fresh round-one secret has the correct sender identifier but
           // does not match the commitment published in [commitmentSet].
           getRound2ShareEvent(commitmentSet, 0, 9, getDkgPart1(0), commonHash),
@@ -901,7 +913,7 @@ void main() {
 
         // Send in all but one good secrets
         for (int i = 1; i < 8; i++) {
-          ctx.api.state.sendEventToAll(
+          ctx.api.debugState.sendEventToAll(
             getRound2ShareEvent(commitmentSet, i, 9, part1s[i], commonHash),
           );
         }
@@ -927,7 +939,7 @@ void main() {
           part1s[1],
           commonHash,
         );
-        ctx.api.state.sendEventToAll(ev);
+        ctx.api.debugState.sendEventToAll(ev);
         await tc.evCollector.expectOnlyOneEventType<UpdatedDkgClientEvent>();
         await expectBadEvent(tc, ev);
       });
@@ -945,9 +957,8 @@ void main() {
       final acks = List.generate(10, (i) => getDkgAck(i, true));
 
       // Give 4 acks to server
-      final ackCache = ctx.api.state.dkgAckCache[groupPublicKey] = DkgAckCache(
-        Expiry(Duration(days: 1)),
-      );
+      final ackCache = ctx.api.debugState.dkgAckCache[groupPublicKey] =
+          DkgAckCache(Expiry(Duration(days: 1)));
 
       for (int i = 0; i < 4; i++) {
         ackCache.acks[ids[i]] = acks[i].signed;
@@ -1279,7 +1290,7 @@ void main() {
           );
 
           expect(api.requestCalls, 1);
-          expect(api.state.sigRequests.containsKey(reqDetails.id), isTrue);
+          expect(api.debugState.sigRequests.containsKey(reqDetails.id), isTrue);
           expect(store.preparedSigOperations, contains(reqDetails.id));
           expect(store.sigNonces, contains(reqDetails.id));
 
@@ -1307,7 +1318,10 @@ void main() {
             throwsStateError,
           );
           expect(api.requestCalls, 1);
-          expect(api.state.sigRequests.containsKey(reqDetails.id), isFalse);
+          expect(
+            api.debugState.sigRequests.containsKey(reqDetails.id),
+            isFalse,
+          );
           expect(store.preparedSigOperations, contains(reqDetails.id));
 
           await expectLater(
@@ -1353,7 +1367,7 @@ void main() {
 
         expect(api.replyCalls, 1);
         expect(
-          api.state.sigRequests[reqDetails.id]!.rejectors,
+          api.debugState.sigRequests[reqDetails.id]!.rejectors,
           contains(ids[1]),
         );
         expect(signerStore.sigsRejected, contains(reqDetails.id));
@@ -1414,12 +1428,12 @@ void main() {
         final reqExp = Expiry(Duration(days: 15));
         final details = getSigDetailsWithKeys(expiry: reqExp);
 
-        ctx.api.state.sendEventToAll(
+        ctx.api.debugState.sendEventToAll(
           SignaturesRequestEvent(
             details: signObject(details, 1),
             creator: ids[1],
           ),
-          exclude: [ctx.api.state.participantToSession[ids[1]]!.sessionID],
+          exclude: [ctx.api.debugState.participantToSession[ids[1]]!.sessionID],
         );
 
         final ev = await tcs.first.evCollector
@@ -1466,17 +1480,19 @@ void main() {
         await tcs.first.client.requestSignatures(sigDetails);
 
         // 3 other logged in clients reject immediately
-        final state = ctx.api.state.sigRequests.values.first;
+        final state = ctx.api.debugState.sigRequests.values.first;
+        await waitFor(() => state.rejectors.length == 3);
         expect(state.rejectors, hasLength(3));
 
         // Log in one of the other clients and receive another rejection
         await login(1, storage: stores[1]);
+        await waitFor(() => state.rejectors.length == 4);
         expect(state.rejectors, hasLength(4));
 
         // One other login and the threshold of failure is attained
         await login(2, storage: stores[2]);
 
-        expect(ctx.api.state.sigRequests.values, isEmpty);
+        expect(ctx.api.debugState.sigRequests.values, isEmpty);
 
         final evs = await tcs.first.evCollector.getEvents();
         expect(evs, hasLength(3));
@@ -1533,7 +1549,7 @@ void main() {
 
         setUp(() async {
           await tcs.first.client.requestSignatures(reqDetails);
-          sigState = ctx.api.state.sigRequests.values.first;
+          sigState = ctx.api.debugState.sigRequests.values.first;
 
           for (final tc in tcs.skip(1)) {
             await waitFor(() => tc.client.signaturesRequests.isNotEmpty);
@@ -1769,11 +1785,11 @@ void main() {
             expect(tc.store.sigNonces, isEmpty);
           }
 
-          expect(ctx.api.state.sigRequests.values, isEmpty);
+          expect(ctx.api.debugState.sigRequests.values, isEmpty);
         });
 
         test("ignore SignatureNewRoundsEvent for missing request", () async {
-          ctx.api.state.sendEventToAll(
+          ctx.api.debugState.sendEventToAll(
             SignatureNewRoundsEvent(reqId: missingReqId, rounds: [validRound]),
           );
           await tcs.first.evCollector.expectNoError();
@@ -1834,7 +1850,11 @@ void main() {
         });
 
         test("reject request if wrong nonce for round on login", () async {
-          tcs.first.store.sigNonces.values.first.map[0] = getSignPart1().nonces;
+          final stored = tcs.first.store.sigNonces.entries.first;
+          tcs.first.store.sigNonces[stored.key] = SignaturesNonces({
+            ...stored.value.map,
+            0: getSignPart1().nonces,
+          }, stored.value.expiry);
           await expectRejectAfterReloginAndRound();
         });
 
@@ -1858,7 +1878,7 @@ void main() {
         });
 
         test("ignore SignaturesCompleteEvent for missing request", () async {
-          ctx.api.state.sendEventToAll(
+          ctx.api.debugState.sendEventToAll(
             SignaturesCompleteEvent(
               reqId: missingReqId,
               signatures: [validFirstSig],
@@ -1892,7 +1912,7 @@ void main() {
         );
 
         Future<void> waitForSig() =>
-            waitFor(() => ctx.api.state.completedSigs.values.isNotEmpty);
+            waitFor(() => ctx.api.debugState.completedSigs.values.isNotEmpty);
 
         Future<void> expectSigsEv(TestClient tc) async {
           final ev = await tc.evCollector

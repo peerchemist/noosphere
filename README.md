@@ -61,10 +61,10 @@ final subscription = worker.events.listen((event) {
 
 final snapshot = await worker.startSetup(
   setupId: 'primary-wallet',
-  identityStorageId: 'main-coordinator', // stable across worker instances
   server: EmbeddedServerOptions(
     serverConfig: serverConfig,
     identityStore: identityStore,
+    serverPersistence: durableServerPersistence,
   ),
   client: ClientNodeOptions(
     clientConfig: clientConfig,
@@ -160,9 +160,9 @@ worker shutdown during logout/application shutdown whenever possible.
 ## Persistence and key custody
 
 Implement `ServerIdentityStore` with the OS keychain or keystore. It stores
-exactly 32 bytes losslessly. Give each coordinator store a stable
-`identityStorageId`; creation is serialized by this ID across worker instances.
-Node startup supplies the identity to `IrohServer.startWithSecretKey`.
+exactly 32 bytes losslessly. Identity ownership and concurrent creation are
+coordinated by the explicit provider instance shared by the host lifecycle.
+Node startup supplies the identity to `IrohServer.start`.
 `IrohConfig` has no storage path and no placeholder path is needed. File-backed
 identity management belongs to the standalone CLI host.
 
@@ -183,6 +183,7 @@ final replacement = await NoosphereNode.start(
   server: EmbeddedServerOptions(
     serverConfig: serverConfig,
     identityStore: identityStore,
+    serverPersistence: durableServerPersistence,
   ),
 );
 ```

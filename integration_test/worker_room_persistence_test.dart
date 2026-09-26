@@ -54,6 +54,7 @@ void main() {
           ),
         ),
         identityStore: identity,
+        serverPersistence: InMemoryServerPersistence(),
         roomPersistence: storage,
         relay: IrohRelayConfig.disabled(),
       );

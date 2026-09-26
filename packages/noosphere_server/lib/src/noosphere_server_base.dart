@@ -14,3 +14,4 @@ export "iroh/server.dart";
 export "server/api_handler.dart";
 export 'room/manager.dart';
 export 'room/persistence.dart';
+export 'server/persistence.dart';

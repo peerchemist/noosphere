@@ -35,6 +35,7 @@ void main() {
           EmbeddedServerOptions(
             serverConfig: ServerConfig(group: group),
             identityStore: store,
+            serverPersistence: MemoryServerPersistence(),
             relay: IrohRelayConfig.disabled(),
           );
 
@@ -54,12 +55,10 @@ void main() {
         );
         final first = await worker.startSetup(
           setupId: 'first',
-          identityStorageId: 'lifecycle-first',
           server: options(firstIdentity),
         );
         final second = await worker.startSetup(
           setupId: 'second',
-          identityStorageId: 'lifecycle-second',
           server: options(secondIdentity),
         );
         expect(first.coordinator, isNotNull);
@@ -123,7 +122,6 @@ void main() {
         worker = await NoosphereWorker.start();
         final restarted = await worker.startSetup(
           setupId: 'first',
-          identityStorageId: 'lifecycle-first',
           server: options(firstIdentity),
         );
         expect(restarted.coordinator!.id, firstId);
@@ -135,7 +133,6 @@ void main() {
         worker = await NoosphereWorker.start();
         final thirdStart = await worker.startSetup(
           setupId: 'first',
-          identityStorageId: 'lifecycle-first',
           server: options(firstIdentity),
         );
         expect(thirdStart.coordinator!.id, firstId);

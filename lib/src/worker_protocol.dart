@@ -40,10 +40,12 @@ Map<String, Object?> encodeServerOptions(EmbeddedServerOptions options) {
 EmbeddedServerOptions decodeServerOptions(
   Map<Object?, Object?> value,
   ServerIdentityStore identityStore,
+  ServerPersistence serverPersistence,
   RoomPersistence roomPersistence,
 ) => EmbeddedServerOptions(
   serverConfig: ServerConfig.fromBytes(asBytes(value['serverConfig'])),
   identityStore: identityStore,
+  serverPersistence: serverPersistence,
   roomPersistence: value['roomPersistence'] == true ? roomPersistence : null,
   relay: decodeRelay(value['relay']),
   alpn: value['alpn']! as String,

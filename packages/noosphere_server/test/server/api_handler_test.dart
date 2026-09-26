@@ -66,7 +66,10 @@ void main() {
           groupFingerprint: groupConfig.fingerprint,
           participantId: ids.first,
         );
-        expect(ctx.api.state.challenges[response.challenge]!.id, ids.first);
+        expect(
+          ctx.api.debugState.challenges[response.challenge]!.id,
+          ids.first,
+        );
         expect(response.expiry.isExpired, false);
         expect(response.challenge.n.length, 16);
       });
@@ -105,7 +108,7 @@ void main() {
       test("expired challenge", () async {
         // Create challenge to be immediately expired for participant 2
         final challenge = AuthChallenge();
-        ctx.api.state.challenges[challenge] = ChallengeDetails(
+        ctx.api.debugState.challenges[challenge] = ChallengeDetails(
           id: ids[1],
           expiry: Expiry(Duration(days: -1)),
         );
@@ -116,7 +119,7 @@ void main() {
           ),
         );
 
-        expect(ctx.api.state.challenges[challenge], null);
+        expect(ctx.api.debugState.challenges[challenge], null);
       });
 
       test("success", () async {
@@ -129,8 +132,9 @@ void main() {
 
         // Test that DKG info is reset to round 1 on logout
         void expectDkgCommitments(String name, List<Identifier> ids) {
-          expect(ctx.api.state.nameToDkg.containsKey(name), true);
-          final commitments = ctx.api.state.nameToDkg[name]!.round1.commitments;
+          expect(ctx.api.debugState.nameToDkg.containsKey(name), true);
+          final commitments =
+              ctx.api.debugState.nameToDkg[name]!.round1.commitments;
           expect(commitments.map((e) => e.$1), ids);
         }
 
@@ -176,15 +180,15 @@ void main() {
         expectDkg(newDkgs.last, "round2", ids[1], []);
 
         // Expect state changes
-        expect(ctx.api.state.challenges[challenge], null);
-        final sess = ctx.api.state.clientSessions[response.id]!;
+        expect(ctx.api.debugState.challenges[challenge], null);
+        final sess = ctx.api.debugState.clientSessions[response.id]!;
         expect(sess.participantId, ids.first);
         expect(sess.sessionID, response.id);
-        expect(sess, ctx.api.state.participantToSession[ids.first]);
+        expect(sess, ctx.api.debugState.participantToSession[ids.first]);
         expectResetDkgInfo();
 
         // Second login removes old session
-        expect(ctx.api.state.clientSessions[oldSid], null);
+        expect(ctx.api.debugState.clientSessions[oldSid], null);
 
         // Other participant received logout and login event
 
@@ -207,12 +211,15 @@ void main() {
         addRound1Dkg();
         ctx.addDkgRound2(ids.first, "round2");
 
-        ctx.api.state.clientSessions[response.id] = ClientSession(
+        ctx.api.debugState.clientSessions[response.id] = ClientSession(
           participantId: ids[0],
           sessionID: response.id,
           expiry: Expiry(Duration(minutes: -1)),
           onLostStream: () {},
         );
+        // Expiry is an explicit persisted transition, not a side effect of a
+        // map read.
+        await ctx.api.extendSession(other.sid);
         {
           final events = await other.getEvents();
           expect(events.length, 1);
@@ -315,7 +322,10 @@ void main() {
       test("success", () async {
         final newExpiry = await ctx.api.extendSession(sid);
         expect(newExpiry.isExpired, false);
-        expect(ctx.api.state.clientSessions[sid]!.expiry.time, newExpiry.time);
+        expect(
+          ctx.api.debugState.clientSessions[sid]!.expiry.time,
+          newExpiry.time,
+        );
       });
     });
 
@@ -403,7 +413,7 @@ void main() {
           commitment: commitment,
         );
 
-        final dkg = ctx.api.state.nameToDkg["123"]!;
+        final dkg = ctx.api.debugState.nameToDkg["123"]!;
         expect(dkg.expiry.time, futureExpiry.time);
         expect(dkg.creator, ids.first);
         expect(dkg.details.obj.name, "123");
@@ -451,7 +461,7 @@ void main() {
 
       test("success", () async {
         void expectExists(bool exists) =>
-            expect(ctx.api.state.nameToDkg.containsKey("123"), exists);
+            expect(ctx.api.debugState.nameToDkg.containsKey("123"), exists);
 
         await ctx.api.rejectDkg(sid: client.sid, name: "other");
         expectExists(true);
@@ -549,7 +559,10 @@ void main() {
         }
 
         // Expect moving onto round 2
-        expect(ctx.api.state.nameToDkg["123"]!.round, isA<DkgRound2State>());
+        expect(
+          ctx.api.debugState.nameToDkg["123"]!.round,
+          isA<DkgRound2State>(),
+        );
       });
     });
 
@@ -676,8 +689,12 @@ void main() {
 
           // Expect state to record participant except for last
           if (i < 8) {
-            final provided =
-                ctx.api.state.nameToDkg["round2"]!.round2.participantsProvided;
+            final provided = ctx
+                .api
+                .debugState
+                .nameToDkg["round2"]!
+                .round2
+                .participantsProvided;
             expect(provided.length, i + 2);
             expect(provided, contains(ids[i]));
           }
@@ -702,7 +719,7 @@ void main() {
         }
 
         // Expect DKG state removed after all participants provided
-        expect(ctx.api.state.nameToDkg["round2"], null);
+        expect(ctx.api.debugState.nameToDkg["round2"], null);
       });
     });
 
@@ -775,7 +792,7 @@ void main() {
           }
 
           // Check state
-          final ackMap = ctx.api.state.dkgAckCache[groupPublicKey]!.acks;
+          final ackMap = ctx.api.debugState.dkgAckCache[groupPublicKey]!.acks;
           expect(ackMap.length, i + 2);
           expect(ackMap, contains(ids[i]));
           expect(ackMap, contains(ids.last));
@@ -798,9 +815,8 @@ void main() {
 
         // Include three existing acks for main key
         final expiry = Expiry(Duration(minutes: 1));
-        final cache = ctx.api.state.dkgAckCache[groupPublicKey] = DkgAckCache(
-          expiry,
-        );
+        final cache = ctx.api.debugState.dkgAckCache[groupPublicKey] =
+            DkgAckCache(expiry);
         for (int i = 0; i < 3; i++) {
           final ack = getDkgAck(i, true);
           if (i != 0) toHave.add(ack);
@@ -811,7 +827,7 @@ void main() {
         altKey = groupPublicKey.tweak(Uint8List(32)..last = 1)!;
         final ack = getDkgAck(1, true, groupKey: altKey);
         toHave.add(ack);
-        ctx.api.state.dkgAckCache[altKey] = DkgAckCache(expiry)
+        ctx.api.debugState.dkgAckCache[altKey] = DkgAckCache(expiry)
           ..acks[ids[1]] = ack.signed;
 
         // Another key without a cached ACK
@@ -995,7 +1011,7 @@ void main() {
           commitments: validCommitments,
         );
 
-        final req = ctx.api.state.sigRequests[validDetails.id]!;
+        final req = ctx.api.debugState.sigRequests[validDetails.id]!;
         expect(req.expiry.time, futureExpiry.time);
         expect(req.details.obj.id, validDetails.id);
         expect(req.creator, ids.first);
@@ -1081,11 +1097,13 @@ void main() {
           commitments: creatorPart1s.map((part1) => part1.commitment).toList(),
         );
 
-        reqState = ctx.api.state.sigRequests[sigsDetails.id]!;
+        reqState = ctx.api.debugState.sigRequests[sigsDetails.id]!;
       });
 
-      void expectSigReqExists(bool exists) =>
-          expect(ctx.api.state.sigRequests.containsKey(sigsDetails.id), exists);
+      void expectSigReqExists(bool exists) => expect(
+        ctx.api.debugState.sigRequests.containsKey(sigsDetails.id),
+        exists,
+      );
 
       Future<void> expectFailedReq() async {
         for (final client in clients) {
@@ -1518,7 +1536,7 @@ void main() {
           }
 
           // Signatures valid and stored in completedSigs
-          final completed = ctx.api.state.completedSigs[sigsDetails.id]!;
+          final completed = ctx.api.debugState.completedSigs[sigsDetails.id]!;
           // Expiry should be updated to minimum
           expect(
             completed.expiry.time.millisecondsSinceEpoch,

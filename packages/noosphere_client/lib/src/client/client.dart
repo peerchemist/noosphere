@@ -86,6 +86,7 @@ class Client {
   final ClientConfig config;
   final ApiRequestInterface api;
   final ClientCachedStorage _store;
+  Map<cl.ECCompressedPublicKey, FrostKeyWithDetails> get _keys => _store.keys;
 
   /// An asynchronous function to get the private key to allow for secure
   /// ephemeral access as needed.
@@ -278,11 +279,11 @@ class Client {
     cl.ECCompressedPublicKey groupKey,
     FutureOr<void> Function(FrostKeyWithDetails) criticalSection,
   ) async {
-    if (!keys.containsKey(groupKey)) return;
+    if (!_keys.containsKey(groupKey)) return;
     final lock = _keyLocks.putIfAbsent(groupKey, () => Object());
 
     await lock.synchronized(() async {
-      final key = keys[groupKey];
+      final key = _keys[groupKey];
       if (key == null) return;
       await criticalSection(key);
     });
@@ -440,9 +441,9 @@ class Client {
     );
 
     // Store if we are accepting (and therefore have) the key
-    final key = keys[groupKey];
+    final key = _keys[groupKey];
     if (accept && key != null) {
-      await _store.addOrReplaceFrostKey(keys[groupKey]!.addOrReplaceAck(ack));
+      await _store.addOrReplaceFrostKey(_keys[groupKey]!.addOrReplaceAck(ack));
     }
 
     return ack;
@@ -498,7 +499,11 @@ class Client {
     if (details.expiry.isExpired) return null;
 
     // Reject if we do not own any one of the keys
-    if (details.requiredSigs.any((sig) => !keys.keys.contains(sig.groupKey))) {
+    if (details.requiredSigs.any((sig) => !_keys.keys.contains(sig.groupKey))) {
+      await _store.addRejectedSigsRequest(
+        details.id,
+        details.expiry.clampUpperTTL(config.maxSignaturesTTL),
+      );
       await api.rejectSignaturesRequest(
         sid: _state.sessionID,
         reqId: details.id,
@@ -514,6 +519,16 @@ class Client {
       expiry: details.expiry.clampUpperTTL(config.maxSignaturesTTL),
     );
 
+    // Re-deliver a durable rejection after reconnecting. The storage decision
+    // remains authoritative if the previous RPC reply was lost.
+    if (_store.sigsRejected.containsKey(details.id)) {
+      await api.rejectSignaturesRequest(
+        sid: _state.sessionID,
+        reqId: details.id,
+      );
+      return sigsState;
+    }
+
     // A previous operation without a confirmed response is unsafe to resume.
     // Reject it explicitly when it reappears in a new session snapshot.
     if (_store.preparedSigOperations.containsKey(details.id)) {
@@ -524,7 +539,7 @@ class Client {
   }
 
   SignPart1 _getSignPart1(SingleSignatureDetails details) =>
-      SignPart1(privateShare: keys[details.groupKey]!.keyInfo.private.share);
+      SignPart1(privateShare: _keys[details.groupKey]!.keyInfo.private.share);
 
   List<SignPart1> _getSignPart1s(SignaturesRequestDetails details) =>
       details.requiredSigs.map(_getSignPart1).toList();
@@ -593,7 +608,7 @@ class Client {
 
   HDParticipantKeyInfo _infoForSig(SingleSignatureDetails details) =>
       details.derive(
-        HDParticipantKeyInfo.masterFromInfo(keys[details.groupKey]!.keyInfo),
+        HDParticipantKeyInfo.masterFromInfo(_keys[details.groupKey]!.keyInfo),
       );
 
   Future<void> _handleRounds(
@@ -619,7 +634,7 @@ class Client {
       }
 
       // Check number of commitments equals threshold
-      final key = keys[requiredSigs[round.sigI].groupKey]!;
+      final key = _keys[requiredSigs[round.sigI].groupKey]!;
       final threshold = key.keyInfo.group.threshold;
       if (round.commitments.map.length != threshold) {
         throw ServerMisbehaviour.wrongCommitmentNum();
@@ -774,11 +789,13 @@ class Client {
       }
     }
 
+    // Durable cleanup must complete before the request disappears from the
+    // cache or a completion event is published. A failed/unknown write leaves
+    // the request blocked and recoverable after reconnecting.
+    await _store.removeSigsRequest(details.id);
+
     // Remove signatures request state
     _state.sigRequests.remove(details.id);
-
-    // Remove signature request details from storage
-    await _store.removeSigsRequest(details.id);
 
     // Provide completed signatures as client event
     _sendEvent(
@@ -793,8 +810,11 @@ class Client {
   Future<void> _rejectSigsReq(ClientSigsState sigsState) async {
     final id = sigsState.details.id;
     if (_store.sigsRejected.containsKey(id)) return;
-    await api.rejectSignaturesRequest(sid: _state.sessionID, reqId: id);
+    // Record the decision before sending it. If the RPC outcome is unknown,
+    // reconnecting still observes a rejected request and cannot consume its
+    // nonce material by accepting it accidentally.
     await _store.addRejectedSigsRequest(id, sigsState.expiry);
+    await api.rejectSignaturesRequest(sid: _state.sessionID, reqId: id);
   }
 
   Future<void> _processSecretSharing(
@@ -1307,7 +1327,7 @@ class Client {
     }();
 
     // Resend secrets sent before the server start time
-    for (final key in client.keys.values) {
+    for (final key in client._keys.values) {
       final toResend = {
         for (final MapEntry(key: id, value: time)
             in key.secretShareTimes.entries)
@@ -1417,7 +1437,7 @@ class Client {
 
       // Obtain keys, ensuring they all exist
       final requiredKeys = details.requiredSigs
-          .map((sig) => keys[sig.groupKey])
+          .map((sig) => _keys[sig.groupKey])
           .toSet();
       if (requiredKeys.contains(null)) {
         throw ArgumentError("Signature requires non-existant key");
@@ -1497,7 +1517,7 @@ class Client {
   }) async {
     final toWhomFinal = toWhom ?? config.otherIds;
 
-    if (!keys.containsKey(groupKey)) {
+    if (!_keys.containsKey(groupKey)) {
       throw ArgumentError.value(groupKey, "groupKey", "doesn't exist");
     }
     if (!config.otherIds.containsAll(toWhomFinal)) {
@@ -1543,7 +1563,8 @@ class Client {
   bool dkgExists(String name) => _state.nameToDkg.containsKey(name);
 
   /// Participants that are online according to the server
-  Set<Identifier> get onlineParticipants => _state.onlineParticipants;
+  Set<Identifier> get onlineParticipants =>
+      Set.unmodifiable(_state.onlineParticipants);
 
   List<DkgInProgress> _getDkgProgress(bool accepted) => _state.nameToDkg.values
       .where((dkg) => _dkgIsAccepted(dkg) == accepted)
@@ -1557,7 +1578,11 @@ class Client {
   List<DkgInProgress> get acceptedDkgs => _getDkgProgress(true);
 
   /// Obtains all keys, mapping the group key to the full details
-  Map<cl.ECCompressedPublicKey, FrostKeyWithDetails> get keys => _store.keys;
+  Map<cl.ECCompressedPublicKey, FrostKeyWithDetails> get keys =>
+      Map.unmodifiable({
+        for (final entry in _store.keys.entries)
+          entry.key: FrostKeyWithDetails.fromBytes(entry.value.toBytes()),
+      });
 
   SignaturesRequest _sigsStateToObj(ClientSigsState sigsState) =>
       SignaturesRequest(

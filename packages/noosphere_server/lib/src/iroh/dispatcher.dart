@@ -210,11 +210,11 @@ final class IrohDispatcher {
     if (sessionId != null) {
       await scheduleGroup(
         groupFingerprint: groupFingerprint,
-        mutation: (handler) {
-          final session = handler.state.clientSessions[sessionId];
+        mutation: (handler) async {
+          final session = handler.sessionForTransport(sessionId);
           if (session != null &&
               session.participantId == connection.participantId) {
-            handler.state.endSession(session);
+            await handler.endSessionForTransport(session);
           }
         },
       );

@@ -7,11 +7,13 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere/domain.dart';
 import 'package:noosphere_server/src/config/server.dart';
 import 'package:noosphere_server/src/server/state/key_sharing.dart';
+import 'package:meta/meta.dart';
 
 import 'state/signatures_coordination.dart';
 import 'state/client_session.dart';
 import 'state/dkg.dart';
 import 'state/state.dart';
+import 'persistence.dart';
 
 /// Provides the logic of the server, implementing the [ApiRequestInterface].
 /// Throws an [InvalidRequest] when the server cannot satisfy the request.
@@ -23,18 +25,118 @@ class ServerApiHandler implements ApiRequestInterface {
   static const currentProtocolVersion = noosphereRoastProtocolVersion;
 
   final ServerConfig config;
-  final ServerState state;
-  final DateTime startTime = DateTime.now();
+  final ServerState _state;
+  late ServerStateSnapshot _publishedState = _state.snapshot();
+  ServerStateSnapshot get state => _publishedState;
 
-  /// Creates a backend API handler with the [config]. A blank [state] will be
-  /// created if not provided.
-  ServerApiHandler({required this.config, ServerState? state})
-    : state = state ?? ServerState();
+  @visibleForTesting
+  ServerState get debugState => _state;
+
+  ClientSession? sessionForTransport(SessionID id) => _state.clientSessions[id];
+
+  Future<void> endSessionForTransport(ClientSession session) =>
+      _endSession(session);
+
+  Future<void> _endSession(ClientSession session) async {
+    await _prepare();
+    if (!_state.endSession(session, publish: false)) return;
+    await _persist();
+    _state.publishSessionEnded(session);
+  }
+
+  final ServerPersistence persistence;
+  final DateTime startTime = DateTime.now();
+  late final Future<void> ready = _restore();
+  bool _writeOutcomeUnknown = false;
+
+  ServerApiHandler({
+    required this.config,
+    required this.persistence,
+    ServerState? state,
+  }) : _state = state ?? ServerState();
+
+  Future<void> _restore() async {
+    final snapshot = await persistence.load(config.group.id);
+    if (snapshot == null) {
+      final initial = _state.snapshot();
+      await persistence.write(config.group.id, initial);
+      _publishedState = initial;
+      return;
+    }
+    if (_state.restore(snapshot)) {
+      // Recovery status is durable before the handler accepts requests, so
+      // delayed messages from pre-restart attempts cannot revive them.
+      final recovered = _state.snapshot();
+      await persistence.write(config.group.id, recovered);
+      _publishedState = recovered;
+    } else {
+      _publishedState = snapshot;
+    }
+  }
+
+  Future<void> _prepare() async {
+    await ready;
+    if (_writeOutcomeUnknown) {
+      throw StateError(
+        'Server persistence outcome is unknown; recreate the handler.',
+      );
+    }
+    await _expireSessions();
+    await _expirePersistentState();
+  }
+
+  Future<void> _expireSessions() async {
+    final expired = _state.clientSessions.removeExpired();
+    if (expired.isEmpty) return;
+    final ended = <ClientSession>[];
+    for (final entry in expired) {
+      if (_state.endSession(entry.value, publish: false)) {
+        ended.add(entry.value);
+      }
+    }
+    if (ended.isEmpty) return;
+    await _persist();
+    for (final session in ended) {
+      _state.publishSessionEnded(session);
+    }
+  }
+
+  Future<void> _expirePersistentState() async {
+    var changed = false;
+    changed = _state.nameToDkg.removeExpired().isNotEmpty || changed;
+    changed = _state.sigRequests.removeExpired().isNotEmpty || changed;
+    changed = _state.completedSigs.removeExpired().isNotEmpty || changed;
+    final interruptedBefore = _state.persistent.interruptedDkgs.length;
+    _state.persistent.interruptedDkgs.removeWhere(
+      (_, event) => event.expiry.isExpired,
+    );
+    changed =
+        _state.persistent.interruptedDkgs.length != interruptedBefore ||
+        changed;
+    final blockedBefore = _state.persistent.blockedSignatures.length;
+    _state.persistent.blockedSignatures.removeWhere(
+      (_, event) => event.expiry.isExpired,
+    );
+    changed =
+        _state.persistent.blockedSignatures.length != blockedBefore || changed;
+    if (changed) await _persist();
+  }
+
+  Future<void> _persist() async {
+    final next = _state.snapshot();
+    try {
+      await persistence.write(config.group.id, next);
+    } catch (_) {
+      _writeOutcomeUnknown = true;
+      rethrow;
+    }
+    _publishedState = next;
+  }
 
   int get _participantN => config.group.participants.length;
 
   ClientSession getSession(SessionID id) {
-    final session = state.clientSessions[id];
+    final session = _state.clientSessions[id];
     if (session == null) throw InvalidRequest.noSession();
     return session;
   }
@@ -51,7 +153,7 @@ class ServerApiHandler implements ApiRequestInterface {
   void _checkParticipantId(Identifier id) => _getParticipantPubkeyForId(id);
 
   DkgState _getDkg(String name) {
-    final dkg = state.nameToDkg[name];
+    final dkg = _state.nameToDkg[name];
     if (dkg == null) throw InvalidRequest.noDkg();
     return dkg;
   }
@@ -67,6 +169,7 @@ class ServerApiHandler implements ApiRequestInterface {
     required Identifier participantId,
     int protocolVersion = currentProtocolVersion,
   }) async {
+    await _prepare();
     // Only accept the current development protocol.
     if (protocolVersion != currentProtocolVersion) {
       throw InvalidRequest.invalidProtoVersion();
@@ -83,7 +186,7 @@ class ServerApiHandler implements ApiRequestInterface {
     final challenge = AuthChallenge();
     final expiry = Expiry(config.challengeTTL);
 
-    state.challenges[challenge] = ChallengeDetails(
+    _state.challenges[challenge] = ChallengeDetails(
       id: participantId,
       expiry: expiry,
     );
@@ -103,8 +206,9 @@ class ServerApiHandler implements ApiRequestInterface {
   Future<Identifier> verifyChallenge(
     Signed<AuthChallenge> signedChallenge,
   ) async {
+    await _prepare();
     // Get participant id for challenge and check expiry
-    final details = state.challenges[signedChallenge.obj];
+    final details = _state.challenges[signedChallenge.obj];
     if (details == null) throw InvalidRequest.noChallenge();
     final pid = details.id;
 
@@ -116,7 +220,7 @@ class ServerApiHandler implements ApiRequestInterface {
     // Success
 
     // Remove challenge
-    state.challenges.remove(signedChallenge.obj);
+    _state.challenges.remove(signedChallenge.obj);
 
     return pid;
   }
@@ -125,43 +229,44 @@ class ServerApiHandler implements ApiRequestInterface {
   /// Legacy gRPC calls this immediately after challenge verification; Iroh
   /// calls it only after receiving StartSession.
   Future<LoginCompleteResponse> startSession(Identifier pid) async {
+    await _prepare();
     _checkParticipantId(pid);
 
     // Remove any old session
-    final oldSession = state.participantToSession[pid];
+    final oldSession = _state.participantToSession[pid];
     if (oldSession != null) {
-      state.endSession(oldSession);
+      await _endSession(oldSession);
     }
 
     // Obtain other logged in participants
-    final online = state.clientSessions.values
+    final online = _state.clientSessions.values
         .map((sess) => sess.participantId)
         .toSet();
 
     // Notify other sessions of login before new session is added
-    state.sendEventToAll(ParticipantStatusEvent(id: pid, loggedIn: true));
+    _state.sendEventToAll(ParticipantStatusEvent(id: pid, loggedIn: true));
 
     // Create session
     final sessionId = SessionID();
     final expiry = Expiry(config.sessionTTL);
 
     late final ClientSession session;
-    session = state.participantToSession[pid] =
-        state.clientSessions[sessionId] = ClientSession(
+    session = _state.participantToSession[pid] =
+        _state.clientSessions[sessionId] = ClientSession(
           participantId: pid,
           sessionID: sessionId,
           expiry: expiry,
           // When the session stream is lost, remove the session and process the
           // logout immediately
           onLostStream: () {
-            state.endSession(session);
+            unawaited(_endSession(session));
           },
         );
 
     // If using keepalive, send periodic events
     if (config.keepAliveFreq != null) {
       Timer.periodic(config.keepAliveFreq!, (timer) {
-        final session = state.clientSessions[sessionId];
+        final session = _state.clientSessions[sessionId];
         if (session == null) timer.cancel();
         session?.sendEvent(KeepaliveEvent());
       });
@@ -174,7 +279,7 @@ class ServerApiHandler implements ApiRequestInterface {
       onlineParticipants: online,
       events: session.eventController.stream,
 
-      newDkgs: state.round1Dkgs
+      newDkgs: _state.round1Dkgs
           .map(
             (dkg) => NewDkgEvent(
               details: dkg.details,
@@ -184,7 +289,7 @@ class ServerApiHandler implements ApiRequestInterface {
           )
           .toList(),
 
-      sigRequests: state.sigRequests.values
+      sigRequests: _state.sigRequests.values
           .map(
             (sig) => SignaturesRequestEvent(
               details: sig.details,
@@ -194,7 +299,7 @@ class ServerApiHandler implements ApiRequestInterface {
           .toList(),
 
       // Find rounds that the user is part of and hasn't provided a share yet
-      sigRounds: state.sigRequests.values
+      sigRounds: _state.sigRequests.values
           .map(
             (sigReq) => SignatureNewRoundsEvent(
               reqId: sigReq.details.obj.id,
@@ -204,7 +309,7 @@ class ServerApiHandler implements ApiRequestInterface {
           .where((newRounds) => newRounds.rounds.isNotEmpty)
           .toList(),
 
-      completedSigs: state.completedSigs.values
+      completedSigs: _state.completedSigs.values
           .where((sigs) => !sigs.acks.contains(pid))
           .map(
             (sigs) => CompletedSignaturesRequest(
@@ -217,7 +322,7 @@ class ServerApiHandler implements ApiRequestInterface {
 
       secretShares: [
         for (final MapEntry(key: groupKey, value: sharingState)
-            in state.secretShares.entries)
+            in _state.secretShares.entries)
           ...sharingState
               .getSharesForReceiver(pid)
               .map(
@@ -233,6 +338,7 @@ class ServerApiHandler implements ApiRequestInterface {
 
   @override
   Future<Expiry> extendSession(SessionID sid) async {
+    await _prepare();
     final session = getSession(sid);
     return session.expiry = Expiry(config.sessionTTL);
   }
@@ -243,6 +349,7 @@ class ServerApiHandler implements ApiRequestInterface {
     required Signed<NewDkgDetails> signedDetails,
     required DkgPublicCommitment commitment,
   }) async {
+    await _prepare();
     final session = getSession(sid);
     final details = signedDetails.obj;
 
@@ -259,7 +366,8 @@ class ServerApiHandler implements ApiRequestInterface {
     );
 
     // Check if name exists in DKG requests already
-    if (state.nameToDkg.containsKey(details.name)) {
+    if (_state.nameToDkg.containsKey(details.name) ||
+        _state.persistent.interruptedDkgs.containsKey(details.name)) {
       throw InvalidRequest.dkgRequestExists();
     }
 
@@ -277,22 +385,26 @@ class ServerApiHandler implements ApiRequestInterface {
     );
 
     // Store request
-    state.nameToDkg[details.name] = DkgState(
+    _state.nameToDkg[details.name] = DkgState(
       details: dkgEvent.details,
       creator: dkgEvent.creator,
       commitments: commitments,
     );
 
+    await _persist();
+
     // Broadcast to other participants
-    state.sendEventToOthers(dkgEvent, sid);
+    _state.sendEventToOthers(dkgEvent, sid);
   }
 
   @override
   Future<void> rejectDkg({required SessionID sid, required String name}) async {
+    await _prepare();
     final participantId = getSession(sid).participantId;
-    if (state.nameToDkg.remove(name) != null) {
+    if (_state.nameToDkg.remove(name) != null) {
+      await _persist();
       // Send an event to all other participants that the DKG was removed
-      state.sendEventToOthers(
+      _state.sendEventToOthers(
         DkgRejectEvent(name: name, participant: participantId),
         sid,
       );
@@ -305,6 +417,7 @@ class ServerApiHandler implements ApiRequestInterface {
     required String name,
     required DkgPublicCommitment commitment,
   }) async {
+    await _prepare();
     final session = getSession(sid);
     final pid = session.participantId;
 
@@ -327,8 +440,10 @@ class ServerApiHandler implements ApiRequestInterface {
       );
     }
 
+    await _persist();
+
     // Send commitment to other participants
-    state.sendEventToOthers(
+    _state.sendEventToOthers(
       DkgCommitmentEvent(name: name, participant: pid, commitment: commitment),
       sid,
     );
@@ -341,6 +456,7 @@ class ServerApiHandler implements ApiRequestInterface {
     required cl.SchnorrSignature commitmentSetSignature,
     required Map<Identifier, DkgEncryptedSecret> secrets,
   }) async {
+    await _prepare();
     final session = getSession(sid);
     final dkg = _getDkg(name);
     if (dkg.round is! DkgRound2State) throw InvalidRequest.notRound2Dkg();
@@ -363,32 +479,38 @@ class ServerApiHandler implements ApiRequestInterface {
       throw InvalidRequest.invalidSecretMap();
     }
 
-    // Send the signature and secrets to other participants
-    for (final otherSess in state.clientSessions.values) {
-      if (otherSess.sessionID != sid) {
-        final secret = secrets[otherSess.participantId];
-        if (secret == null) throw InvalidRequest.invalidSecretMap();
-
-        otherSess.sendEvent(
-          DkgRound2ShareEvent(
-            name: name,
-            commitmentSetSignature: commitmentSetSignature,
-            sender: session.participantId,
-            secret: secret,
-          ),
-        );
+    for (final otherSess in _state.clientSessions.values) {
+      if (otherSess.sessionID != sid &&
+          !secrets.containsKey(otherSess.participantId)) {
+        throw InvalidRequest.invalidSecretMap();
       }
     }
 
     // If all participants have provided a signature, the DKG is complete
     if (round.participantsProvided.length == _participantN - 1) {
       // Remove DKG
-      state.nameToDkg.remove(name);
+      _state.nameToDkg.remove(name);
       // No details of the key are stored on the server as only the participants
       // can generate the public information at this point.
     } else {
       // Record that the participant has provided round 2
       round.participantsProvided.add(session.participantId);
+    }
+
+    await _persist();
+
+    // Publish round data only after its state transition is durable.
+    for (final otherSess in _state.clientSessions.values) {
+      if (otherSess.sessionID != sid) {
+        otherSess.sendEvent(
+          DkgRound2ShareEvent(
+            name: name,
+            commitmentSetSignature: commitmentSetSignature,
+            sender: session.participantId,
+            secret: secrets[otherSess.participantId]!,
+          ),
+        );
+      }
     }
   }
 
@@ -397,6 +519,7 @@ class ServerApiHandler implements ApiRequestInterface {
     required SessionID sid,
     required Set<SignedDkgAck> acks,
   }) async {
+    await _prepare();
     getSession(sid);
 
     // Verify signatures
@@ -409,7 +532,7 @@ class ServerApiHandler implements ApiRequestInterface {
     final Set<SignedDkgAck> newAcks = {};
 
     for (final ack in acks) {
-      final ackCache = state.dkgAckCache[ack.signed.obj.groupKey] ??=
+      final ackCache = _state.dkgAckCache[ack.signed.obj.groupKey] ??=
           DkgAckCache(Expiry(config.ackCacheTTL));
 
       // If ACK already exists in cache, override if changing from false to true
@@ -431,7 +554,7 @@ class ServerApiHandler implements ApiRequestInterface {
 
     // Send ACKs to participants, ensuring that their own ACKs aren't sent
     // Do not send to calling participant
-    for (final session in state.clientSessions.values.where(
+    for (final session in _state.clientSessions.values.where(
       (s) => s.sessionID != sid,
     )) {
       final toSend = newAcks
@@ -446,6 +569,7 @@ class ServerApiHandler implements ApiRequestInterface {
     required SessionID sid,
     required Set<DkgAckRequest> requests,
   }) async {
+    await _prepare();
     final session = getSession(sid);
 
     // Ensure all ids exist
@@ -464,7 +588,7 @@ class ServerApiHandler implements ApiRequestInterface {
 
     for (final request in requests) {
       // Get cache for this key
-      final cache = state.dkgAckCache[request.groupPublicKey];
+      final cache = _state.dkgAckCache[request.groupPublicKey];
 
       if (cache == null) {
         // No DKGs for this key so pass full request
@@ -493,7 +617,7 @@ class ServerApiHandler implements ApiRequestInterface {
 
     if (need.isNotEmpty) {
       // Send DkgAckRequestEvents for missing ACKs
-      state.sendEventToOthers(DkgAckRequestEvent(need), sid);
+      _state.sendEventToOthers(DkgAckRequestEvent(need), sid);
     }
 
     // Return found ACKS
@@ -507,6 +631,7 @@ class ServerApiHandler implements ApiRequestInterface {
     required Signed<SignaturesRequestDetails> signedDetails,
     required List<SigningCommitment> commitments,
   }) async {
+    await _prepare();
     final session = getSession(sid);
     final details = signedDetails.obj;
     final pid = session.participantId;
@@ -533,7 +658,8 @@ class ServerApiHandler implements ApiRequestInterface {
     );
 
     // Verify request doesn't already exist
-    if (state.sigRequests.containsKey(details.id)) {
+    if (_state.sigRequests.containsKey(details.id) ||
+        _state.persistent.blockedSignatures.containsKey(details.id)) {
       throw InvalidRequest.sigRequestExists();
     }
 
@@ -543,7 +669,7 @@ class ServerApiHandler implements ApiRequestInterface {
     }
 
     // Create state for request
-    final reqState = state.sigRequests[details.id] =
+    final reqState = _state.sigRequests[details.id] =
         SignaturesCoordinationState(
           details: signedDetails,
           creator: pid,
@@ -557,8 +683,10 @@ class ServerApiHandler implements ApiRequestInterface {
           commitments[i];
     }
 
+    await _persist();
+
     // Send request event to participants
-    state.sendEventToOthers(
+    _state.sendEventToOthers(
       SignaturesRequestEvent(
         details: signedDetails,
         creator: session.participantId,
@@ -567,7 +695,9 @@ class ServerApiHandler implements ApiRequestInterface {
     );
   }
 
-  void _checkSigReqFail(SignaturesCoordinationState sigReqState) {
+  SignaturesRequestId? _checkSigReqFail(
+    SignaturesCoordinationState sigReqState,
+  ) {
     final malAndRej =
         sigReqState.malicious.length + sigReqState.rejectors.length;
     final available = _participantN - malAndRej;
@@ -579,9 +709,10 @@ class ServerApiHandler implements ApiRequestInterface {
     if (available < maxThreshold) {
       // Cannot sign one of the signatures as threshold is too high
       final id = sigReqState.details.obj.id;
-      state.sendEventToAll(SignaturesFailureEvent(id));
-      state.sigRequests.remove(id);
+      _state.sigRequests.remove(id);
+      return id;
     }
+    return null;
   }
 
   @override
@@ -589,9 +720,10 @@ class ServerApiHandler implements ApiRequestInterface {
     required SessionID sid,
     required SignaturesRequestId reqId,
   }) async {
+    await _prepare();
     final pid = getSession(sid).participantId;
 
-    final sigReq = state.sigRequests[reqId];
+    final sigReq = _state.sigRequests[reqId];
     // Ignore if the request doesn't exist as this may have been previously
     // rejected or completed before the client knows
     if (sigReq == null) return;
@@ -600,7 +732,11 @@ class ServerApiHandler implements ApiRequestInterface {
     if (sigReq.malicious.contains(pid)) return;
 
     sigReq.rejectors.add(pid);
-    _checkSigReqFail(sigReq);
+    final failed = _checkSigReqFail(sigReq);
+    await _persist();
+    if (failed != null) {
+      _state.sendEventToAll(SignaturesFailureEvent(failed));
+    }
   }
 
   @override
@@ -609,17 +745,22 @@ class ServerApiHandler implements ApiRequestInterface {
     required SignaturesRequestId reqId,
     required List<SignatureReply> replies,
   }) async {
+    await _prepare();
     final pid = getSession(sid).participantId;
 
-    final sigReq = state.sigRequests[reqId];
+    final sigReq = _state.sigRequests[reqId];
     // Ignore if the request doesn't exist in case it was rejected or completed
     if (sigReq == null) return null;
 
     final sigDetails = sigReq.details.obj;
 
-    void throwMalicious(InvalidRequest exp) {
+    Future<Never> throwMalicious(InvalidRequest exp) async {
       sigReq.malicious.add(pid);
-      _checkSigReqFail(sigReq);
+      final failed = _checkSigReqFail(sigReq);
+      await _persist();
+      if (failed != null) {
+        _state.sendEventToAll(SignaturesFailureEvent(failed));
+      }
       throw exp;
     }
 
@@ -631,12 +772,12 @@ class ServerApiHandler implements ApiRequestInterface {
     sigReq.rejectors.remove(pid);
 
     if (replies.isEmpty) {
-      throwMalicious(InvalidRequest.emptySigReply());
+      await throwMalicious(InvalidRequest.emptySigReply());
     }
 
     // Ensure no duplicate replies
     if (replies.map((resp) => resp.sigI).toSet().length != replies.length) {
-      throwMalicious(InvalidRequest.duplicateSigReply());
+      await throwMalicious(InvalidRequest.duplicateSigReply());
     }
 
     // Record new rounds that are started for each participant
@@ -647,7 +788,7 @@ class ServerApiHandler implements ApiRequestInterface {
       final sigI = reply.sigI;
 
       if (sigI >= sigDetails.requiredSigs.length) {
-        throwMalicious(InvalidRequest.invalidSigIndex());
+        await throwMalicious(InvalidRequest.invalidSigIndex());
       }
 
       var sigState = sigReq.sigs[sigI];
@@ -659,7 +800,7 @@ class ServerApiHandler implements ApiRequestInterface {
 
       if (sigState.nextCommitments.containsKey(pid)) {
         // Already have commitment waiting for complete set
-        throwMalicious(InvalidRequest.nextCommitmentExists());
+        await throwMalicious(InvalidRequest.nextCommitmentExists());
       }
 
       final round = sigState.roundForId[pid];
@@ -667,15 +808,14 @@ class ServerApiHandler implements ApiRequestInterface {
 
       if (round == null) {
         if (reply.share != null) {
-          throwMalicious(InvalidRequest.unsolicitedShare());
+          await throwMalicious(InvalidRequest.unsolicitedShare());
         }
       } else {
         // Process signature share
 
         final share = reply.share;
         if (share == null) {
-          throwMalicious(InvalidRequest.missingShare());
-          return null;
+          await throwMalicious(InvalidRequest.missingShare());
         }
 
         final singleSigDetails = sigDetails.requiredSigs[sigI];
@@ -694,7 +834,7 @@ class ServerApiHandler implements ApiRequestInterface {
               .$2,
           groupKey: derivedKey.groupKey,
         )) {
-          throwMalicious(InvalidRequest.invalidShare());
+          await throwMalicious(InvalidRequest.invalidShare());
         }
 
         // Share is OK. Add share for round
@@ -762,7 +902,7 @@ class ServerApiHandler implements ApiRequestInterface {
 
       // Store signatures to share with other participants when they are online
       // and wait to receive enough ACKs before deleting from server.
-      state.completedSigs[reqId] = CompletedSignatures(
+      _state.completedSigs[reqId] = CompletedSignatures(
         details: sigReq.details,
         signatures: signatures,
         expiry: completedExpiry,
@@ -770,9 +910,11 @@ class ServerApiHandler implements ApiRequestInterface {
       );
 
       // Remove signature request as it is completed now
-      state.sigRequests.remove(reqId);
+      _state.sigRequests.remove(reqId);
 
-      state.sendEventToOthers(
+      await _persist();
+
+      _state.sendEventToOthers(
         SignaturesCompleteEvent(reqId: reqId, signatures: signatures),
         sid,
       );
@@ -783,8 +925,9 @@ class ServerApiHandler implements ApiRequestInterface {
     // If there are any new rounds, return them and send events to round
     // participants
     if (newRounds.isNotEmpty) {
+      await _persist();
       for (final id in newRounds.keys.where((id) => id != pid)) {
-        state.participantToSession[id]?.sendEvent(
+        _state.participantToSession[id]?.sendEvent(
           SignatureNewRoundsEvent(reqId: reqId, rounds: newRounds[id]!),
         );
       }
@@ -793,6 +936,7 @@ class ServerApiHandler implements ApiRequestInterface {
     }
 
     // Nothing to provide otherwise
+    await _persist();
     return null;
   }
 
@@ -802,6 +946,7 @@ class ServerApiHandler implements ApiRequestInterface {
     required cl.ECCompressedPublicKey groupKey,
     required Map<Identifier, EncryptedKeyShare> encryptedSecrets,
   }) async {
+    await _prepare();
     final session = getSession(sid);
     final pid = session.participantId;
 
@@ -824,14 +969,20 @@ class ServerApiHandler implements ApiRequestInterface {
     // For each entry, store shares that haven't been received and send them as
     // events.
 
-    final secrets = state.secretSharesForKey(groupKey);
+    final secrets = _state.secretSharesForKey(groupKey);
 
+    final added = <(Identifier, EncryptedKeyShare)>[];
     for (final MapEntry(key: id, value: share) in encryptedSecrets.entries) {
       if (secrets.maybeAddShare(pid, id, share)) {
-        state.participantToSession[id]?.sendEvent(
-          SecretShareEvent(sender: pid, keyShare: share, groupKey: groupKey),
-        );
+        added.add((id, share));
       }
+    }
+
+    if (added.isNotEmpty) await _persist();
+    for (final (id, share) in added) {
+      _state.participantToSession[id]?.sendEvent(
+        SecretShareEvent(sender: pid, keyShare: share, groupKey: groupKey),
+      );
     }
 
     // Return cached ConstructedKeyEvents for unneeded secrets
@@ -843,6 +994,7 @@ class ServerApiHandler implements ApiRequestInterface {
     required SessionID sid,
     required Signed<KeyWasConstructed> constructedKey,
   }) async {
+    await _prepare();
     final session = getSession(sid);
     final pid = session.participantId;
 
@@ -852,7 +1004,7 @@ class ServerApiHandler implements ApiRequestInterface {
 
     // Get state for key's secret shares
     final pubkey = constructedKey.obj.publicKey;
-    final secrets = state.secretSharesForKey(pubkey);
+    final secrets = _state.secretSharesForKey(pubkey);
 
     if (secrets.receiverShares[pid] is ParticipantDoneShareState) {
       throw InvalidRequest.haveKeyConstructedAck();
@@ -866,13 +1018,15 @@ class ServerApiHandler implements ApiRequestInterface {
 
     secrets.receiverShares[pid] = ParticipantDoneShareState(event);
 
+    await _persist();
+
     // Send event to other participants
-    state.sendEventToOthers(event, sid);
+    _state.sendEventToOthers(event, sid);
   }
 
   /// Closes all client session streams
   Future<void> shutdown() => Future.wait(
-    state.clientSessions.values.map(
+    _state.clientSessions.values.map(
       (session) => session.eventController.close(),
     ),
   );

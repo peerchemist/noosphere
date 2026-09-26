@@ -19,8 +19,8 @@ noosphere.
 
 ## Identity and adapter boundaries
 
-- `IrohServer.start` requires a host-supplied `SecretKey`.
-  `startWithSecretKey` remains an equivalent embedding entry point.
+- `IrohServer.start` requires a host-supplied `SecretKey`; identity loading and
+  creation are owned by the explicit host provider instance and its lifecycle.
 - `IrohConfig` describes transport/runtime configuration and contains no storage
   paths. The CLI owns `secret-key-path` and its file-backed identity provider in
   `packages/noosphere_server/bin/src/identity_file.dart`.
@@ -44,9 +44,23 @@ noosphere.
 
 ## Implementation status
 
-`ClientStorageInterface`, `RoomPersistence` and `ServerIdentityStore` connect the
-runtime to host-owned persistence. Server DKG/ROAST state still needs to be
-externalized through domain-specific host interfaces. Persistent server state,
-uniform commit-before-publish transitions and complete recovery of in-flight
-protocol operations are still required to meet the full storage ownership model
-above. Database backends and transaction implementation belong to the wrappers.
+`ClientStorageInterface`, `RoomPersistence`, `ServerPersistence` and
+`ServerIdentityStore` connect the runtime to host-owned persistence. Database
+backends, encryption and transaction implementation belong to wrappers.
+
+## Restart behavior
+
+| Record at shutdown | Recovery behavior |
+| --- | --- |
+| Sessions, connections, challenges, online status and ACK caches | Discarded; clients authenticate again. |
+| In-progress DKG | Durably marked interrupted before startup; its name stays blocked until expiry and delayed round messages are rejected. |
+| In-progress signing | Durably marked blocked before startup; its request ID cannot be reused and delayed replies cannot advance it. |
+| Completed signatures | Restored and delivered again on login until expiry. |
+| Unacknowledged encrypted key shares | Restored and delivered again on login. |
+| Prepared client signing operation | Remains blocked until a response is known; its nonce replacement and operation record are one atomic host transaction. |
+| Durable client rejection | Re-sent after reconnect; cache and events never precede its write. |
+
+Server and room writes use one serialized lane per concrete provider across
+worker lifetimes. A timeout does not cancel a host transaction. If a reply is
+lost, that runtime blocks further mutations; a replacement waits for the old
+write and reloads durable state before accepting requests.

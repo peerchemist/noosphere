@@ -36,6 +36,7 @@ void main() {
       ),
       handler: handler,
       secretKey: SecretKey.generate(),
+      persistence: newServerPersistence(),
     );
     unawaited(server.serve());
     addTearDown(server.close);
@@ -73,7 +74,7 @@ void main() {
         }
       }
     });
-    handler.state.sendEventToAll(KeepaliveEvent());
+    handler.debugState.sendEventToAll(KeepaliveEvent());
 
     expect(
       await received.future.timeout(const Duration(seconds: 2)),
@@ -83,14 +84,15 @@ void main() {
       (await extended.future.timeout(const Duration(seconds: 2))).isExpired,
       isFalse,
     );
-    expect(handler.state.clientSessions[login.id], isNotNull);
+    expect(handler.debugState.clientSessions[login.id], isNotNull);
 
     await api.logout();
-    await waitFor(() => handler.state.clientSessions[login.id] == null);
+    await waitFor(() => handler.debugState.clientSessions[login.id] == null);
     await subscription.cancel();
   });
 
   test('server disconnect completes a waiting event stream', () async {
+    final persistence = newServerPersistence();
     final server = await IrohServer.start(
       IrohConfig(
         server: serverConfig,
@@ -98,6 +100,7 @@ void main() {
         nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
       ),
       secretKey: SecretKey.generate(),
+      persistence: persistence,
     );
     unawaited(server.serve());
     final api = await IrohClientApi.connect(
@@ -138,6 +141,7 @@ void main() {
       serverConfigWithIdentity,
       handler: handler,
       secretKey: secretKey,
+      persistence: handler.persistence,
     );
     unawaited(server.serve());
 
@@ -162,8 +166,8 @@ void main() {
     );
 
     final oldClient = runtime.current;
-    final oldSession = handler.state.participantToSession[ids[0]]!;
-    handler.state.nameToDkg['after-disconnect'] = DkgState(
+    final oldSession = handler.debugState.participantToSession[ids[0]]!;
+    handler.debugState.nameToDkg['after-disconnect'] = DkgState(
       details: signObject(getDkgDetails(name: 'after-disconnect'), 1),
       creator: ids[1],
       commitments: [],
@@ -175,6 +179,7 @@ void main() {
       serverConfigWithIdentity,
       handler: handler,
       secretKey: secretKey,
+      persistence: handler.persistence,
     );
     unawaited(server.serve());
     runtime.updateTransportConfig(
@@ -189,13 +194,13 @@ void main() {
       ),
     );
     final newClient = await nextSession.timeout(const Duration(seconds: 5));
-    final newSession = handler.state.participantToSession[ids[0]]!;
+    final newSession = handler.debugState.participantToSession[ids[0]]!;
 
     expect(newClient, isNot(same(oldClient)));
     expect(runtime.current, same(newClient));
     expect(runtime.isConnected, isTrue);
     expect(newSession.sessionID, isNot(oldSession.sessionID));
-    expect(handler.state.clientSessions[oldSession.sessionID], isNull);
+    expect(handler.debugState.clientSessions[oldSession.sessionID], isNull);
     expect(
       newClient.dkgRequests.map((request) => request.details.name),
       contains('after-disconnect'),
@@ -214,6 +219,7 @@ void main() {
       ),
       handler: handler,
       secretKey: SecretKey.generate(),
+      persistence: handler.persistence,
     );
     unawaited(server.serve());
     addTearDown(server.close);
@@ -264,6 +270,7 @@ void main() {
       ),
       handler: handler,
       secretKey: SecretKey.generate(),
+      persistence: handler.persistence,
     );
     unawaited(server.serve());
     addTearDown(server.close);
@@ -326,6 +333,7 @@ void main() {
         ),
         handler: handler,
         secretKey: SecretKey.generate(),
+        persistence: handler.persistence,
       );
       unawaited(server.serve());
 
@@ -396,6 +404,7 @@ void main() {
       ),
       handler: handler,
       secretKey: SecretKey.generate(),
+      persistence: handler.persistence,
     );
     unawaited(server.serve());
     addTearDown(server.close);
@@ -481,7 +490,7 @@ void main() {
           senderKey: getPrivkey(0),
         ),
     };
-    handler.state.nameToDkg['iroh-round2'] = DkgState(
+    handler.debugState.nameToDkg['iroh-round2'] = DkgState(
       details: signObject(getDkgDetails(name: 'iroh-round2')),
       creator: ids[0],
       commitments: const [],
@@ -635,7 +644,7 @@ void main() {
       reqId: rejectedDetails.id,
     );
     expect(
-      handler.state.sigRequests[rejectedDetails.id]!.rejectors,
+      handler.debugState.sigRequests[rejectedDetails.id]!.rejectors,
       contains(ids[1]),
     );
 
