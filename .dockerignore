@@ -1,0 +1,8 @@
+.dart_tool/
+.git/
+.idea/
+build/
+coverage/
+example/
+linux/
+macos/

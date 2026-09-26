@@ -137,6 +137,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  dart_style:
+    dependency: transitive
+    description:
+      name: dart_style
+      sha256: "82ade9fc4273f29ed673e33166944465225b4f7fc5d4aaef48605cc751c18fc1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.13"
   fake_async:
     dependency: transitive
     description:
@@ -219,12 +227,11 @@ packages:
   frosty:
     dependency: "direct main"
     description:
-      path: frosty
-      ref: "refactor/native-assets"
-      resolved-ref: "2eb3fcc60d4ad1a8ff0200644acf2ef0eb360d94"
-      url: "https://github.com/peerchemist/frosty.git"
-    source: git
-    version: "4.0.0"
+      name: frosty
+      sha256: "648969cf5c500488c8dcdb28d930b93fe4cf3598da9ce2d32018228152dda1ea"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.0.0"
   fuchsia_remote_debug_protocol:
     dependency: transitive
     description: flutter
@@ -403,20 +410,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.2"
-  noosphere_roast_client:
-    dependency: "direct main"
-    description:
-      path: "../noosphere_roast_client"
-      relative: true
-    source: path
-    version: "4.0.0"
-  noosphere_roast_server:
-    dependency: "direct main"
-    description:
-      path: "../noosphere_roast_server"
-      relative: true
-    source: path
-    version: "3.0.0"
   package_config:
     dependency: transitive
     description:
@@ -481,6 +474,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.2.0"
+  protoc_plugin:
+    dependency: transitive
+    description:
+      name: protoc_plugin
+      sha256: "5bf4289e0fa9eec4b0ee4e77111fa47fa2e6b54b2a7b9c2e83ec87a971542f01"
+      url: "https://pub.dev"
+    source: hosted
+    version: "22.5.0"
   pub_semver:
     dependency: transitive
     description:

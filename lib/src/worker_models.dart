@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:noosphere_roast_server/noosphere_roast_server.dart';
+import 'package:noosphere_server/noosphere_server.dart';
 
 /// Roles owned by a worker setup.
 enum NoosphereWorkerRoles { server, signer, both }

@@ -1,4 +1,27 @@
-# noosphere_flutter
+# Noosphere
+
+Reference implementation of the Noosphere protocol. This repository is a Dart
+workspace containing the canonical protocol schema, participant and
+coordinator implementations, and the Flutter facade used by end-user apps.
+
+| Package | Responsibility |
+| --- | --- |
+| `noosphere` | Shared ROAST domain model, configuration, protobuf messages and framing |
+| `noosphere_client` | Participant state, persistence and Iroh client transport |
+| `noosphere_server` | Coordinator state, Iroh server and standalone CLI |
+| `noosphere_flutter` | Flutter lifecycle and isolate facade for both roles |
+
+Pubkey-bound room enrollment is documented in
+[`packages/noosphere/spec/ROOM_ENROLLMENT.md`](packages/noosphere/spec/ROOM_ENROLLMENT.md).
+
+Both `noosphere_client` and `noosphere_server` depend on `noosphere` directly.
+The server has no production dependency on the client; it references the client
+only from integration tests and examples through a dev dependency.
+
+The root package is `noosphere_flutter`; the repository directory can be
+renamed without changing workspace resolution.
+
+## Flutter facade
 
 Flutter lifecycle adapter for the Noosphere ROAST client and server. It can run
 a reconnecting client, an embedded server, or both roles without copying the
@@ -13,36 +36,18 @@ alive.
 - Dart `^3.13.0` and Flutter `>=3.47.0`.
 - Linux desktop with GTK 3 and CMake 3.13 or newer.
 - macOS 12.0 or newer.
-- `noosphere_roast_server >=3.0.0 <4.0.0`.
-- `noosphere_roast_client >=4.0.0 <5.0.0`.
-- `iroh_flutter 1.0.3`; its `iroh_quic 1.0.3` dependency remains the core API.
+- `noosphere_server >=3.0.0 <4.0.0`.
+- `noosphere_client >=4.0.0 <5.0.0`.
+- `iroh_flutter 1.0.3` and its published `iroh_quic 1.0.3` dependency.
 - `coinlib 6.0.1`, which builds secp256k1 through Dart native assets.
-- `frosty` from `peerchemist/frosty` branch `refactor/native-assets`, which
-  builds its Rust library through Dart native assets. The deprecated
+- `frosty 5.0.0`, which builds its Rust library through Dart native assets.
+  The deprecated
   `coinlib_flutter` and the former `frosty_flutter` plugin are not used.
 - `record_use ^1.1.1`; the reachable initialization entry point is marked with
   `@RecordUse` for Dart 3.13's recorded-use/native-link pipeline.
 
 Only Linux and macOS runners are present. Android, iOS, Windows, and web are
 not supported in this release.
-
-## Required application override
-
-Dependency overrides do not propagate from packages. Every consuming
-application must select Frosty's native-assets branch until it is published:
-
-```yaml
-dependency_overrides:
-  frosty:
-    git:
-      url: https://github.com/peerchemist/frosty.git
-      ref: refactor/native-assets
-      path: frosty
-```
-
-This repository's `pubspec_overrides.yaml` additionally points both Noosphere
-packages at the sibling repositories during local development. The published
-constraints stay in `pubspec.yaml`.
 
 ## Worker facade (recommended for Flutter UI)
 
@@ -72,6 +77,9 @@ final snapshot = await worker.startSetup(
 
 await worker.requestDkg('primary-wallet', proposal);
 
+// Refresh direct/relay hints after a coordinator moves. Its pinned ID stays fixed.
+await worker.updateSignerAddress('primary-wallet', refreshedAddress);
+
 // Consent is bound to the exact public proposal received from the worker.
 await worker.acceptDkg('primary-wallet', reviewedDkg);
 await worker.acceptSignatures('primary-wallet', reviewedSigningRequest);
@@ -96,9 +104,17 @@ generation IDs; stale replies are ignored, payload size and outstanding-command
 counts are bounded, and pending commands fail if the isolate exits. A
 replacement reconnecting session emits `WorkerSessionReplacedEvent` followed
 by a fresh `WorkerSnapshotEvent`; mutating RPCs are never replayed.
+`updateSignerAddress` accepts only an address with the existing pinned
+coordinator ID.
 Graceful close is idempotent. Forced or unexpected native-worker termination
 marks in-process restart unsafe; restart the application rather than assuming
 native sockets/tasks were released.
+
+Rust tracks Iroh reactive-stream cancellation tokens process-wide while Dart
+statics are isolate-local. The worker therefore reads the public endpoint
+address snapshot on a short timer instead of opening an Iroh reactive stream.
+Direct nodes retain the ordinary published Iroh API, and consuming apps need no
+dependency override or patched package.
 
 Subscribe to `events` before starting setups. A session snapshot is ordered
 before later events from that session. The stream is a broadcast controller
@@ -150,6 +166,33 @@ Node startup uses `IrohServer.startWithSecretKey`; the core config's
 `host-managed://iroh-secret` sentinel is never read or written and no external
 `chmod` process is launched by this package.
 
+Back up an embedded server identity explicitly and send the returned bytes
+directly to encrypted storage. The value is the 32-byte secret key, not the
+public Iroh endpoint ID: never log it, and do not treat plain base64 as
+encryption. Dart-managed memory cannot guarantee reliable zeroization.
+
+```dart
+final backup = await node.exportIrohServerIdentity();
+await encryptedBackupVault.write('main-coordinator', backup);
+
+// In a replacement process, restore before starting the node or worker setup.
+final restored = await encryptedBackupVault.read('main-coordinator');
+await restoreStoredIrohServerIdentity(identityStore, restored);
+
+final replacement = await NoosphereNode.start(
+  server: EmbeddedServerOptions(
+    serverConfig: serverConfig,
+    identityStore: identityStore,
+  ),
+);
+```
+
+For a running worker server setup, use
+`await worker.exportIrohServerIdentity('main-coordinator')` and protect the
+result in the same way. Restore its store before calling `startSetup`. The
+standalone headless server already persists the same identity in its
+`secret-key-path`; backing up that protected file is sufficient.
+
 Production client calls must provide both `ClientStorageInterface` and
 `GetPrivateKey`. The worker keeps these application-owned providers on the host
 isolate and invokes them through correlated requests. Storage operations for a
@@ -199,14 +242,34 @@ flutter test test
 flutter test integration_test/native_transport_test.dart -d linux
 flutter test integration_test/roast_2_of_2_test.dart -d linux
 flutter test integration_test/worker_roast_test.dart -d linux
+flutter test integration_test/worker_lifecycle_test.dart -d linux
+flutter test integration_test/worker_pending_key_test.dart -d linux
+flutter test integration_test/worker_unexpected_exit_test.dart -d linux
+flutter test integration_test/worker_forced_shutdown_test.dart -d linux
+flutter test integration_test/worker_process_relaunch_test.dart -d linux \
+  --dart-define=NOOSPHERE_RELAUNCH_PHASE=prepare
+flutter test integration_test/worker_process_relaunch_test.dart -d linux \
+  --dart-define=NOOSPHERE_RELAUNCH_PHASE=recover
 
 cd example
 flutter analyze
 flutter build linux --release
 ```
 
-Run the equivalent integration test and `flutter build macos --release` on a
-macOS runner. The integration test uses real Iroh QUIC transport to verify
-authentication, initial snapshot delivery, live events, identity-preserving
-restart, reconnect session replacement, non-replay of a disconnected mutation,
-and clean shutdown.
+Run the equivalent integration tests and `flutter build macos --release` on a
+macOS runner. The direct transport test covers authentication, snapshots and
+events. Worker tests cover verified threshold signatures, signer lock,
+independent setups, session replacement, identity restart, unexpected native
+exit and bounded forced shutdown. The ROAST test prints command latency and
+frame timing samples for a 32-input signing batch, including a snapshot queued
+as the worker enters synchronous Frosty work. For a foreground profile, run:
+
+```sh
+flutter drive --profile -d linux \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/worker_roast_test.dart
+```
+
+Run the unexpected-exit and forced-shutdown tests in fresh processes; they
+deliberately make further native worker starts unsafe in those processes. The
+two process-relaunch phases must run in order and as separate commands.

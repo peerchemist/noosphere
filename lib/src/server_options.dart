@@ -1,5 +1,5 @@
-import 'package:noosphere_roast_client/iroh_protocol.dart';
-import 'package:noosphere_roast_server/noosphere_roast_server.dart';
+import 'package:noosphere/noosphere.dart';
+import 'package:noosphere_server/noosphere_server.dart';
 
 import 'server_identity_store.dart';
 
@@ -13,6 +13,7 @@ const int defaultServerMaxStreamsPerConnection = 4;
 final class EmbeddedServerOptions({
   required final ServerConfig serverConfig,
   required final ServerIdentityStore identityStore,
+  final RoomPersistence? roomPersistence,
   final ServerApiHandler? handler,
   final IrohRelayConfig? relay,
   final String alpn = noosphereIrohAlpn,

@@ -7,6 +7,7 @@ build/
 linux/
 macos/
 integration_test/
+packages/
 pubspec_overrides.yaml
 example/.dart_tool/
 example/.idea/

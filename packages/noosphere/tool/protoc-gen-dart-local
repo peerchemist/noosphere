@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Keep protoc tied to the protoc_plugin version resolved by this package.
+exec dart run protoc_plugin:protoc_plugin "$@"
