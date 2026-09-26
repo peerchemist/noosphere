@@ -654,11 +654,19 @@ final class _SetupRuntime {
           ),
         );
       case UpdatedDkgClientEvent():
+        final waitingForLocalApproval =
+            _client?.dkgRequests.any(
+              (dkg) => dkg.details.name == event.progress.details.name,
+            ) ==
+            true;
         emit(
           WorkerDkgEvent(
             setupId,
             generation,
-            status: _dkgStatus(event.progress),
+            status: _dkgStatus(
+              event.progress,
+              stage: waitingForLocalApproval ? 'waiting' : null,
+            ),
           ),
         );
       case RejectedDkgClientEvent():

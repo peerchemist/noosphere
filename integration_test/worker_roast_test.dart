@@ -163,6 +163,9 @@ Future<void> _runScenario({
     );
     final proposals = await Future.wait(pendingDkgs)
         .timeout(const Duration(seconds: 15));
+    for (final proposal in proposals) {
+      expect(proposal.status.stage, 'waiting');
+    }
     final completedKeys = Future.wait([
       for (final store in stores)
         store.waitForKeyWithName(dkgName, participants),
