@@ -21,13 +21,6 @@ checks the local private key against the invite before opening the connection.
 It then verifies the complete server transcript and signs it through
 `Signed<EnrollmentTranscript>`.
 
-For Flutter workers, configure `EmbeddedServerOptions.roomPersistence`, then
-use `NoosphereWorker.createRoom`, `roomSnapshot`, `issueRoomInvite`,
-`revokeRoomInvite`, `freezeRoom`, `closeRoom`, and `joinRoom`. Room snapshots
-and rejection diagnostics are emitted as `WorkerRoomEvent` and
-`WorkerEnrollmentRejectedEvent`. Worker DTOs contain no private key or invite
-token.
-
 ## Invite and proof protocol
 
 `RoomInvite` is a base64url-friendly, versioned canonical binary value. It
@@ -71,9 +64,9 @@ add a `RoomPersistence` implementation while retaining the same
 the active identity are rejected. Used/revoked invites and frozen rosters are
 therefore not reset by restart.
 
-The Flutter worker proxies `rooms.loadAll` and `rooms.write` to the host
-isolate, serialized per setup. Applications should back these operations with
-the same transactional database discipline as signer persistence.
+Flutter worker commands and DTOs for room management are intentionally deferred
+to a separate integration change. The core, Iroh transport, and persistence
+interfaces remain usable without coupling enrollment to that bridge.
 
 ## Security boundaries and remaining risks
 
