@@ -151,8 +151,21 @@ Future<void> _runScenario({
         ),
       ),
     );
+    await timed('restartDkgCreator', () async {
+      await worker.lockSigner('signer-0');
+      await worker.startSetup(
+        setupId: 'signer-0',
+        client: nativeTestClientOptions(
+          group: group,
+          participant: ids.first,
+          key: privateKeys.first,
+          address: address,
+          storage: stores.first,
+        ),
+      );
+    });
     final staleDkg = (await worker.snapshot('signer-0')).dkgs
-        .singleWhere((dkg) => dkg.name == dkgName);
+        .singleWhere((dkg) => dkg.name == dkgName && dkg.stage == 'waiting');
     await timed(
       'cancelAcceptedDkg',
       () => worker.rejectDkg('signer-0', staleDkg),
