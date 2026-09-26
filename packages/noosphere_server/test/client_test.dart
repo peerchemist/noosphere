@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_client/internals.dart';
 import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere_client/testing.dart';
 import 'package:noosphere_server/src/server/state/client_session.dart';
 import 'package:noosphere_server/src/server/state/dkg.dart';
 import 'package:noosphere_server/src/server/state/signatures_coordination.dart';

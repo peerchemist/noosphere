@@ -7,7 +7,7 @@ import 'package:noosphere/api/types/signatures_request_details.dart';
 import 'package:noosphere_client/src/client/storage_interface.dart';
 import 'package:frosty/frosty.dart';
 
-import 'frost_key_with_details.dart';
+import '../client/frost_key_with_details.dart';
 
 class KeyToComplete {
   final int expAcks;
@@ -15,9 +15,7 @@ class KeyToComplete {
   KeyToComplete(this.expAcks);
 }
 
-/// An in-memory storage solution for the [ClientStorageInterface]. This is used
-/// by the tests and example but real applications would benefit from persistant
-/// storage.
+/// Non-durable client storage for tests and examples only.
 class InMemoryClientStorage implements ClientStorageInterface {
   final Map<cl.ECPublicKey, FrostKeyWithDetails> keys = {};
   final Map<SignaturesRequestId, SignaturesNonces> sigNonces = {};

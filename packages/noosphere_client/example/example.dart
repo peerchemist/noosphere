@@ -7,6 +7,7 @@ import 'package:frosty/frosty.dart' as fr;
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_client/iroh_transport.dart' as transport;
 import 'package:noosphere_client/noosphere_client.dart' as ns;
+import 'package:noosphere_client/testing.dart';
 
 /// Logs into a pinned Iroh server, requests a DKG and prints received events.
 void main(List<String> args) async {
@@ -57,7 +58,7 @@ void main(List<String> args) async {
   final client = await ns.Client.login(
     config: ns.ClientConfig.fromYaml(configString),
     api: api,
-    store: ns.InMemoryClientStorage(),
+    store: InMemoryClientStorage(),
     getPrivateKey: (_) async => key,
     onDisconnect: () => print('Disconnected callback'),
   );

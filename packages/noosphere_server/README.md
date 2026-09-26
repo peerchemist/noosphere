@@ -91,6 +91,11 @@ lives under `bin/src/`, serializes cooperating processes with a file lock and
 writes the identity with mode 0600 on POSIX. Database, secure-storage and backup
 policy for other hosts belongs to those hosts.
 
+`RoomManager.open` requires an explicit `RoomPersistence` provider. Tests and
+examples can import `package:noosphere_server/testing.dart` and pass
+`InMemoryRoomPersistence()` explicitly. It is not exported by
+`noosphere_server.dart`; production hosts implement durable persistence.
+
 ## Protocol and migration
 
 The shared domain types, protocol schema, generated message classes and framing

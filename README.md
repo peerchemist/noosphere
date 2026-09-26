@@ -230,6 +230,10 @@ database transaction that atomically:
 before the network request can proceed. A crash or ambiguous network outcome
 must leave that prepared record present so the operation cannot be replayed.
 `InMemoryClientStorage` does not satisfy production durability requirements.
+For tests and examples, explicitly import `package:noosphere_flutter/testing.dart`
+to use `InMemoryClientStorage` or `InMemoryRoomPersistence`. They are not exported
+by `noosphere_flutter.dart`. `RoomManager.open` requires a persistence provider;
+there is no implicit in-memory fallback.
 
 `shareKeySecret` is deliberately absent from `NoosphereWorker`; recovery needs
 a separate explicit workflow. DKG temporary secrets and embedded-server

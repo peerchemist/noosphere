@@ -96,7 +96,7 @@ final class RoomManager implements RoomEnrollmentApi {
 
   static Future<RoomManager> open({
     required Uint8List coordinatorEndpointId,
-    RoomPersistence? persistence,
+    required RoomPersistence persistence,
     Duration challengeTtl = const Duration(seconds: 20),
     Iterable<String> relayUrls = const [],
     Iterable<String> ipAddrs = const [],
@@ -106,7 +106,7 @@ final class RoomManager implements RoomEnrollmentApi {
     }
     final manager = RoomManager._(
       coordinatorEndpointId: coordinatorEndpointId,
-      persistence: persistence ?? InMemoryRoomPersistence(),
+      persistence: persistence,
       challengeTtl: challengeTtl,
       relayUrls: relayUrls,
       ipAddrs: ipAddrs,

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_client/src/client/cached_storage.dart';
+import 'package:noosphere_client/testing.dart';
 import 'package:test/test.dart';
 
 import '../test_keys.dart';

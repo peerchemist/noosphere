@@ -57,7 +57,9 @@ pinned server identity cannot change.
 Mutating RPCs are never retried automatically because a disconnect can make
 their outcome ambiguous. Signing nonces use a prepared/complete storage
 transition; applications must use a durable `ClientStorageInterface` in
-production. `InMemoryClientStorage` is intended for tests and examples only.
+production. Tests and examples can explicitly import
+`package:noosphere_client/testing.dart` for `InMemoryClientStorage`.
+It is not exported by `noosphere_client.dart`.
 
 ## Protocol
 

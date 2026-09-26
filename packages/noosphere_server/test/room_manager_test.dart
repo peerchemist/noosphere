@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_server/noosphere_server.dart';
+import 'package:noosphere_server/testing.dart';
 import 'package:test/test.dart';
 
 void main() {

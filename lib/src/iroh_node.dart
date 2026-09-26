@@ -165,11 +165,12 @@ final class _NativeBackend(
   Future<NoosphereServerRole> startServer() async {
     final options = serverOptions!;
     final secretKey = await loadOrCreateServerIdentity(options.identityStore);
-    final rooms = options.roomPersistence == null
+    final roomPersistence = options.roomPersistence;
+    final rooms = roomPersistence == null
         ? null
         : await RoomManager.open(
             coordinatorEndpointId: secretKey.publicKey.asBytes(),
-            persistence: options.roomPersistence,
+            persistence: roomPersistence,
           );
     final server = await IrohServer.startWithSecretKey(
       IrohConfig(

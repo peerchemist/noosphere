@@ -8,6 +8,7 @@ import 'package:frosty/frosty.dart' as fr;
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_client/iroh_transport.dart';
 import 'package:noosphere_client/noosphere_client.dart' as ns;
+import 'package:noosphere_client/testing.dart';
 
 /// Runs a reconnecting Noosphere client with a pinned coordinator identity.
 Future<void> main(List<String> arguments) async {
@@ -63,7 +64,7 @@ Future<void> main(List<String> arguments) async {
     // This keeps the example self-contained. Production applications must use
     // a durable ClientStorageInterface so keys and signing nonces survive a
     // process restart.
-    store: ns.InMemoryClientStorage(),
+    store: InMemoryClientStorage(),
     // Read the key only when an operation needs it. A production application
     // should replace this file with its OS keystore or hardware wallet.
     getPrivateKey: (purpose) async {

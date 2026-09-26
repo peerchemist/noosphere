@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:noosphere_flutter/noosphere_flutter.dart';
+import 'package:noosphere_flutter/testing.dart';
 
 ClientNodeOptions nativeTestClientOptions({
   required GroupConfig group,

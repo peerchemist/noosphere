@@ -5,6 +5,7 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_client/iroh_transport.dart';
 import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere_client/testing.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 
 String getCommandLineString(String prompt) {

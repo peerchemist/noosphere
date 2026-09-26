@@ -27,6 +27,9 @@ noosphere.
 - Flutter uses its host-owned `ServerIdentityStore`. The application must prevent
   multiple processes from independently creating or replacing one identity;
   Flutter's existing in-memory identity registry only coordinates its host isolate.
+- `RoomManager.open` requires an explicit `RoomPersistence`. Memory-only
+  implementations live behind the packages' separate `testing.dart` entry
+  points and are not exported by production entry points.
 - The Flutter worker keeps `RoomPersistence` on the host and proxies `loadAll`
   and `write`. A write reply is sent only after the provider completes. Room and
   client storage operations share the setup's serial queue. A timed-out provider
