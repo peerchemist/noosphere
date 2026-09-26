@@ -3,6 +3,8 @@
 - Remove the production dependency on `noosphere_client`; shared protocol and
   domain types now come directly from `noosphere`. Client-based end-to-end
   tests retain a dev-only dependency.
+- Add durable room enrollment state, invite lifecycle enforcement, Iroh ALPN
+  dispatch, and dynamic activation of frozen groups in the ROAST dispatcher.
 
 ## 3.0.0
 

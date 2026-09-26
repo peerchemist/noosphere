@@ -1,3 +1,8 @@
+## Unreleased
+
+- Add versioned pubkey-bound room invites, canonical enrollment transcripts,
+  room lifecycle snapshots, and the transport-independent enrollment API.
+
 ## 0.1.0
 
 - Establish the transport-independent Noosphere protocol package.

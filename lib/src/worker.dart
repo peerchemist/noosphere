@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
 import 'package:meta/meta.dart';
 import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere_server/noosphere_server.dart';
 
 import 'client_options.dart';
 import 'initialization.dart';
@@ -306,6 +308,109 @@ final class NoosphereWorker {
   Future<NoosphereWorkerSnapshot> snapshot(String setupId) async {
     final result = await _invoke('snapshot', setupId: setupId);
     return result! as NoosphereWorkerSnapshot;
+  }
+
+  Future<WorkerRoomSnapshot> createRoom(
+    String setupId, {
+    String? roomId,
+    required int expectedParticipants,
+    required int threshold,
+  }) async =>
+      (await _invoke(
+            'createRoom',
+            setupId: setupId,
+            payload: {
+              'roomId': roomId,
+              'expectedParticipants': expectedParticipants,
+              'threshold': threshold,
+            },
+          ))!
+          as WorkerRoomSnapshot;
+
+  Future<WorkerRoomSnapshot> roomSnapshot(
+    String setupId,
+    String roomId,
+  ) async =>
+      (await _invoke(
+            'roomSnapshot',
+            setupId: setupId,
+            payload: {'roomId': roomId},
+          ))!
+          as WorkerRoomSnapshot;
+
+  /// Issues an invite. The returned value is the only copy containing the
+  /// plaintext token; snapshots and events expose only public metadata.
+  Future<RoomInvite> issueRoomInvite(
+    String setupId, {
+    required String roomId,
+    required coinlib.ECCompressedPublicKey expectedParticipantPublicKey,
+    required DateTime expiresAt,
+  }) async => RoomInvite.fromBytes(
+    asBytes(
+      await _invoke(
+        'issueRoomInvite',
+        setupId: setupId,
+        payload: {
+          'roomId': roomId,
+          'publicKey': expectedParticipantPublicKey.data,
+          'expiresAt': expiresAt.microsecondsSinceEpoch,
+        },
+      ),
+    ),
+  );
+
+  Future<WorkerRoomSnapshot> revokeRoomInvite(
+    String setupId, {
+    required String roomId,
+    required String inviteId,
+  }) async =>
+      (await _invoke(
+            'revokeRoomInvite',
+            setupId: setupId,
+            payload: {'roomId': roomId, 'inviteId': inviteId},
+          ))!
+          as WorkerRoomSnapshot;
+
+  Future<WorkerRoomSnapshot> freezeRoom(String setupId, String roomId) async =>
+      (await _invoke(
+            'freezeRoom',
+            setupId: setupId,
+            payload: {'roomId': roomId},
+          ))!
+          as WorkerRoomSnapshot;
+
+  Future<WorkerRoomSnapshot> closeRoom(String setupId, String roomId) async =>
+      (await _invoke(
+            'closeRoom',
+            setupId: setupId,
+            payload: {'roomId': roomId},
+          ))!
+          as WorkerRoomSnapshot;
+
+  /// Redeems [invite] using a participant key supplied on demand by the host.
+  /// This may be called before a ROAST client setup exists.
+  Future<WorkerRoomSnapshot> joinRoom(
+    String setupId,
+    RoomInvite invite,
+    GetPrivateKey getPrivateKey,
+  ) async {
+    _validateSetupId(setupId);
+    final setup = _setups.putIfAbsent(setupId, _HostSetup.new);
+    if (setup.enrollmentPrivateKey != null) {
+      throw StateError('An enrollment is already in progress for this setup.');
+    }
+    setup.enrollmentPrivateKey = getPrivateKey;
+    try {
+      return (await _invoke(
+            'joinRoom',
+            setupId: setupId,
+            payload: {'invite': invite.toBytes()},
+          ))!
+          as WorkerRoomSnapshot;
+    } finally {
+      setup.enrollmentPrivateKey = null;
+      if (!setup.hasProviders) _setups.remove(setupId);
+    }
   }
 
   /// Exports an embedded server setup's raw 32-byte Iroh secret key.
@@ -633,6 +738,8 @@ typedef _HostProviders = ({
   ClientStorageInterface? storage,
   GetPrivateKey? getPrivateKey,
   String? participant,
+  RoomPersistence? roomPersistence,
+  GetPrivateKey? enrollmentPrivateKey,
 });
 
 final class _HostSetup {
@@ -641,10 +748,17 @@ final class _HostSetup {
   ClientStorageInterface? storage;
   GetPrivateKey? getPrivateKey;
   String? participant;
+  RoomPersistence? roomPersistence;
+  GetPrivateKey? enrollmentPrivateKey;
+  final _roomStorageSerial = SerialExecutor();
   final _storageSerial = SerialExecutor();
 
   bool get hasProviders =>
-      identityStore != null || storage != null || getPrivateKey != null;
+      identityStore != null ||
+      storage != null ||
+      getPrivateKey != null ||
+      roomPersistence != null ||
+      enrollmentPrivateKey != null;
 
   _HostProviders get providers => (
     identityStore: identityStore,
@@ -652,6 +766,8 @@ final class _HostSetup {
     storage: storage,
     getPrivateKey: getPrivateKey,
     participant: participant,
+    roomPersistence: roomPersistence,
+    enrollmentPrivateKey: enrollmentPrivateKey,
   );
 
   set providers(_HostProviders value) {
@@ -660,6 +776,8 @@ final class _HostSetup {
     storage = value.storage;
     getPrivateKey = value.getPrivateKey;
     participant = value.participant;
+    roomPersistence = value.roomPersistence;
+    enrollmentPrivateKey = value.enrollmentPrivateKey;
   }
 
   void bind({
@@ -671,6 +789,7 @@ final class _HostSetup {
     if (server != null) {
       this.identityStorageId = identityStorageId ?? setupId;
       identityStore = server.identityStore;
+      roomPersistence = server.roomPersistence;
     }
     if (client != null) {
       storage = client.storage;
@@ -688,6 +807,7 @@ final class _HostSetup {
     if (roles != NoosphereWorkerRoles.signer) {
       identityStore = null;
       identityStorageId = null;
+      roomPersistence = null;
     }
   }
 
@@ -716,6 +836,25 @@ final class _HostSetup {
           KeyPurpose.values[payload['purpose']! as int],
         );
         return key.data;
+      case 'getEnrollmentPrivateKey':
+        final provider = enrollmentPrivateKey;
+        if (provider == null) throw StateError('Enrollment signer is locked.');
+        final key = await provider(KeyPurpose.roomEnrollment);
+        return key.data;
+      case 'rooms.loadAll':
+        final store = roomPersistence;
+        if (store == null) throw StateError('Room storage is unavailable.');
+        return _roomStorageSerial.run(store.loadAll);
+      case 'rooms.write':
+        final store = roomPersistence;
+        if (store == null) throw StateError('Room storage is unavailable.');
+        await _roomStorageSerial.run(
+          () => store.write(
+            payload['roomId']! as String,
+            asBytes(payload['state']),
+          ),
+        );
+        return null;
       default:
         return _serializeStorage(() => _dispatchStorage(operation, payload));
     }

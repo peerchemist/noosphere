@@ -11,7 +11,7 @@ import 'server_identity_store.dart';
 import 'server_options.dart';
 import 'worker_models.dart';
 
-const int workerProtocolVersion = 1;
+const int workerProtocolVersion = 2;
 const int defaultWorkerMaxMessageBytes = 8 * 1024 * 1024;
 
 Map<String, Object?> encodeServerOptions(EmbeddedServerOptions options) {
@@ -24,6 +24,7 @@ Map<String, Object?> encodeServerOptions(EmbeddedServerOptions options) {
   }
   return {
     'serverConfig': options.serverConfig.toBytes(),
+    'rooms': options.roomPersistence != null,
     'relay': encodeRelay(options.relay),
     'alpn': options.alpn,
     'authTimeout': options.authTimeout.inMicroseconds,
@@ -38,9 +39,11 @@ Map<String, Object?> encodeServerOptions(EmbeddedServerOptions options) {
 EmbeddedServerOptions decodeServerOptions(
   Map<Object?, Object?> value,
   ServerIdentityStore identityStore,
+  RoomPersistence? roomPersistence,
 ) => EmbeddedServerOptions(
   serverConfig: ServerConfig.fromBytes(asBytes(value['serverConfig'])),
   identityStore: identityStore,
+  roomPersistence: value['rooms'] == true ? roomPersistence : null,
   relay: decodeRelay(value['relay']),
   alpn: value['alpn']! as String,
   authTimeout: micros(value['authTimeout']),
@@ -167,6 +170,9 @@ int approximateMessageBytes(Object? value) => switch (value) {
   final WorkerCoordinatorAddress value => _workerDtoBytes(value),
   final WorkerDkgStatus value => _workerDtoBytes(value),
   final WorkerKeyInfo value => _workerDtoBytes(value),
+  final WorkerRoomInviteInfo value => _workerDtoBytes(value),
+  final WorkerRoomParticipantInfo value => _workerDtoBytes(value),
+  final WorkerRoomSnapshot value => _workerDtoBytes(value),
   final WorkerSigningRequest value => _workerDtoBytes(value),
   final NoosphereWorkerSnapshot value => _workerDtoBytes(value),
   final NoosphereWorkerEvent value => _workerDtoBytes(value),
@@ -194,6 +200,21 @@ int _workerDtoBytes(Object value) => switch (value) {
     value.name,
     value.description,
   ]),
+  final WorkerRoomInviteInfo value =>
+    _strings([value.inviteId, value.participantPublicKeyHex, value.status]) +
+        16,
+  final WorkerRoomParticipantInfo value =>
+    _strings([value.publicKeyHex, ?value.identifierHex]) + 8,
+  final WorkerRoomSnapshot value =>
+    _strings([value.roomId, value.lifecycle]) +
+        value.invites.fold<int>(0, (sum, item) => sum + _workerDtoBytes(item)) +
+        value.participants.fold<int>(
+          0,
+          (sum, item) => sum + _workerDtoBytes(item),
+        ) +
+        (value.groupConfigBytes?.length ?? 0) +
+        (value.groupFingerprint?.length ?? 0) +
+        16,
   final WorkerSigningRequest value =>
     _strings([value.creator, value.status]) +
         value.id.length +
@@ -208,6 +229,7 @@ int _workerDtoBytes(Object value) => switch (value) {
           (sum, item) => sum + _workerDtoBytes(item),
         ) +
         value.keys.fold<int>(0, (sum, item) => sum + _workerDtoBytes(item)) +
+        value.rooms.fold<int>(0, (sum, item) => sum + _workerDtoBytes(item)) +
         24,
   final WorkerSnapshotEvent value => _workerDtoBytes(value.snapshot),
   final WorkerParticipantEvent value => _strings([
@@ -226,6 +248,17 @@ int _workerDtoBytes(Object value) => switch (value) {
   final WorkerKeyUpdatedEvent value =>
     _strings([value.setupId]) + _workerDtoBytes(value.key),
   final WorkerSessionReplacedEvent value => _strings([value.setupId]),
+  final WorkerRoomEvent value =>
+    _strings([value.setupId]) + _workerDtoBytes(value.room),
+  final WorkerEnrollmentRejectedEvent value =>
+    _strings([
+          value.setupId,
+          ?value.roomId,
+          ?value.inviteId,
+          ?value.participantFingerprint,
+          value.reason,
+        ]) +
+        8,
   final WorkerFailureEvent value => _strings([
     value.setupId,
     value.operation,

@@ -63,6 +63,68 @@ final class WorkerKeyInfo {
   final String description;
 }
 
+final class WorkerRoomInviteInfo {
+  WorkerRoomInviteInfo({
+    required this.inviteId,
+    required this.participantPublicKeyHex,
+    required this.status,
+    required this.issuedAt,
+    required this.expiresAt,
+  });
+
+  final String inviteId;
+  final String participantPublicKeyHex;
+  final String status;
+  final DateTime issuedAt;
+  final DateTime expiresAt;
+}
+
+final class WorkerRoomParticipantInfo {
+  const WorkerRoomParticipantInfo({
+    required this.publicKeyHex,
+    required this.enrolledAt,
+    required this.identifierHex,
+  });
+
+  final String publicKeyHex;
+  final DateTime enrolledAt;
+  final String? identifierHex;
+}
+
+/// Public worker view of enrollment state. Invite tokens are intentionally absent.
+final class WorkerRoomSnapshot {
+  WorkerRoomSnapshot({
+    required this.roomId,
+    required this.lifecycle,
+    required this.expectedParticipants,
+    required this.threshold,
+    required Iterable<WorkerRoomInviteInfo> invites,
+    required Iterable<WorkerRoomParticipantInfo> participants,
+    required Uint8List? groupConfigBytes,
+    required Uint8List? groupFingerprint,
+  }) : invites = List.unmodifiable(invites),
+       participants = List.unmodifiable(participants),
+       groupConfigBytes = groupConfigBytes == null
+           ? null
+           : Uint8List.fromList(groupConfigBytes),
+       groupFingerprint = groupFingerprint == null
+           ? null
+           : Uint8List.fromList(groupFingerprint);
+
+  final String roomId;
+  final String lifecycle;
+  final int expectedParticipants;
+  final int threshold;
+  final List<WorkerRoomInviteInfo> invites;
+  final List<WorkerRoomParticipantInfo> participants;
+  final Uint8List? groupConfigBytes;
+  final Uint8List? groupFingerprint;
+
+  GroupConfig? decodeGroupConfig() => groupConfigBytes == null
+      ? null
+      : GroupConfig.fromBytes(groupConfigBytes!);
+}
+
 /// Sanitized signing proposal used both for display and approval binding.
 final class WorkerSigningRequest {
   WorkerSigningRequest({
@@ -99,10 +161,12 @@ final class NoosphereWorkerSnapshot {
     required List<WorkerDkgStatus> dkgs,
     required List<WorkerSigningRequest> signingRequests,
     required List<WorkerKeyInfo> keys,
+    required List<WorkerRoomSnapshot> rooms,
   }) : onlineParticipants = List.unmodifiable(onlineParticipants),
        dkgs = List.unmodifiable(dkgs),
        signingRequests = List.unmodifiable(signingRequests),
-       keys = List.unmodifiable(keys);
+       keys = List.unmodifiable(keys),
+       rooms = List.unmodifiable(rooms);
 
   final String setupId;
   final int generation;
@@ -114,6 +178,7 @@ final class NoosphereWorkerSnapshot {
   final List<WorkerDkgStatus> dkgs;
   final List<WorkerSigningRequest> signingRequests;
   final List<WorkerKeyInfo> keys;
+  final List<WorkerRoomSnapshot> rooms;
 }
 
 sealed class NoosphereWorkerEvent {
@@ -196,6 +261,30 @@ final class WorkerKeyUpdatedEvent extends NoosphereWorkerEvent {
 
 final class WorkerSessionReplacedEvent extends NoosphereWorkerEvent {
   const WorkerSessionReplacedEvent(super.setupId, super.generation);
+}
+
+final class WorkerRoomEvent extends NoosphereWorkerEvent {
+  const WorkerRoomEvent(super.setupId, super.generation, {required this.room});
+
+  final WorkerRoomSnapshot room;
+}
+
+final class WorkerEnrollmentRejectedEvent extends NoosphereWorkerEvent {
+  const WorkerEnrollmentRejectedEvent(
+    super.setupId,
+    super.generation, {
+    required this.roomId,
+    required this.inviteId,
+    required this.participantFingerprint,
+    required this.reason,
+    required this.at,
+  });
+
+  final String? roomId;
+  final String? inviteId;
+  final String? participantFingerprint;
+  final String reason;
+  final DateTime at;
 }
 
 final class WorkerFailureEvent extends NoosphereWorkerEvent {

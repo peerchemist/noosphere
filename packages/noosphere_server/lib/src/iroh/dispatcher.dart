@@ -39,11 +39,7 @@ final class IrohDispatchResult<T> {
 final class IrohDispatcher {
   IrohDispatcher(Iterable<ServerApiHandler> handlers) {
     for (final handler in handlers) {
-      final key = _GroupKey(handler.config.group.fingerprint);
-      if (_lanes.containsKey(key)) {
-        throw ArgumentError('duplicate Iroh group fingerprint');
-      }
-      _lanes[key] = _GroupLane(handler);
+      addHandler(handler);
     }
     if (_lanes.isEmpty) throw ArgumentError('at least one group is required');
   }
@@ -53,6 +49,22 @@ final class IrohDispatcher {
 
   final Map<_GroupKey, _GroupLane> _lanes = {};
   bool _closed = false;
+
+  /// Adds a newly frozen enrollment room to the ordinary ROAST dispatcher.
+  void addHandler(ServerApiHandler handler) {
+    if (_closed) throw StateError('dispatcher is closed');
+    final key = _GroupKey(handler.config.group.fingerprint);
+    if (_lanes.containsKey(key)) {
+      throw ArgumentError('duplicate Iroh group fingerprint');
+    }
+    _lanes[key] = _GroupLane(handler);
+  }
+
+  Future<void> removeHandler(List<int> groupFingerprint) async {
+    if (_closed) throw StateError('dispatcher is closed');
+    final lane = _lanes.remove(_GroupKey(groupFingerprint));
+    if (lane != null) await lane.queue.close();
+  }
 
   int pendingFor(List<int> groupFingerprint) =>
       _lanes[_GroupKey(groupFingerprint)]?.queue.pending ?? 0;

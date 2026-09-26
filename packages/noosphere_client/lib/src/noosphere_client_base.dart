@@ -10,9 +10,11 @@ export "client/events.dart";
 export "client/frost_key_with_details.dart";
 export "client/in_memory_storage.dart";
 export "client/key_construction.dart";
+export 'client/room_enrollment.dart';
 export "client/signatures_request.dart";
 export "client/storage_interface.dart";
 
 export "config/client.dart";
 
 export "iroh/client_api.dart";
+export 'iroh/room_enrollment_api.dart';

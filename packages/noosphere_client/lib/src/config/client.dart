@@ -17,6 +17,7 @@ enum KeyPurpose {
   signaturesDetails,
   secretShare,
   decryptSecretShare,
+  roomEnrollment,
 }
 
 class ClientConfig with cl.Writable, MapWritable {

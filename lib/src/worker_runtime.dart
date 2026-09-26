@@ -3,9 +3,12 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as coinlib;
-import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
+import 'package:iroh_flutter/iroh_flutter.dart'
+    show EndpointAddr, PublicKey, RelayUrl;
 import 'package:meta/meta.dart';
+import 'package:noosphere_client/iroh_transport.dart';
 import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere_server/noosphere_server.dart';
 
 import 'client_options.dart';
 import 'initialization.dart';
@@ -133,6 +136,49 @@ final class _WorkerRuntime {
           if (!_setup(setupId).hasRoles) _setups.remove(setupId);
         case 'snapshot':
           result = _setup(setupId!).snapshot();
+        case 'createRoom':
+          result = await _setup(setupId!).createRoom(
+            roomId: payload['roomId'] as String?,
+            expectedParticipants: payload['expectedParticipants']! as int,
+            threshold: payload['threshold']! as int,
+          );
+        case 'roomSnapshot':
+          result = await _setup(setupId!)
+              .roomSnapshot(payload['roomId']! as String);
+        case 'issueRoomInvite':
+          result = await _setup(setupId!).issueRoomInvite(
+            roomId: payload['roomId']! as String,
+            publicKey: coinlib.ECCompressedPublicKey(
+              asBytes(payload['publicKey']),
+            ),
+            expiresAt: DateTime.fromMicrosecondsSinceEpoch(
+              payload['expiresAt']! as int,
+            ),
+          );
+        case 'revokeRoomInvite':
+          result = await _setup(setupId!).revokeRoomInvite(
+            roomId: payload['roomId']! as String,
+            inviteId: payload['inviteId']! as String,
+          );
+        case 'freezeRoom':
+          result = await _setup(setupId!)
+              .freezeRoom(payload['roomId']! as String);
+        case 'closeRoom':
+          result = await _setup(setupId!)
+              .closeRoom(payload['roomId']! as String);
+        case 'joinRoom':
+          final setup = _setups.putIfAbsent(
+            setupId!,
+            () => _SetupRuntime(
+              setupId: setupId,
+              generation: generation,
+              host: _host,
+              emit: _emit,
+            ),
+          );
+          result = await setup.joinRoom(
+            RoomInvite.fromBytes(asBytes(payload['invite'])),
+          );
         case 'updateSignerAddress':
           result = await _setup(setupId!).updateSignerAddress(
             decodeEndpointAddress(payload['address']! as Map<Object?, Object?>),
@@ -315,9 +361,12 @@ final class _SetupRuntime {
   String? _participant;
   StreamSubscription<Client>? _sessions;
   StreamSubscription<ClientEvent>? _events;
+  StreamSubscription<RoomSnapshot>? _roomEvents;
+  StreamSubscription<RoomEnrollmentRejected>? _roomRejections;
   Timer? _serverAddressPoll;
   EndpointAddr? _serverAddress;
   final _serial = SerialExecutor();
+  final _rooms = <String, WorkerRoomSnapshot>{};
 
   bool get hasRoles => _serverNode != null || _clientNode != null;
 
@@ -341,9 +390,35 @@ final class _SetupRuntime {
         final options = decodeServerOptions(
           serverMessage,
           _RemoteIdentityStore(host, setupId),
+          _RemoteRoomPersistence(host, setupId),
         );
         final node = await NoosphereNode.startInitialized(server: options);
         _serverNode = node;
+        final roomManager = node.server!.rooms;
+        if (roomManager != null) {
+          for (final room in await roomManager.getRooms()) {
+            _rooms[room.roomId] = _workerRoom(room);
+          }
+          _roomEvents = roomManager.snapshots.listen((room) {
+            final snapshot = _workerRoom(room);
+            _rooms[room.roomId] = snapshot;
+            emit(WorkerRoomEvent(setupId, generation, room: snapshot));
+            _emitSnapshot();
+          });
+          _roomRejections = roomManager.rejectedEnrollments.listen((event) {
+            emit(
+              WorkerEnrollmentRejectedEvent(
+                setupId,
+                generation,
+                roomId: event.roomId,
+                inviteId: event.inviteId,
+                participantFingerprint: event.participantFingerprint,
+                reason: event.reason.name,
+                at: event.at,
+              ),
+            );
+          });
+        }
         _serverAddress = node.server!.address;
         // Iroh's reactive-stream cancellation registry is process-wide while
         // Dart library statics are isolate-local. Polling the cheap address
@@ -409,6 +484,87 @@ final class _SetupRuntime {
 
   Future<Object?> requestDkg(NewDkgDetails details) =>
       _withClient((client) => client.requestDkg(details));
+
+  Future<WorkerRoomSnapshot> createRoom({
+    required String? roomId,
+    required int expectedParticipants,
+    required int threshold,
+  }) => _synchronized(
+    () async => _workerRoom(
+      await _serverNode!.server!.createRoom(
+        roomId: roomId,
+        expectedParticipants: expectedParticipants,
+        threshold: threshold,
+      ),
+    ),
+  );
+
+  Future<WorkerRoomSnapshot> roomSnapshot(String roomId) => _synchronized(
+    () async => _workerRoom(await _serverNode!.server!.getRoom(roomId)),
+  );
+
+  Future<Uint8List> issueRoomInvite({
+    required String roomId,
+    required coinlib.ECCompressedPublicKey publicKey,
+    required DateTime expiresAt,
+  }) => _synchronized(
+    () async => (await _serverNode!.server!.issueRoomInvite(
+      roomId: roomId,
+      expectedParticipantPublicKey: publicKey,
+      expiresAt: expiresAt,
+    )).toBytes(),
+  );
+
+  Future<WorkerRoomSnapshot> revokeRoomInvite({
+    required String roomId,
+    required String inviteId,
+  }) => _synchronized(
+    () async => _workerRoom(
+      await _serverNode!.server!.revokeRoomInvite(
+        roomId: roomId,
+        inviteId: inviteId,
+      ),
+    ),
+  );
+
+  Future<WorkerRoomSnapshot> freezeRoom(String roomId) => _synchronized(
+    () async => _workerRoom(await _serverNode!.server!.freezeRoom(roomId)),
+  );
+
+  Future<WorkerRoomSnapshot> closeRoom(String roomId) => _synchronized(
+    () async => _workerRoom(await _serverNode!.server!.closeRoom(roomId)),
+  );
+
+  Future<WorkerRoomSnapshot> joinRoom(RoomInvite invite) =>
+      _synchronized(() async {
+        final endpointId = PublicKey.fromBytes(invite.coordinatorEndpointId);
+        final room = await IrohRoomEnrollmentApi.joinRoom(
+          IrohClientTransportConfig(
+            bootstrapAddress: EndpointAddr(
+              endpointId,
+              relayUrls: [
+                for (final url in invite.relayUrls) RelayUrl.parse(url),
+              ],
+              ipAddrs: invite.ipAddrs,
+            ),
+            pinnedServerId: endpointId,
+          ),
+          invite,
+          (_) async {
+            final bytes = await host.request(
+              setupId,
+              'getEnrollmentPrivateKey',
+              const {},
+            );
+            return coinlib.ECPrivateKey(asBytes(bytes));
+          },
+        );
+        final snapshot = _workerRoom(room);
+        _rooms[room.roomId] = snapshot;
+        emit(WorkerRoomEvent(setupId, generation, room: snapshot));
+        _emitSnapshot();
+        return snapshot;
+      });
 
   Future<Object?> updateSignerAddress(EndpointAddr address) =>
       _synchronized(() async {
@@ -517,6 +673,11 @@ final class _SetupRuntime {
     _serverAddress = null;
     _serverAddressPoll?.cancel();
     _serverAddressPoll = null;
+    await _roomEvents?.cancel();
+    await _roomRejections?.cancel();
+    _roomEvents = null;
+    _roomRejections = null;
+    _rooms.clear();
     await node?.close();
   }
 
@@ -525,6 +686,10 @@ final class _SetupRuntime {
     try {
       final address = node.server!.address;
       if (_sameAddress(_serverAddress, address)) return;
+      node.server!.rooms?.updateBootstrap(
+        relayUrls: [for (final relay in address.relayUrls) relay.value],
+        ipAddrs: address.ipAddrs,
+      );
       _serverAddress = address;
       _emitSnapshot();
     } catch (error) {
@@ -588,8 +753,36 @@ final class _SetupRuntime {
       keys: client == null
           ? const []
           : [for (final key in client.keys.values) _key(key)],
+      rooms: _rooms.values.toList(growable: false),
     );
   }
+
+  WorkerRoomSnapshot _workerRoom(RoomSnapshot room) => WorkerRoomSnapshot(
+    roomId: room.roomId,
+    lifecycle: room.lifecycle.name,
+    expectedParticipants: room.expectedParticipants,
+    threshold: room.threshold,
+    invites: [
+      for (final invite in room.invites)
+        WorkerRoomInviteInfo(
+          inviteId: invite.inviteId,
+          participantPublicKeyHex: invite.expectedParticipantPublicKey.hex,
+          status: invite.status.name,
+          issuedAt: invite.issuedAt,
+          expiresAt: invite.expiresAt,
+        ),
+    ],
+    participants: [
+      for (final participant in room.participants)
+        WorkerRoomParticipantInfo(
+          publicKeyHex: participant.publicKey.hex,
+          enrolledAt: participant.enrolledAt,
+          identifierHex: participant.identifier?.toString(),
+        ),
+    ],
+    groupConfigBytes: room.groupConfig?.toBytes(),
+    groupFingerprint: room.groupFingerprint,
+  );
 
   WorkerDkgStatus _dkgStatus(DkgInProgress progress, {String? stage}) =>
       WorkerDkgStatus(
@@ -797,6 +990,26 @@ final class _RemoteIdentityStore(this.host, this.setupId)
   @override
   Future<void> write(Uint8List secret) =>
       host.request(setupId, 'identity.write', {'secret': secret}).then((_) {});
+}
+
+final class _RemoteRoomPersistence(this.host, this.setupId)
+    implements RoomPersistence {
+  final _HostBridge host;
+  final String setupId;
+
+  @override
+  Future<Map<String, Uint8List>> loadAll() async {
+    final records = await host.request(setupId, 'rooms.loadAll', const {});
+    return {
+      for (final entry in (records! as Map<Object?, Object?>).entries)
+        entry.key! as String: asBytes(entry.value),
+    };
+  }
+
+  @override
+  Future<void> write(String roomId, Uint8List state) => host
+      .request(setupId, 'rooms.write', {'roomId': roomId, 'state': state})
+      .then((_) {});
 }
 
 final class _RemoteClientStorage(this.host, this.setupId)

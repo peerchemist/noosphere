@@ -25,5 +25,6 @@ export 'api/types/signatures_request_details.dart';
 export 'api/types/signed.dart';
 export 'api/types/signed_dkg_ack.dart';
 export 'api/types/single_signature_details.dart';
+export 'room.dart';
 
 const int noosphereRoastProtocolVersion = 2;
