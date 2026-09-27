@@ -64,6 +64,34 @@ void main() {
       expectInvalid(expiry: Expiry(Duration(days: -1)));
     });
 
+    test("completed requests can contain expired details", () {
+      final key = getPrivkey(0);
+      final details = SignaturesRequestDetails.allowNegativeExpiry(
+        requiredSigs: [
+          SingleSignatureDetails(
+            signDetails: SignDetails.keySpend(message: Uint8List(32)),
+            groupKey: cl.ECCompressedPublicKey.fromPubkey(key.pubkey),
+            hdDerivation: const [],
+          ),
+        ],
+        expiry: Expiry(Duration(days: -1)),
+      );
+      final signed = Signed.sign(obj: details, key: key);
+      final completed = CompletedSignaturesRequest(
+        details: signed,
+        signatures: [signed.signature],
+        creator: ids.first,
+      );
+
+      expect(
+        () => SignaturesRequestDetails.fromBytes(details.toBytes()),
+        throwsArgumentError,
+      );
+      final decoded = CompletedSignaturesRequest.fromBytes(completed.toBytes());
+      expect(decoded.details.obj.expiry.isExpired, isTrue);
+      expect(decoded.toBytes(), completed.toBytes());
+    });
+
     test("requires metadata hashes to match", () {
       final key = getPrivkey(0);
       final tr = cl.Taproot(internalKey: key.pubkey);

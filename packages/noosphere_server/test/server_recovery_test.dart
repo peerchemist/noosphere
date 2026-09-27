@@ -41,12 +41,15 @@ void main() {
       );
 
       final completedDetails = signObject(
-        getSignaturesDetails(singleSigTweaks: [1]),
+        SignaturesRequestDetails.allowNegativeExpiry(
+          requiredSigs: [getSingleSigDetails(tweak: 1)],
+          expiry: Expiry(const Duration(seconds: -1)),
+        ),
       );
       state.completedSigs[completedDetails.obj.id] = CompletedSignatures(
         details: completedDetails,
         signatures: [dummySig],
-        expiry: completedDetails.obj.expiry,
+        expiry: Expiry(const Duration(days: 1)),
         creator: ids.first,
       );
 

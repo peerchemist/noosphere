@@ -97,6 +97,16 @@ class SignaturesRequestDetails with cl.Writable, Signable {
         expiry: Expiry.fromReader(reader),
       );
 
+  SignaturesRequestDetails.fromReaderAllowNegativeExpiry(cl.BytesReader reader)
+    : this.allowNegativeExpiry(
+        requiredSigs: List.generate(
+          reader.readUInt16(),
+          (_) => SingleSignatureDetails.fromReader(reader),
+        ),
+        metadata: SignatureMetadata.fromReader(reader),
+        expiry: Expiry.fromReader(reader),
+      );
+
   /// Convenience constructor to construct from serialised [bytes].
   SignaturesRequestDetails.fromBytes(Uint8List bytes)
     : this.fromReader(cl.BytesReader(bytes));

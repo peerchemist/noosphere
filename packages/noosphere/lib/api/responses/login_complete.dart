@@ -25,7 +25,7 @@ class CompletedSignaturesRequest with cl.Writable {
     : this(
         details: Signed.fromReader(
           reader,
-          () => SignaturesRequestDetails.fromReader(reader),
+          () => SignaturesRequestDetails.fromReaderAllowNegativeExpiry(reader),
         ),
         signatures: reader.readSignatureVector(),
         creator: reader.readIdentifier(),
