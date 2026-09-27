@@ -30,8 +30,55 @@ class CompletedSignaturesRequest with cl.Writable {
         signatures: reader.readSignatureVector(),
         creator: reader.readIdentifier(),
       );
-  CompletedSignaturesRequest.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory CompletedSignaturesRequest.fromBytes(Uint8List bytes) {
+    Object? currentError;
+    StackTrace? currentStack;
+    try {
+      final reader = cl.BytesReader(bytes);
+      final value = CompletedSignaturesRequest.fromReader(reader);
+      if (!reader.atEnd) throw FormatException('Unexpected trailing bytes');
+      return value;
+    } catch (error, stack) {
+      currentError = error;
+      currentStack = stack;
+    }
+
+    // The creator and signature vector have fixed-width elements, so locate
+    // their boundary from the end. This gives signedFromBytes an exact slice
+    // and lets it distinguish legacy details (without `message`) safely.
+    const creatorLength = 32;
+    const signatureLength = 64;
+    const vectorCountLength = 2;
+    final creatorStart = bytes.length - creatorLength;
+    final maxSignatures = (creatorStart - vectorCountLength) ~/ signatureLength;
+    for (var count = 0; count <= maxSignatures; count++) {
+      final vectorStart =
+          creatorStart - vectorCountLength - count * signatureLength;
+      if (vectorStart < 0) break;
+      final encodedCount = bytes[vectorStart] | (bytes[vectorStart + 1] << 8);
+      if (encodedCount != count) continue;
+
+      try {
+        final details = SignaturesRequestDetails.signedFromBytes(
+          Uint8List.fromList(bytes.sublist(0, vectorStart)),
+          allowNegativeExpiry: true,
+        );
+        final reader = cl.BytesReader(bytes, vectorStart);
+        final signatures = reader.readSignatureVector();
+        final creator = reader.readIdentifier();
+        if (!reader.atEnd) continue;
+        return CompletedSignaturesRequest(
+          details: details,
+          signatures: signatures,
+          creator: creator,
+        );
+      } catch (_) {
+        continue;
+      }
+    }
+
+    Error.throwWithStackTrace(currentError, currentStack);
+  }
 
   @override
   void write(cl.Writer writer) {
