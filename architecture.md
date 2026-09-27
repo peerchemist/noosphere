@@ -1,5 +1,25 @@
 # Architecture
 
+## Source organization
+
+The root `noosphere_flutter` package is the wallet-facing library. The packages
+under `packages/` own the shared protocol, participant and coordinator code.
+Tests of domain types and group configuration live in `noosphere/test`; client
+model tests live in `noosphere_client/test`. Client/server interaction tests
+remain in the server package, which depends on the client only for development.
+
+`Client` and `ServerApiHandler` keep their public methods and state ownership.
+Their private implementations are grouped into Dart library parts for sessions,
+DKG, signing, key sharing and client event handling. These parts use private
+extensions, so they introduce no public API or additional state owners. Client
+locks remain attached to the same client or operation state, and every server
+operation uses the same preparation and persistence path.
+
+The Flutter worker separates command handling from setup lifecycle, host
+request correlation and persistence adapters in `lib/src/worker/`. Host-side
+provider queues remain shared across worker lifetimes within the host isolate;
+moving their declarations into a library part does not change that lifetime.
+
 ## Storage ownership
 
 - Noosphere does not provide or own a persistent storage backend.

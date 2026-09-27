@@ -4,7 +4,7 @@ export "package:noosphere/config.dart";
 export "package:noosphere/domain.dart";
 export "package:noosphere/iroh.dart";
 
-export "client/client.dart";
+export "client/client.dart" show Client, GetPrivateKey, ServerMisbehaviour;
 export "client/dkg_in_progress.dart";
 export "client/events.dart";
 export "client/frost_key_with_details.dart";

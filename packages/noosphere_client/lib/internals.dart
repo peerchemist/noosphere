@@ -2,5 +2,6 @@
 /// Not guaranteed to be stable.
 library;
 
+export 'src/client/client.dart' show getHiddenClientStateForTestsDoNotUse;
 export 'src/client/state/dkg.dart';
 export 'src/client/state/sigs.dart';
