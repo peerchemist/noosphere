@@ -27,12 +27,14 @@ void main() {
         0,
         0,
         ...expiryBytes,
+        0,
       ];
 
       final obj = SignaturesRequestDetails.fromBytes(Uint8List.fromList(bytes));
       expect(obj.toBytes(), bytes);
       expect(obj.requiredSigs, hasLength(2));
       expect(obj.metadata, isA<EmptySignatureMetadata>());
+      expect(obj.message, isEmpty);
       expect(obj.expiry.time.millisecondsSinceEpoch, expiryTimestamp);
     });
 
@@ -75,6 +77,7 @@ void main() {
           ),
         ],
         expiry: Expiry(Duration(days: -1)),
+        message: 'Previously approved payment',
       );
       final signed = Signed.sign(obj: details, key: key);
       final completed = CompletedSignaturesRequest(
@@ -89,6 +92,8 @@ void main() {
       );
       final decoded = CompletedSignaturesRequest.fromBytes(completed.toBytes());
       expect(decoded.details.obj.expiry.isExpired, isTrue);
+      expect(decoded.details.obj.message, details.message);
+      expect(decoded.details.verify(key.pubkey), isTrue);
       expect(decoded.toBytes(), completed.toBytes());
     });
 
@@ -123,6 +128,7 @@ void main() {
         ],
         expiry: futureExpiry,
         metadata: metadata,
+        message: 'Approve this transaction',
       );
 
       expect(

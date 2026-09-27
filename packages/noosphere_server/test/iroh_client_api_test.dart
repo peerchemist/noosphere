@@ -543,6 +543,7 @@ void main() {
         ),
       ],
       expiry: futureExpiry,
+      message: 'Approve invoice #123 🧾',
     );
     final signedSignatureDetails = Signed.sign(
       obj: signatureDetails,
@@ -560,6 +561,7 @@ void main() {
     );
     final signatureRequest = await events1
         .getExpectOneEvent<SignaturesRequestEvent>();
+    expect(signatureRequest.details.obj.message, signatureDetails.message);
     expect(
       signatureRequest.details.toBytes(),
       signedSignatureDetails.toBytes(),

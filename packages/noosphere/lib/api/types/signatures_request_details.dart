@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:noosphere/common/serial.dart';
 
 import 'expiry.dart';
 import 'signature_metadata.dart';
@@ -38,6 +40,9 @@ class SignaturesRequestId with cl.Writable {
 
 /// Details of requested required signatures
 class SignaturesRequestDetails with cl.Writable, Signable {
+  /// Maximum UTF-8 byte length of the request explanation.
+  static const int maxMessageBytes = 1024;
+
   /// A request can be for one or more signatures at a time
   final List<SingleSignatureDetails> requiredSigs;
 
@@ -46,13 +51,25 @@ class SignaturesRequestDetails with cl.Writable, Signable {
   final SignatureMetadata metadata;
   final Expiry expiry;
 
+  /// Free-form explanation from the requester, empty when omitted, limited to
+  /// [maxMessageBytes] UTF-8 bytes.
+  ///
+  /// Included in the request signature and ID, but does not change the
+  /// messages in [requiredSigs] that the threshold signers will sign.
+  final String message;
+
   SignaturesRequestDetails._({
     required List<SingleSignatureDetails> requiredSigs,
     SignatureMetadata? metadata,
     required this.expiry,
+    this.message = '',
     bool allowNegativeExpiry = false,
   }) : requiredSigs = List.unmodifiable(requiredSigs),
        metadata = metadata ?? EmptySignatureMetadata() {
+    if (message.length > maxMessageBytes ||
+        utf8.encode(message).length > maxMessageBytes) {
+      throw ArgumentError('message exceeds $maxMessageBytes UTF-8 bytes');
+    }
     if (requiredSigs.toSet().length != requiredSigs.length ||
         requiredSigs.length > 0xffff ||
         requiredSigs.isEmpty) {
@@ -74,16 +91,24 @@ class SignaturesRequestDetails with cl.Writable, Signable {
     required List<SingleSignatureDetails> requiredSigs,
     SignatureMetadata? metadata,
     required Expiry expiry,
-  }) : this._(requiredSigs: requiredSigs, metadata: metadata, expiry: expiry);
+    String message = '',
+  }) : this._(
+         requiredSigs: requiredSigs,
+         metadata: metadata,
+         expiry: expiry,
+         message: message,
+       );
 
   SignaturesRequestDetails.allowNegativeExpiry({
     required List<SingleSignatureDetails> requiredSigs,
     SignatureMetadata? metadata,
     required Expiry expiry,
+    String message = '',
   }) : this._(
          requiredSigs: requiredSigs,
          metadata: metadata,
          expiry: expiry,
+         message: message,
          allowNegativeExpiry: true,
        );
 
@@ -95,6 +120,7 @@ class SignaturesRequestDetails with cl.Writable, Signable {
         ),
         metadata: SignatureMetadata.fromReader(reader),
         expiry: Expiry.fromReader(reader),
+        message: _readMessage(reader),
       );
 
   SignaturesRequestDetails.fromReaderAllowNegativeExpiry(cl.BytesReader reader)
@@ -105,7 +131,16 @@ class SignaturesRequestDetails with cl.Writable, Signable {
         ),
         metadata: SignatureMetadata.fromReader(reader),
         expiry: Expiry.fromReader(reader),
+        message: _readMessage(reader),
       );
+
+  static String _readMessage(cl.BytesReader reader) {
+    final length = reader.readVarInt();
+    if (length > BigInt.from(maxMessageBytes)) {
+      throw FormatException('message exceeds $maxMessageBytes UTF-8 bytes');
+    }
+    return utf8.decode(reader.readSlice(length.toInt()));
+  }
 
   /// Convenience constructor to construct from serialised [bytes].
   SignaturesRequestDetails.fromBytes(Uint8List bytes)
@@ -128,6 +163,7 @@ class SignaturesRequestDetails with cl.Writable, Signable {
     }
     metadata.write(writer);
     expiry.write(writer);
+    writer.writeString(message);
   }
 
   SignaturesRequestId get id => SignaturesRequestId._(sigHash.sublist(0, 16));

@@ -22,3 +22,23 @@ Dart message classes with:
 ```
 
 Protocol behavior beyond the wire schema is documented in `spec/`.
+
+Signature requests accept an optional free-form explanation:
+
+```dart
+final details = SignaturesRequestDetails(
+  requiredSigs: requiredSigs,
+  expiry: Expiry(const Duration(minutes: 10)),
+  message: 'Approve payment for invoice #123',
+);
+await client.requestSignatures(details);
+```
+
+The message defaults to an empty string and is authenticated by the requester's
+signature. Read it from `event.details.obj.message` on a domain
+`SignaturesRequestEvent`, or `event.request.details.message` on a client
+`SignaturesRequestClientEvent`. It also remains available in completed requests.
+The explanation does not change the payloads being threshold-signed.
+Messages are limited to 1 KiB (1024 UTF-8 bytes), exposed as
+`SignaturesRequestDetails.maxMessageBytes`. Oversized messages are rejected on
+construction and decoding.

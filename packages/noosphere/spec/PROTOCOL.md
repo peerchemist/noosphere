@@ -13,3 +13,23 @@ The existing client and server behavior remains normative during the initial
 monorepo migration. Authentication, session, DKG, signing, expiry, reconnect,
 replay and error rules will be transcribed here without changing their current
 wire behavior.
+
+## Signature request explanations
+
+`SignaturesRequestDetails.message` carries a free-form UTF-8 explanation for
+the entire request, independently of its signature metadata. An omitted message
+is the empty string. The canonical details encoding appends the message after
+the expiry, using the same variable-length byte prefix as other domain strings.
+The prefix is present even for an empty message.
+
+The message must not exceed 1024 UTF-8 bytes (excluding its length prefix).
+Constructors reject oversized messages; readers reject an oversized declared
+length before reading or decoding the message, including for completed requests.
+
+The message is covered by the requester's signature and contributes to the
+request ID. Changing it invalidates that signature, but does not change the
+individual payloads being threshold-signed. Request events, login replay and
+completed requests carry the message as part of the signed details.
+
+This revises the development wire format in place under `VERSIONING.md`;
+participants and coordinators must use the same build.

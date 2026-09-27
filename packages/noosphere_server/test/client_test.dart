@@ -1201,6 +1201,11 @@ void main() {
       });
 
       test("requestSignatures success", () async {
+        reqDetails = SignaturesRequestDetails(
+          requiredSigs: reqDetails.requiredSigs,
+          expiry: reqDetails.expiry,
+          message: 'Approve invoice #123',
+        );
         // First client creates request
         await tcs.first.client.requestSignatures(reqDetails);
 
@@ -1212,6 +1217,7 @@ void main() {
           expect(request.expiry, futureExpiry);
           expect(request.details.expiry, futureExpiry);
           expect(request.details.id, reqDetails.id);
+          expect(request.details.message, 'Approve invoice #123');
           expect(request.status, status);
         }
 
