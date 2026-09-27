@@ -102,6 +102,28 @@ void main() {
       );
       expect(login.secretShares, hasLength(1));
       expect(login.secretShares.single.groupKey, groupKey);
+
+      final creatorChallenge = await restored.login(
+        groupFingerprint: groupConfig.fingerprint,
+        participantId: ids.first,
+      );
+      final creator = await restored.respondToChallenge(
+        Signed.sign(obj: creatorChallenge.challenge, key: getPrivkey(0)),
+      );
+      await restored.requestNewDkg(
+        sid: creator.id,
+        signedDetails: dkgDetails,
+        commitment: DkgPart1(
+          identifier: ids.first,
+          threshold: 2,
+          n: ids.length,
+        ).public,
+      );
+      expect(
+        restored.debugState.persistent.interruptedDkgs,
+        isNot(contains('restart-dkg')),
+      );
+      expect(restored.debugState.nameToDkg['restart-dkg'], isNotNull);
     },
   );
 }

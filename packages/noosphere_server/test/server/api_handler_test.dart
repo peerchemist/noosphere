@@ -401,6 +401,55 @@ void main() {
         );
       });
 
+      test(
+        "creator replaces an interrupted attempt with the same name",
+        () async {
+          final details = signObject(getDkgDetails(name: "interrupted"));
+          ctx.api.debugState.persistent.interruptedDkgs[details.obj.name] =
+              NewDkgEvent(
+                details: details,
+                creator: ids.first,
+                commitments: const [],
+              );
+
+          await ctx.api.requestNewDkg(
+            sid: client.sid,
+            signedDetails: details,
+            commitment: commitment,
+          );
+
+          expect(
+            ctx.api.debugState.persistent.interruptedDkgs,
+            isNot(contains(details.obj.name)),
+          );
+          expect(ctx.api.debugState.nameToDkg[details.obj.name], isNotNull);
+        },
+      );
+
+      test(
+        "another participant cannot replace an interrupted attempt",
+        () async {
+          const name = "interrupted";
+          ctx.api.debugState.persistent.interruptedDkgs[name] = NewDkgEvent(
+            details: signObject(getDkgDetails(name: name)),
+            creator: ids.first,
+            commitments: const [],
+          );
+          final other = await ctx.login(1);
+
+          await expectInvalid(
+            () => ctx.api.requestNewDkg(
+              sid: other.sid,
+              signedDetails: signObject(getDkgDetails(name: name), 1),
+              commitment: getDkgPart1(1).public,
+            ),
+          );
+
+          expect(ctx.api.debugState.persistent.interruptedDkgs, contains(name));
+          expect(ctx.api.debugState.nameToDkg[name], isNull);
+        },
+      );
+
       test("success", () async {
         // Add other participant session to obtain an event
         final other = await ctx.login(1);

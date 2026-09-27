@@ -365,16 +365,20 @@ class ServerApiHandler implements ApiRequestInterface {
       config.maxDkgRequestTTL,
     );
 
-    // Check if name exists in DKG requests already
-    if (_state.nameToDkg.containsKey(details.name) ||
-        _state.persistent.interruptedDkgs.containsKey(details.name)) {
-      throw InvalidRequest.dkgRequestExists();
-    }
-
     // Verify details
     if (!signedDetails.verify(_getParticipantPubkeyForSession(session))) {
       throw InvalidRequest.invalidDkgReqSig();
     }
+
+    // Active attempts cannot be replaced. A creator may, however, atomically
+    // replace their own interrupted attempt after a server restart because it
+    // can no longer be resumed.
+    final interrupted = _state.persistent.interruptedDkgs[details.name];
+    if (_state.nameToDkg.containsKey(details.name) ||
+        (interrupted != null && interrupted.creator != session.participantId)) {
+      throw InvalidRequest.dkgRequestExists();
+    }
+    _state.persistent.interruptedDkgs.remove(details.name);
 
     // Create event to share with participants
     final commitments = [(session.participantId, commitment)];
