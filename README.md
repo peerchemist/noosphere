@@ -21,6 +21,13 @@ only from integration tests and examples through a dev dependency.
 The root package is `noosphere_flutter`; the repository directory can be
 renamed without changing workspace resolution.
 
+Wallets import `package:noosphere_flutter/noosphere_flutter.dart` for the
+worker and node APIs, domain models, configuration and host persistence
+interfaces. This entry point explicitly selects its server and transport
+exports; connection handlers, dispatchers and wire conversion helpers remain
+implementation details. Direct RPC and endpoint consumers import
+`package:noosphere_client/iroh_transport.dart` explicitly.
+
 ## Flutter facade
 
 Flutter lifecycle adapter for the Noosphere ROAST client and server. It can run

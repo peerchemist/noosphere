@@ -4,6 +4,12 @@ This Dart library coordinates FROST key generation and ROAST threshold
 signatures with a Noosphere server over authenticated Iroh QUIC connections.
 The server identity is pinned independently from its address hints.
 
+Import `package:noosphere_client/noosphere_client.dart` for participant APIs,
+domain types and storage interfaces. Import
+`package:noosphere_client/iroh_transport.dart` for direct RPC clients, endpoint
+configuration and reconnecting transport. Transport implementations are not
+re-exported by the participant library.
+
 ## Requirements
 
 - Dart 3.13 or newer

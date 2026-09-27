@@ -8,7 +8,6 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_client/iroh_transport.dart';
-import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_client/testing.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 import 'package:noosphere_server/src/server/state/dkg.dart';

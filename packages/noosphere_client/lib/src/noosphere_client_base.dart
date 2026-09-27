@@ -14,6 +14,3 @@ export "client/signatures_request.dart";
 export "client/storage_interface.dart";
 
 export "config/client.dart";
-
-export "iroh/client_api.dart";
-export 'iroh/room_enrollment_api.dart';

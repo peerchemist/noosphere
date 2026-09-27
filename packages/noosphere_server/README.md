@@ -3,6 +3,11 @@
 This package coordinates FROST distributed key generation and ROAST threshold
 signatures over authenticated Iroh QUIC connections.
 
+The `noosphere_server.dart` entry point exports server configuration, the
+coordinator API, Iroh server lifecycle, room management and host persistence
+contracts. Connection contexts, dispatchers, connection handlers and wire
+conversion helpers under `lib/src/iroh/` are internal implementation details.
+
 ## Run the server
 
 Copy `config/iroh-server.example.yaml`, replace the group and participant keys,
