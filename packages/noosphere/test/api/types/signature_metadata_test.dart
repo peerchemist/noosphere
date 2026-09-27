@@ -1,8 +1,8 @@
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:test/test.dart';
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/domain.dart';
 
-import '../../data.dart';
+import '../../support/data.dart';
 
 void main() {
   group("SignatureMetadata", () {

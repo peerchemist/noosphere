@@ -1,10 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/domain.dart';
 import 'package:test/test.dart';
 
-import '../../data.dart';
+import '../../support/data.dart';
 
 List<int> genRepeatUtf8(int n) => List.generate(n, (i) => 48 + (i % 10));
 

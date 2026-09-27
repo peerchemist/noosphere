@@ -2,10 +2,10 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:test/test.dart';
-import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere/domain.dart';
 
-import '../../data.dart';
-import '../../test_keys.dart';
+import '../../support/data.dart';
+import '../../support/test_keys.dart';
 
 void main() {
   group("SignaturesRequestDetails", () {
