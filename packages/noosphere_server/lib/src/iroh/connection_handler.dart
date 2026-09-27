@@ -407,8 +407,9 @@ final class IrohConnectionHandler {
           keys: rpc.keys
               .map((key) => AggregateKeyInfo.fromBytes(Uint8List.fromList(key)))
               .toSet(),
-          signedDetails: SignaturesRequestDetails.signedFromBytes(
+          signedDetails: Signed<SignaturesRequestDetails>.fromBytes(
             Uint8List.fromList(rpc.signedDetails),
+            (reader) => SignaturesRequestDetails.fromReader(reader),
           ),
           commitments: rpc.commitments
               .map(

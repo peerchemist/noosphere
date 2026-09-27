@@ -58,18 +58,12 @@ class SignaturesRequestDetails with cl.Writable, Signable {
   /// messages in [requiredSigs] that the threshold signers will sign.
   final String message;
 
-  // Legacy requests did not serialize [message]. Keep their original wire
-  // representation so their ID and requester signature remain valid while
-  // they are restored from persisted server/client state.
-  final bool _serializeMessage;
-
   SignaturesRequestDetails._({
     required List<SingleSignatureDetails> requiredSigs,
     SignatureMetadata? metadata,
     required this.expiry,
     this.message = '',
     bool allowNegativeExpiry = false,
-    this._serializeMessage = true,
   }) : requiredSigs = List.unmodifiable(requiredSigs),
        metadata = metadata ?? EmptySignatureMetadata() {
     if (message.length > maxMessageBytes ||
@@ -140,20 +134,6 @@ class SignaturesRequestDetails with cl.Writable, Signable {
         message: _readMessage(reader),
       );
 
-  SignaturesRequestDetails._fromLegacyReader(
-    cl.BytesReader reader, {
-    required bool allowNegativeExpiry,
-  }) : this._(
-         requiredSigs: List.generate(
-           reader.readUInt16(),
-           (_) => SingleSignatureDetails.fromReader(reader),
-         ),
-         metadata: SignatureMetadata.fromReader(reader),
-         expiry: Expiry.fromReader(reader),
-         allowNegativeExpiry: allowNegativeExpiry,
-         serializeMessage: false,
-       );
-
   static String _readMessage(cl.BytesReader reader) {
     final length = reader.readVarInt();
     if (length > BigInt.from(maxMessageBytes)) {
@@ -163,98 +143,12 @@ class SignaturesRequestDetails with cl.Writable, Signable {
   }
 
   /// Convenience constructor to construct from serialised [bytes].
-  ///
-  /// Also accepts the legacy encoding that predates [message].
-  factory SignaturesRequestDetails.fromBytes(Uint8List bytes) =>
-      _fromExactBytes(bytes, allowNegativeExpiry: false);
-
-  static SignaturesRequestDetails _fromExactBytes(
-    Uint8List bytes, {
-    required bool allowNegativeExpiry,
-  }) {
-    Object? currentError;
-    StackTrace? currentStack;
-    try {
-      return _readExact(
-        bytes,
-        (reader) => allowNegativeExpiry
-            ? SignaturesRequestDetails.fromReaderAllowNegativeExpiry(reader)
-            : SignaturesRequestDetails.fromReader(reader),
-      );
-    } catch (error, stack) {
-      currentError = error;
-      currentStack = stack;
-    }
-
-    try {
-      return _readExact(
-        bytes,
-        (reader) => SignaturesRequestDetails._fromLegacyReader(
-          reader,
-          allowNegativeExpiry: allowNegativeExpiry,
-        ),
-      );
-    } catch (_) {
-      Error.throwWithStackTrace(currentError, currentStack);
-    }
-  }
-
-  /// Decodes signed details from an exact byte slice, including requests made
-  /// before the optional [message] field was introduced.
-  static Signed<SignaturesRequestDetails> signedFromBytes(
-    Uint8List bytes, {
-    bool allowNegativeExpiry = false,
-  }) {
-    Object? currentError;
-    StackTrace? currentStack;
-    try {
-      return _readExact(
-        bytes,
-        (reader) => Signed.fromReader(
-          reader,
-          () => allowNegativeExpiry
-              ? SignaturesRequestDetails.fromReaderAllowNegativeExpiry(reader)
-              : SignaturesRequestDetails.fromReader(reader),
-        ),
-      );
-    } catch (error, stack) {
-      currentError = error;
-      currentStack = stack;
-    }
-
-    try {
-      return _readExact(
-        bytes,
-        (reader) => Signed.fromReader(
-          reader,
-          () => SignaturesRequestDetails._fromLegacyReader(
-            reader,
-            allowNegativeExpiry: allowNegativeExpiry,
-          ),
-        ),
-      );
-    } catch (_) {
-      Error.throwWithStackTrace(currentError, currentStack);
-    }
-  }
-
-  static T _readExact<T>(
-    Uint8List bytes,
-    T Function(cl.BytesReader reader) read,
-  ) {
-    // BytesReader uses the entire backing buffer, ignoring a view's bounds.
-    // Copy the exact slice so parsing and atEnd respect those bounds.
-    final reader = cl.BytesReader(Uint8List.fromList(bytes));
-    final value = read(reader);
-    if (!reader.atEnd) {
-      throw FormatException('Unexpected trailing bytes');
-    }
-    return value;
-  }
+  SignaturesRequestDetails.fromBytes(Uint8List bytes)
+    : this.fromReader(cl.BytesReader(bytes));
 
   /// Convenience constructor to construct from encoded [hex].
-  factory SignaturesRequestDetails.fromHex(String hex) =>
-      SignaturesRequestDetails.fromBytes(cl.hexToBytes(hex));
+  SignaturesRequestDetails.fromHex(String hex)
+    : this.fromBytes(cl.hexToBytes(hex));
 
   static final _hasher = cl.getTaggedHasher("SignaturesRequestDetails");
 
@@ -269,7 +163,7 @@ class SignaturesRequestDetails with cl.Writable, Signable {
     }
     metadata.write(writer);
     expiry.write(writer);
-    if (_serializeMessage) writer.writeString(message);
+    writer.writeString(message);
   }
 
   SignaturesRequestId get id => SignaturesRequestId._(sigHash.sublist(0, 16));

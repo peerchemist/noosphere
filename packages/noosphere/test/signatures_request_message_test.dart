@@ -111,51 +111,6 @@ void main() {
     );
   });
 
-  test('legacy requests without a message retain their ID and signature', () {
-    final currentBytes = details('').toBytes();
-    final legacyDetailsBytes = Uint8List.fromList(
-      currentBytes.sublist(0, currentBytes.length - 1),
-    );
-    final legacySignature = cl.SchnorrSignature.sign(
-      key,
-      cl.getTaggedHasher('SignaturesRequestDetails')(legacyDetailsBytes),
-    );
-    final creator = Identifier.fromUint16(1);
-
-    final decodedDetails = SignaturesRequestDetails.fromBytes(
-      legacyDetailsBytes,
-    );
-    expect(decodedDetails.message, isEmpty);
-    expect(decodedDetails.toBytes(), legacyDetailsBytes);
-
-    final eventBytes = Uint8List.fromList([
-      ...legacyDetailsBytes,
-      ...legacySignature.data,
-      ...creator.toBytes(),
-    ]);
-    final decodedEvent = SignaturesRequestEvent.fromBytes(eventBytes);
-    expect(decodedEvent.details.obj.message, isEmpty);
-    expect(decodedEvent.details.verify(key.pubkey), isTrue);
-    expect(decodedEvent.details.obj.id, decodedDetails.id);
-    expect(decodedEvent.toBytes(), eventBytes);
-
-    final completedBytes = Uint8List.fromList([
-      ...legacyDetailsBytes,
-      ...legacySignature.data,
-      1,
-      0,
-      ...legacySignature.data,
-      ...creator.toBytes(),
-    ]);
-    final decodedCompleted = CompletedSignaturesRequest.fromBytes(
-      completedBytes,
-    );
-    expect(decodedCompleted.details.obj.message, isEmpty);
-    expect(decodedCompleted.details.verify(key.pubkey), isTrue);
-    expect(decodedCompleted.signatures, hasLength(1));
-    expect(decodedCompleted.toBytes(), completedBytes);
-  });
-
   test('login replay preserves request explanations', () {
     final original = details('Approve invoice #123');
     final response = LoginCompleteResponse(

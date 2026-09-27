@@ -243,21 +243,8 @@ class SignaturesRequestEvent extends Event implements DetailsEvent {
         ),
         creator: reader.readIdentifier(),
       );
-  factory SignaturesRequestEvent.fromBytes(Uint8List bytes) {
-    const creatorLength = 32;
-    if (bytes.length < creatorLength) {
-      throw const FormatException('Invalid signatures request event');
-    }
-    final detailsEnd = bytes.length - creatorLength;
-    return SignaturesRequestEvent(
-      details: SignaturesRequestDetails.signedFromBytes(
-        Uint8List.fromList(bytes.sublist(0, detailsEnd)),
-      ),
-      creator: Identifier.fromBytes(
-        Uint8List.fromList(bytes.sublist(detailsEnd)),
-      ),
-    );
-  }
+  SignaturesRequestEvent.fromBytes(Uint8List bytes)
+    : this.fromReader(cl.BytesReader(bytes));
 
   @override
   void write(cl.Writer writer) {
