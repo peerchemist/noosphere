@@ -239,7 +239,7 @@ class SignaturesRequestEvent extends Event implements DetailsEvent {
     : this(
         details: Signed.fromReader(
           reader,
-          () => SignaturesRequestDetails.fromReader(reader),
+          () => SignaturesRequestDetails.fromReaderAllowNegativeExpiry(reader),
         ),
         creator: reader.readIdentifier(),
       );

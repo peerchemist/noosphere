@@ -111,6 +111,24 @@ void main() {
     );
   });
 
+  test('events can decode expired requests for replay and cleanup', () {
+    final expired = SignaturesRequestDetails.allowNegativeExpiry(
+      requiredSigs: requiredSigs,
+      expiry: Expiry(const Duration(seconds: -1)),
+      message: 'Expired request',
+    );
+    final event = SignaturesRequestEvent(
+      details: Signed.sign(obj: expired, key: key),
+      creator: Identifier.fromUint16(1),
+    );
+
+    final decoded = SignaturesRequestEvent.fromBytes(event.toBytes());
+
+    expect(decoded.details.obj.expiry.isExpired, isTrue);
+    expect(decoded.details.obj.message, expired.message);
+    expect(decoded.details.verify(key.pubkey), isTrue);
+  });
+
   test('login replay preserves request explanations', () {
     final original = details('Approve invoice #123');
     final response = LoginCompleteResponse(
