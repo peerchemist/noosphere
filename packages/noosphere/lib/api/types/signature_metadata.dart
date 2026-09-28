@@ -5,6 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:noosphere/common/serial.dart';
 
 import 'signatures_request_details.dart';
+import 'signed_message_payload.dart';
 import 'single_signature_details.dart';
 
 /// Thrown when the metadata is invalid. Other specific exceptions may be thrown
@@ -18,6 +19,7 @@ class InvalidMetaData implements Exception {
 
 const int _emptyType = 0;
 const int _taprootTxType = 1;
+const int _messageSignatureType = 2;
 
 abstract interface class SignatureMetadata with cl.Writable {
   int get type;
@@ -27,6 +29,7 @@ abstract interface class SignatureMetadata with cl.Writable {
       .readUInt8()) {
     _emptyType => EmptySignatureMetadata(),
     _taprootTxType => TaprootTransactionSignatureMetadata._fromReader(reader),
+    _messageSignatureType => MessageSignatureMetadata.fromReader(reader),
     int i => UnknownSignatureMetadata(
       i,
       reader.bytes.buffer.asUint8List(reader.offset),
@@ -61,6 +64,34 @@ class EmptySignatureMetadata extends SignatureMetadata {
 
   @override
   bool verifyRequiredSigs(List<SingleSignatureDetails> requiredSigs) => true;
+}
+
+/// Identifies and validates a wallet-style Noosphere message signature.
+class MessageSignatureMetadata extends SignatureMetadata {
+  @override
+  final int type = _messageSignatureType;
+
+  final SignedMessagePayload payload;
+
+  MessageSignatureMetadata({required this.payload});
+
+  MessageSignatureMetadata.fromReader(cl.BytesReader reader)
+    : this(payload: SignedMessagePayload.fromReader(reader));
+
+  @override
+  void write(cl.Writer writer) {
+    _writeType(writer);
+    payload.write(writer);
+  }
+
+  @override
+  bool verifyRequiredSigs(List<SingleSignatureDetails> requiredSigs) {
+    if (requiredSigs.length != 1) return false;
+    final requiredSig = requiredSigs.single;
+    return cl.bytesEqual(requiredSig.signDetails.message, payload.digest) &&
+        requiredSig.signDetails.mastHash == null &&
+        requiredSig.hdDerivation.isEmpty;
+  }
 }
 
 /// Provides data of Taproot transaction inputs to be signed.

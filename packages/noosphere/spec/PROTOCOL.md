@@ -14,10 +14,10 @@ monorepo migration. Authentication, session, DKG, signing, expiry, reconnect,
 replay and error rules will be transcribed here without changing their current
 wire behavior.
 
-## Planned message signing
+## Message signing
 
-[BIP-340 message signing](MESSAGE_SIGNING.md) specifies the planned wallet-style
-message format, request metadata, public API, and implementation steps. It uses
+[BIP-340 message signing](MESSAGE_SIGNING.md) specifies the wallet-style
+message format, request metadata, public API, and implementation. It uses
 the existing untweaked ROAST signing flow and is separate from the request
 explanations described below.
 

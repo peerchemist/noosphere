@@ -278,6 +278,60 @@ Future<void> _runScenario({
         );
       }
     }
+
+    const signedText = 'Message through the Flutter worker 🌍';
+    final messageDetails = SignaturesRequestDetails.forMessage(
+      text: signedText,
+      groupKey: frostKeys.first.groupKey,
+      expiry: Expiry(const Duration(minutes: 3)),
+    );
+    final messageRequestFuture = events
+        .where((event) => event is WorkerSigningRequestEvent)
+        .cast<WorkerSigningRequestEvent>()
+        .firstWhere(
+          (event) =>
+              event.setupId == 'signer-1' &&
+              event.request.decodeProposal().id == messageDetails.id,
+        );
+    final messageResultFutures = [
+      for (var i = 0; i < threshold; i++)
+        events
+            .where((event) => event is WorkerSigningResultEvent)
+            .cast<WorkerSigningResultEvent>()
+            .firstWhere(
+              (event) =>
+                  event.setupId == 'signer-$i' &&
+                  SignaturesRequestId.fromBytes(event.requestId) ==
+                      messageDetails.id,
+            ),
+    ];
+    await timed(
+      'requestMessageSignature',
+      () => worker.requestSignatures('signer-0', messageDetails),
+    );
+    final messageRequest = await messageRequestFuture.timeout(
+      const Duration(seconds: 15),
+    );
+    final transportedMetadata =
+        messageRequest.request.decodeProposal().metadata
+            as MessageSignatureMetadata;
+    expect(transportedMetadata.payload.text, signedText);
+    await timed(
+      'acceptMessageSignature',
+      () => worker.acceptSignatures('signer-1', messageRequest.request),
+    );
+    final messageResults = await Future.wait(messageResultFutures)
+        .timeout(const Duration(minutes: 2));
+    for (final result in messageResults) {
+      final signedMessage = result.toSignedMessage();
+      expect(signedMessage.text, signedText);
+      expect(signedMessage.verify(), isTrue);
+      expect(
+        SignedMessage.fromJsonString(signedMessage.toJsonString()).verify(),
+        isTrue,
+      );
+    }
+
     debugPrint('worker $threshold-of-$participants command ms: $commandTimes');
     if (frameTimesMicros.isNotEmpty) {
       frameTimesMicros.sort();

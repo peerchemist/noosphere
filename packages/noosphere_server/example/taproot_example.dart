@@ -32,6 +32,12 @@ class EventCompleters {
           case UpdatedDkgClientEvent():
             if (!gotDkg.isCompleted) gotDkg.complete();
           case SignaturesRequestClientEvent():
+            final metadata = event.request.details.metadata;
+            if (metadata is MessageSignatureMetadata) {
+              // A real application must present this validated payload text to
+              // the participant before offering the approval action.
+              print('Text requested for signature: ${metadata.payload.text}');
+            }
             gotSigsReq.complete();
           case SignaturesCompleteClientEvent():
             signature.complete(event.signatures.first);

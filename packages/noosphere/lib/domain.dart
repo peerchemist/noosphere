@@ -24,6 +24,8 @@ export 'api/types/signature_round_start.dart';
 export 'api/types/signatures_request_details.dart';
 export 'api/types/signed.dart';
 export 'api/types/signed_dkg_ack.dart';
+export 'api/types/signed_message.dart';
+export 'api/types/signed_message_payload.dart';
 export 'api/types/single_signature_details.dart';
 export 'room.dart';
 

@@ -2,6 +2,7 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:frosty/frosty.dart';
 import 'package:noosphere/api/types/new_dkg_details.dart';
 import 'package:noosphere/api/types/signatures_request_details.dart';
+import 'package:noosphere/api/types/signed_message.dart';
 
 import 'dkg_in_progress.dart';
 import 'key_construction.dart';
@@ -96,6 +97,12 @@ class SignaturesCompleteClientEvent extends ClientEvent {
     required this.creator,
     required this.signatures,
   });
+
+  /// Converts a completed message-signing request into a verified result.
+  SignedMessage toSignedMessage() => SignedMessage.fromCompletedRequest(
+    details: details,
+    signatures: signatures,
+  );
 }
 
 /// Provided when a key has received a secret share from another participant.

@@ -1,7 +1,7 @@
 # BIP-340 message signing
 
-Status: planned. This document specifies the message-signing API and its
-implementation steps; the API described below is not implemented yet.
+Status: implemented. This document specifies the message-signing API and its
+wire and verification requirements.
 
 ## Scope and existing support
 

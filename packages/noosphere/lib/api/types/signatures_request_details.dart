@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:frosty/frosty.dart';
 import 'package:noosphere/common/serial.dart';
 
 import 'expiry.dart';
 import 'signature_metadata.dart';
 import 'signed.dart';
+import 'signed_message_payload.dart';
 import 'single_signature_details.dart';
 
 /// 16-byte ID for a [SignaturesRequestDetails] that implements equality
@@ -98,6 +100,29 @@ class SignaturesRequestDetails with cl.Writable, Signable {
          expiry: expiry,
          message: message,
        );
+
+  /// Creates an untweaked BIP-340 request for a versioned text payload.
+  factory SignaturesRequestDetails.forMessage({
+    required String text,
+    required cl.ECCompressedPublicKey groupKey,
+    required Expiry expiry,
+    String message = '',
+    int version = SignedMessagePayload.currentVersion,
+  }) {
+    final payload = SignedMessagePayload(text: text, version: version);
+    return SignaturesRequestDetails(
+      requiredSigs: [
+        SingleSignatureDetails(
+          signDetails: SignDetails(message: payload.digest, mastHash: null),
+          groupKey: groupKey,
+          hdDerivation: const [],
+        ),
+      ],
+      metadata: MessageSignatureMetadata(payload: payload),
+      expiry: expiry,
+      message: message,
+    );
+  }
 
   SignaturesRequestDetails.allowNegativeExpiry({
     required List<SingleSignatureDetails> requiredSigs,

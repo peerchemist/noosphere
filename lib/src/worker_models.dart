@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_server/noosphere_server.dart';
 
 /// Roles owned by a worker setup.
@@ -182,6 +183,15 @@ final class WorkerSigningResultEvent extends NoosphereWorkerEvent {
   final Uint8List proposalBytes;
   final List<Uint8List> signatures;
   final String creator;
+
+  SignaturesRequestDetails decodeProposal() =>
+      SignaturesRequestDetails.fromBytes(proposalBytes);
+
+  /// Converts a completed message-signing request into a verified result.
+  SignedMessage toSignedMessage() => SignedMessage.fromCompletedRequest(
+    details: decodeProposal(),
+    signatures: signatures.map(cl.SchnorrSignature.new).toList(),
+  );
 }
 
 final class WorkerKeyUpdatedEvent extends NoosphereWorkerEvent {

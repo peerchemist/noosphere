@@ -42,3 +42,50 @@ The explanation does not change the payloads being threshold-signed.
 Messages are limited to 1 KiB (1024 UTF-8 bytes), exposed as
 `SignaturesRequestDetails.maxMessageBytes`. Oversized messages are rejected on
 construction and decoding.
+
+## Sign and verify a message
+
+Message signing uses the untweaked BIP-340 group key and signs a versioned,
+tagged hash of the exact UTF-8 text. Construct a request with the convenience
+factory:
+
+```dart
+final request = SignaturesRequestDetails.forMessage(
+  text: 'Hello from Noosphere!',
+  groupKey: groupKey,
+  expiry: Expiry(const Duration(minutes: 10)),
+  message: 'Please approve this greeting',
+);
+await client.requestSignatures(request);
+```
+
+Before approval, applications must identify the metadata and show the text from
+the validated payload. The request-level `message` above is only an explanation
+and is not the threshold-signed text.
+
+```dart
+if (event case SignaturesRequestClientEvent(:final request)) {
+  final metadata = request.details.metadata;
+  if (metadata is MessageSignatureMetadata) {
+    print('Text to sign: ${metadata.payload.text}');
+    // Ask the user, then approve only after an affirmative decision.
+    await client.acceptSignaturesRequest(request.details.id);
+  }
+}
+```
+
+Convert a completion into a portable result, export/import it as JSON, and
+verify it without a coordinator or signing transcript:
+
+```dart
+if (event case SignaturesCompleteClientEvent()) {
+  final signedMessage = event.toSignedMessage();
+  final exported = signedMessage.toJsonString();
+  final imported = SignedMessage.fromJsonString(exported);
+  if (!imported.verify()) throw StateError('invalid message signature');
+}
+```
+
+Verification proves validity under `imported.publicKey`; callers must still
+match that key to the expected group identity. Signed text is limited to 16 KiB
+of strict UTF-8 and is not trimmed, normalized, or newline-converted.
