@@ -39,7 +39,7 @@ pre-hashing; BIP-340's internal challenge calculation remains unchanged.
 
 The text is encoded exactly as UTF-8, without trimming, Unicode normalization,
 or newline conversion. Reject malformed Unicode rather than silently replacing
-it. Empty text is valid. Limit text to 16 KiB (16384 UTF-8 bytes), excluding
+it. Empty text is valid. Limit text to 1 KiB (1024 UTF-8 bytes), excluding
 serialization overhead. Check the declared byte length before allocating or
 decoding incoming text, and decode UTF-8 strictly.
 

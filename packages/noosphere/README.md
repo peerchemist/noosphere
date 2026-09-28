@@ -87,5 +87,5 @@ if (event case SignaturesCompleteClientEvent()) {
 ```
 
 Verification proves validity under `imported.publicKey`; callers must still
-match that key to the expected group identity. Signed text is limited to 16 KiB
+match that key to the expected group identity. Signed text is limited to 1 KiB
 of strict UTF-8 and is not trimmed, normalized, or newline-converted.

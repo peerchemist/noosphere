@@ -60,11 +60,11 @@ void main() {
         throwsArgumentError,
       );
 
-      // version, 0xfd varint marker, 16385 little-endian; no body is needed
+      // version, 0xfd varint marker, 1025 little-endian; no body is needed
       // because the declared bound is rejected before trying to read it.
       expect(
         () => SignedMessagePayload.fromBytes(
-          Uint8List.fromList([1, 0xfd, 0x01, 0x40]),
+          Uint8List.fromList([1, 0xfd, 0x01, 0x04]),
         ),
         throwsFormatException,
       );

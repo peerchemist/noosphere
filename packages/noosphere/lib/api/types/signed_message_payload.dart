@@ -6,7 +6,7 @@ import 'package:coinlib/coinlib.dart' as cl;
 /// The canonical, versioned text payload used for Noosphere message signing.
 class SignedMessagePayload with cl.Writable {
   static const int currentVersion = 1;
-  static const int maxTextBytes = 16 * 1024;
+  static const int maxTextBytes = 1024;
   static const String version1Tag = 'Noosphere/SignedMessage/v1';
 
   static final _version1Hasher = cl.getTaggedHasher(version1Tag);
