@@ -21,6 +21,10 @@ message format, request metadata, public API, and implementation. It uses
 the existing untweaked ROAST signing flow and is separate from the request
 explanations described below.
 
+The Flutter [coordinator switching helper](COORDINATOR_ROTATION.md) applies an
+app-approved endpoint change, persisting the pin through a host callback. It
+preserves the existing ROAST wire protocol and group keys.
+
 ## Signature request explanations
 
 `SignaturesRequestDetails.message` carries a free-form UTF-8 explanation for

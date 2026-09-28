@@ -142,6 +142,10 @@ final class _WorkerRuntime {
           if (!_setup(setupId).hasRoles) _setups.remove(setupId);
         case 'snapshot':
           result = _setup(setupId!).snapshot();
+        case 'rotateCoordinator':
+          result = await _setup(setupId!).rotateCoordinator(
+            decodeEndpointAddress(payload['address']! as Map<Object?, Object?>),
+          );
         case 'updateSignerAddress':
           result = await _setup(setupId!).updateSignerAddress(
             decodeEndpointAddress(payload['address']! as Map<Object?, Object?>),

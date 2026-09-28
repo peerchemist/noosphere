@@ -287,6 +287,9 @@ final class NoosphereWorker {
     }
 
     final setup = _setups.putIfAbsent(setupId, _HostSetup.new);
+    if (client != null && setup.persistCoordinator != null) {
+      throw StateError('Coordinator rotation is in progress.');
+    }
     final previousProviders = setup.providers;
     setup.bind(server: server, client: client);
 
@@ -334,6 +337,33 @@ final class NoosphereWorker {
         setupId: setupId,
         payload: {'address': encodeEndpointAddress(address)},
       ).then((_) {});
+
+  /// Switches an existing signer to a coordinator already approved by the app.
+  /// Stops the old session, checks pending signing state, awaits [persist], then
+  /// connects with the new pin. Keys, storage and the server role are retained.
+  /// A persistence error/timeout leaves the signer stopped: reconcile durable
+  /// selection before starting it again. No automatic rollback or RPC replay.
+  Future<NoosphereWorkerSnapshot> rotateCoordinator(
+    String setupId, {
+    required EndpointAddr newCoordinator,
+    required Future<void> Function(EndpointAddr) persist,
+  }) async {
+    final setup = _setups[setupId];
+    if (setup?.storage == null || setup!.persistCoordinator != null) {
+      throw StateError('Signer is unavailable or rotation is in progress.');
+    }
+    setup.persistCoordinator = () => persist(newCoordinator);
+    try {
+      return (await _invoke(
+            'rotateCoordinator',
+            setupId: setupId,
+            payload: {'address': encodeEndpointAddress(newCoordinator)},
+          ))!
+          as NoosphereWorkerSnapshot;
+    } finally {
+      setup.persistCoordinator = null;
+    }
+  }
 
   Future<NoosphereWorkerSnapshot> snapshot(String setupId) async {
     final result = await _invoke('snapshot', setupId: setupId);

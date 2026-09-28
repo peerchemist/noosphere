@@ -68,17 +68,7 @@ final class _SetupRuntime {
           _RemoteClientStorage(host, setupId),
           (purpose) => _getPrivateKey(purpose),
         );
-        _participant = options.clientConfig.id.toString();
-        final node = await NoosphereNode.startInitialized(client: options);
-        _clientNode = node;
-        _clientOptions = options;
-        await _attachClient(node.client!.current, replacement: false);
-        _sessions = node.client!.sessions.listen(
-          (client) => unawaited(
-            _synchronized(() => _attachClient(client, replacement: true)),
-          ),
-          onError: (Object error) => _failure('reconnect', error, true),
-        );
+        await _startSigner(options);
       }
       _emitSnapshot();
     } catch (_) {
@@ -93,6 +83,27 @@ final class _SetupRuntime {
       rethrow;
     }
   });
+
+  Future<void> _startSigner(
+    ClientNodeOptions options, {
+    bool replacement = false,
+  }) async {
+    _participant = options.clientConfig.id.toString();
+    final node = await NoosphereNode.startInitialized(client: options);
+    _clientNode = node;
+    _clientOptions = options;
+    await _attachClient(node.client!.current, replacement: replacement);
+    _sessions = node.client!.sessions.listen(
+      (client) => unawaited(
+        _synchronized(() async {
+          if (identical(_clientNode, node)) {
+            await _attachClient(client, replacement: true);
+          }
+        }),
+      ),
+      onError: (Object error) => _failure('reconnect', error, true),
+    );
+  }
 
   Future<void> _attachClient(Client client, {required bool replacement}) async {
     await _events?.cancel();
@@ -128,21 +139,7 @@ final class _SetupRuntime {
         if (address.id != options.pinnedServerId) {
           throw ArgumentError('Coordinator ID does not match the pinned ID.');
         }
-        final updated = ClientNodeOptions(
-          clientConfig: options.clientConfig,
-          bootstrapAddress: address,
-          pinnedServerId: options.pinnedServerId,
-          storage: options.storage,
-          getPrivateKey: options.getPrivateKey,
-          relay: options.relay,
-          alpn: options.alpn,
-          connectTimeout: options.connectTimeout,
-          authTimeout: options.authTimeout,
-          rpcTimeout: options.rpcTimeout,
-          maxEnvelopeLength: options.maxEnvelopeLength,
-          maxConcurrentStreams: options.maxConcurrentStreams,
-          reconnect: options.reconnect,
-        );
+        final updated = options.withCoordinator(address);
         client.updateTransportConfig(updated.toTransportConfig());
         _clientOptions = updated;
         return null;
@@ -208,6 +205,36 @@ final class _SetupRuntime {
         _emitSnapshot();
         return null;
       });
+
+  Future<NoosphereWorkerSnapshot> rotateCoordinator(
+    EndpointAddr address,
+  ) => _synchronized(() async {
+    final previous = _clientOptions;
+    if (previous == null) throw StateError('Signer is not configured.');
+    await _stopSigner();
+    _emitSnapshot();
+    final state = await previous.storage.loadState();
+    if (state.preparedOperations.isNotEmpty ||
+        state.sigNonces.values.any(
+          (nonces) => nonces.expiry.time.isAfter(DateTime.now()),
+        )) {
+      throw const NoosphereWorkerException(
+        'pending_signing_operations',
+        'Reconcile pending signing operations before rotating the coordinator.',
+      );
+    }
+    await host.request(setupId, 'coordinator.persist', const {});
+    final updated = previous.withCoordinator(address);
+    try {
+      await _startSigner(updated, replacement: true);
+    } catch (_) {
+      await _stopSigner();
+      // Retain only the committed selection for an explicit retry.
+      _clientOptions = updated;
+      rethrow;
+    }
+    return snapshot();
+  });
 
   Future<void> _stopSigner() async {
     final node = _clientNode;

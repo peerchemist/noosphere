@@ -128,6 +128,11 @@ replacement reconnecting session emits `WorkerSessionReplacedEvent` followed
 by a fresh `WorkerSnapshotEvent`; mutating RPCs are never replayed.
 `updateSignerAddress` accepts only an address with the existing pinned
 coordinator ID.
+For an app-approved change of coordinator identity, use
+`worker.rotateCoordinator(setupId, newCoordinator: address, persist: saveSelection)`.
+It retains the group and FROST keys, stops the old session, checks pending signing
+state and awaits durable pin storage before connecting. See
+[coordinator switching](packages/noosphere/spec/COORDINATOR_ROTATION.md).
 Graceful close is idempotent. Forced or unexpected native-worker termination
 marks in-process restart unsafe; restart the application rather than assuming
 native sockets/tasks were released.

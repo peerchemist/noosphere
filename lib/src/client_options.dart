@@ -27,6 +27,23 @@ final class ClientNodeOptions({
   final int maxConcurrentStreams = defaultClientMaxConcurrentStreams,
   final IrohReconnectConfig reconnect = const IrohReconnectConfig(),
 }) {
+  /// Retains signer identity, storage and transport settings with a new pin.
+  ClientNodeOptions withCoordinator(EndpointAddr address) => ClientNodeOptions(
+    clientConfig: clientConfig,
+    bootstrapAddress: address,
+    pinnedServerId: address.id,
+    storage: storage,
+    getPrivateKey: getPrivateKey,
+    relay: relay,
+    alpn: alpn,
+    connectTimeout: connectTimeout,
+    authTimeout: authTimeout,
+    rpcTimeout: rpcTimeout,
+    maxEnvelopeLength: maxEnvelopeLength,
+    maxConcurrentStreams: maxConcurrentStreams,
+    reconnect: reconnect,
+  );
+
   IrohClientTransportConfig toTransportConfig() => IrohClientTransportConfig(
     bootstrapAddress: bootstrapAddress,
     pinnedServerId: pinnedServerId,

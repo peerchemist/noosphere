@@ -28,6 +28,7 @@ final class _HostSetup {
   RoomPersistence? roomPersistence;
   GetPrivateKey? getPrivateKey;
   String? participant;
+  Future<void> Function()? persistCoordinator;
   final _storageSerial = SerialExecutor();
 
   bool get hasProviders =>
@@ -99,6 +100,15 @@ final class _HostSetup {
     Map<Object?, Object?> payload,
   ) async {
     switch (operation) {
+      case 'coordinator.persist':
+        final persist = persistCoordinator;
+        if (persist == null) {
+          throw StateError('No coordinator rotation pending.');
+        }
+        return _serializeStorage(() async {
+          await persist();
+          return null;
+        });
       case 'identity.read':
         return loadOrCreateIdentity();
       case 'identity.write':
