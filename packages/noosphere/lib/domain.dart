@@ -4,6 +4,7 @@ library;
 export 'package:frosty/frosty.dart';
 
 export 'api/events.dart';
+export 'api/hd_derivation.dart';
 export 'api/request_interface.dart';
 export 'api/responses/expirable_auth_challenge.dart';
 export 'api/responses/login_complete.dart';

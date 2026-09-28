@@ -4,6 +4,8 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:collection/collection.dart';
 import 'package:frosty/frosty.dart';
 
+import '../hd_derivation.dart';
+
 /// Details for a single signature in a signatures request.
 ///
 /// Consumers should determine if they desire to make these signatures for the
@@ -77,5 +79,5 @@ class SingleSignatureDetails with cl.Writable {
       Object.hash(signDetails, groupKey, Object.hashAll(hdDerivation));
 
   T derive<T extends HDDerivableInfo>(T info) =>
-      hdDerivation.fold(info, (key, i) => key.derive(i) as T);
+      deriveThresholdHdKey(info, hdDerivation);
 }

@@ -28,6 +28,21 @@ exports; connection handlers, dispatchers and wire conversion helpers remain
 implementation details. Direct RPC and endpoint consumers import
 `package:noosphere_client/iroh_transport.dart` explicitly.
 
+## Threshold HD derivation
+
+The `noosphere` domain package owns threshold-key HD derivation so wallet
+applications and signing participants cannot implement different key paths.
+`thresholdBip86DerivationPath` builds the unhardened threshold equivalent of
+the BIP-86 purpose, coin, account, change and address-index hierarchy, while
+`deriveThresholdGroupKey` derives its public group key. `SingleSignatureDetails`
+uses the same underlying helper when deriving participant and aggregate signing
+information.
+
+FROST has no aggregate private key, so hardened BIP-32 derivation is not
+possible. Consuming wallets provide their registered coin type and account
+indexes, persist the exact returned path and remain responsible for converting
+the derived group key into a chain-specific address.
+
 ## Flutter facade
 
 Flutter lifecycle adapter for the Noosphere ROAST client and server. It can run
