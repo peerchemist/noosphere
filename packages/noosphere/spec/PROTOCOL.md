@@ -21,6 +21,11 @@ message format, request metadata, public API, and implementation. It uses
 the existing untweaked ROAST signing flow and is separate from the request
 explanations described below.
 
+The proposed workflow for coordinator-initiated membership changes, signer
+consent and automatic migration is described in
+[`GROUP_TRANSITIONS.md`](GROUP_TRANSITIONS.md). It is a design proposal, not
+current protocol behavior.
+
 The Flutter [coordinator switching helper](COORDINATOR_ROTATION.md) applies an
 app-approved endpoint change, persisting the pin through a host callback. It
 preserves the existing ROAST wire protocol and group keys.

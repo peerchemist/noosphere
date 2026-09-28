@@ -3,6 +3,10 @@
 Room enrollment is a small protocol in front of the existing ROAST login, DKG
 and signing protocol. It does not replace or fork those protocols.
 
+For the proposed workflow to replace a frozen group while reusing retained
+signers' identity public keys, see
+[`GROUP_TRANSITIONS.md`](GROUP_TRANSITIONS.md).
+
 ## Public API
 
 The shared package exports `RoomInvite`, `EnrollmentTranscript`,
