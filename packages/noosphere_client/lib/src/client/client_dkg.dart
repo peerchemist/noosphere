@@ -117,6 +117,7 @@ extension _ClientDkg on Client {
       sid: _state.sessionID,
       acks: {await _createDkgAck(keyInfo.groupKey, true)},
     );
+    _sendEvent(CompletedDkgClientEvent(_keys[keyInfo.groupKey]!));
   }
 
   Future<SignedDkgAck> _createDkgAck(

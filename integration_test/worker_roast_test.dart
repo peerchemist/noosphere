@@ -206,6 +206,16 @@ Future<void> _runScenario({
       for (final store in stores)
         store.waitForKeyWithName(dkgName, participants),
     ]);
+    final completedKeyEvents = [
+      for (var i = 0; i < participants; i++)
+        events
+            .where((event) => event is WorkerKeyUpdatedEvent)
+            .cast<WorkerKeyUpdatedEvent>()
+            .firstWhere(
+              (event) =>
+                  event.setupId == 'signer-$i' && event.key.name == dkgName,
+            ),
+    ];
     for (var i = 1; i < participants; i++) {
       await timed(
         'acceptDkg-$i',
@@ -213,6 +223,11 @@ Future<void> _runScenario({
       );
     }
     final frostKeys = await completedKeys.timeout(const Duration(minutes: 2));
+    final keyEvents = await Future.wait(completedKeyEvents)
+        .timeout(const Duration(seconds: 15));
+    for (var i = 0; i < participants; i++) {
+      expect(keyEvents[i].key.groupKeyHex, frostKeys[i].groupKey.hex);
+    }
 
     final messages = [
       for (var input = 0; input < 32; input++)

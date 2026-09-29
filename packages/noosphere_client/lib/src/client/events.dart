@@ -61,6 +61,13 @@ class RejectedDkgClientEvent extends ClientEvent {
   });
 }
 
+/// Provided after a DKG has produced and durably stored a local FROST key.
+class CompletedDkgClientEvent extends ClientEvent {
+  CompletedDkgClientEvent(this.keyDetails);
+
+  final FrostKeyWithDetails keyDetails;
+}
+
 /// Provided when there is a new signatures [request].
 class SignaturesRequestClientEvent extends ClientEvent {
   final SignaturesRequest request;

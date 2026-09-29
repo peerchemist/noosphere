@@ -404,6 +404,14 @@ final class _SetupRuntime {
             failure: event.fault.name,
           ),
         );
+      case CompletedDkgClientEvent():
+        emit(
+          WorkerKeyUpdatedEvent(
+            setupId,
+            generation,
+            key: _key(event.keyDetails),
+          ),
+        );
       case SignaturesRequestClientEvent():
         emit(
           WorkerSigningRequestEvent(

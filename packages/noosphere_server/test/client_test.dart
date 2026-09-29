@@ -602,7 +602,7 @@ void main() {
         final nCommitments = isCreator ? 9 : 8;
 
         // Expect +8 events for shares
-        expect(evs, hasLength(nCommitments + 8));
+        expect(evs, hasLength(nCommitments + 9));
 
         // Commitment events
         for (int j = 0; j < nCommitments; j++) {
@@ -643,6 +643,9 @@ void main() {
           expect(completed, hasLength(j + 2));
           expect(completed, contains(cid));
         }
+
+        final completed = evs.last as CompletedDkgClientEvent;
+        expect(completed.keyDetails.name, "123");
       }
 
       // Expect key in storage
