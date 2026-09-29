@@ -93,6 +93,24 @@ class NewDkgDetails with cl.Writable, Signable {
   NewDkgDetails.fromBytes(Uint8List bytes)
     : this.fromReader(cl.BytesReader(bytes));
 
+  /// Decodes persisted historical details without requiring a live expiry.
+  ///
+  /// Callers must still reject expired details before starting or approving a
+  /// DKG. This constructor is intended for audit records and recovery state.
+  NewDkgDetails.fromBytesAllowExpired(Uint8List bytes)
+    : this._fromReader(cl.BytesReader(bytes), allowNegativeExpiry: true);
+
+  NewDkgDetails._fromReader(
+    cl.BytesReader reader, {
+    required bool allowNegativeExpiry,
+  }) : this._(
+         name: reader.readString(),
+         description: reader.readString(),
+         threshold: reader.readUInt16(),
+         expiry: Expiry.fromReader(reader),
+         allowNegativeExpiry: allowNegativeExpiry,
+       );
+
   static final _hasher = cl.getTaggedHasher("NewDkgDetails");
 
   @override

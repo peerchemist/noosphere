@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:noosphere/api/types/new_dkg_details.dart';
 import 'package:noosphere/api/types/signed.dart';
 import 'package:noosphere/common/serial.dart';
 import 'package:noosphere/config/group.dart';
@@ -62,6 +63,10 @@ final class GroupTransitionKeyPlan with cl.Writable {
   final Uint8List _dkgDetailsHash;
 
   Uint8List get dkgDetailsHash => Uint8List.fromList(_dkgDetailsHash);
+
+  /// Whether [details] is the exact DKG attempt authorized by this plan.
+  bool matchesDkgDetails(NewDkgDetails details) =>
+      cl.bytesEqual(_dkgDetailsHash, details.sigHash);
 
   @override
   void write(cl.Writer writer) {

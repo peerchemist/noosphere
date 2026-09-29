@@ -60,6 +60,46 @@ void main() {
     expect(original.sourceGroupFingerprint, isNot(copiedFingerprint));
   });
 
+  test('key plan matches only the exact authorized DKG details', () {
+    final fixture = _Fixture();
+    final details = NewDkgDetails.allowNegativeExpiry(
+      name: 'primary-key',
+      description: 'successor key',
+      threshold: 2,
+      expiry: Expiry.fromTime(DateTime.utc(2030, 1, 1, 12)),
+    );
+    final plan = GroupTransitionKeyPlan(
+      keyId: 'primary',
+      sourceGroupKey: fixture.sourceGroupKey,
+      sourceThreshold: 2,
+      targetThreshold: 2,
+      dkgDetailsHash: details.sigHash,
+    );
+    final changed = NewDkgDetails.allowNegativeExpiry(
+      name: details.name,
+      description: details.description,
+      threshold: 2,
+      expiry: Expiry.fromTime(DateTime.utc(2030, 1, 1, 13)),
+    );
+
+    expect(plan.matchesDkgDetails(details), isTrue);
+    expect(plan.matchesDkgDetails(changed), isFalse);
+  });
+
+  test('persisted DKG details remain decodable after expiry', () {
+    final details = NewDkgDetails.allowNegativeExpiry(
+      name: 'expired-key',
+      description: 'historical transition attempt',
+      threshold: 2,
+      expiry: Expiry.fromTime(DateTime.utc(2020)),
+    );
+
+    final decoded = NewDkgDetails.fromBytesAllowExpired(details.toBytes());
+
+    expect(decoded.toBytes(), details.toBytes());
+    expect(decoded.expiry.isExpired, isTrue);
+  });
+
   test('participant approval is scoped and signed by its identity key', () {
     final fixture = _Fixture();
     final proposal = fixture.proposal();
