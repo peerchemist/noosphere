@@ -67,6 +67,26 @@ production. Tests and examples can explicitly import
 `package:noosphere_client/testing.dart` for `InMemoryClientStorage`.
 It is not exported by `noosphere_client.dart`.
 
+## DKG completion
+
+Listen to `Client.events` immediately after login. When this participant
+finishes a DKG and has durably stored its local FROST key, the client emits a
+`CompletedDkgClientEvent`. Its `keyDetails` contains the new
+`FrostKeyWithDetails`, including the group public key and the DKG name and
+description:
+
+```dart
+final subscription = client.events.listen((event) {
+  if (event case CompletedDkgClientEvent(:final keyDetails)) {
+    print('Stored ${keyDetails.name}: ${keyDetails.groupKey.hex}');
+  }
+});
+```
+
+The event reports a completion in the current session; it is not an inventory
+of previously stored keys. Read `client.keys` after login for the current key
+set, and replace the subscription when a reconnect produces a fresh `Client`.
+
 ## Protocol
 
 Canonical domain types, group configuration, messages and framing live in the

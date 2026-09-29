@@ -146,7 +146,11 @@ dependency override or patched package.
 Subscribe to `events` before starting setups. A session snapshot is ordered
 before later events from that session. The stream is a broadcast controller
 bridge because the native source is imperative; events are not accumulated into
-a list.
+a list. A locally completed DKG emits `WorkerKeyUpdatedEvent` only after its
+FROST key has been durably stored. The event's public `key` includes the group
+key, name and description but no secret share. The same event is also used when
+secret-sharing changes a stored key; use `WorkerSnapshotEvent.snapshot.keys`
+for the complete key set at session start.
 
 `NoosphereFlutter.initialize()` remains idempotent and initializes root-isolate
 Flutter plus native bindings for direct-node callers and host code that handles

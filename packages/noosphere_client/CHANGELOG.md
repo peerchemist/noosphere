@@ -4,6 +4,8 @@
   `noosphere` package while preserving the client package's public exports.
 - Add participant-key room enrollment and the dedicated Iroh enrollment ALPN
   client.
+- Add `CompletedDkgClientEvent`, emitted with the durably stored local FROST
+  key after a DKG completes.
 
 ## 4.0.0
 
