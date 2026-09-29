@@ -24,7 +24,8 @@ import 'types/signed_dkg_ack.dart';
 class InvalidRequest implements Exception {
   final String message;
   InvalidRequest(this.message);
-  InvalidRequest.invalidProtoVersion() : this("Only protocol v2 is supported");
+  InvalidRequest.invalidProtoVersion()
+    : this("Unsupported ROAST protocol version");
   InvalidRequest.groupMismatch() : this("Group fingerprint does not match");
   InvalidRequest.noParticipant() : this("Participant identifier not in group");
   InvalidRequest.noChallenge() : this("Challenge doesn't exist or is expired");

@@ -149,7 +149,7 @@ void main() {
   });
 
   group('typed RPC envelopes', () {
-    test('cover all fourteen API request and response types', () {
+    test('covers all ROAST and enrollment RPC types', () {
       final requests = <protocol.RpcRequest>[
         protocol.RpcRequest(login: protocol.LoginRequest()),
         protocol.RpcRequest(respondToChallenge: protocol.SignedAuthChallenge()),
@@ -169,6 +169,18 @@ void main() {
         ),
         protocol.RpcRequest(shareSecretShare: protocol.SecretShare()),
         protocol.RpcRequest(ackKeyConstructed: protocol.ConstructedKey()),
+        protocol.RpcRequest(
+          beginEnrollment: protocol.BeginEnrollmentRequest(
+            invite: [1],
+            participantPublicKey: [2],
+          ),
+        ),
+        protocol.RpcRequest(
+          redeemRoomInvite: protocol.RedeemRoomInviteRequest(
+            transcript: [3],
+            signature: [4],
+          ),
+        ),
       ];
       final responses = <protocol.RpcResponse>[
         protocol.RpcResponse(login: protocol.LoginResponse()),
@@ -201,15 +213,21 @@ void main() {
         protocol.RpcResponse(
           ackKeyConstructed: protocol.AckKeyConstructedResponse(),
         ),
+        protocol.RpcResponse(
+          beginEnrollment: protocol.BeginEnrollmentResponse(challenge: [5]),
+        ),
+        protocol.RpcResponse(
+          redeemRoomInvite: protocol.RedeemRoomInviteResponse(snapshot: [6]),
+        ),
       ];
 
       expect(
         requests.map((request) => request.whichRequest()).toSet(),
-        hasLength(14),
+        hasLength(16),
       );
       expect(
         responses.map((response) => response.whichResponse()).toSet(),
-        hasLength(14),
+        hasLength(16),
       );
       expect(
         requests,
@@ -230,6 +248,23 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('distinguishes absent and zero-valued room failure codes', () {
+      final absent = protocol.ProtocolError.fromBuffer(
+        protocol.ProtocolError(
+          code: protocol.ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
+        ).writeToBuffer(),
+      );
+      final zero = protocol.ProtocolError.fromBuffer(
+        protocol.ProtocolError(
+          code: protocol.ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
+          roomFailureCode: 0,
+        ).writeToBuffer(),
+      );
+      expect(absent.hasRoomFailureCode(), isFalse);
+      expect(zero.hasRoomFailureCode(), isTrue);
+      expect(zero.roomFailureCode, 0);
     });
 
     test('round-trips request ID and nested request oneof', () {

@@ -96,13 +96,13 @@ process, and closing the app stops an embedded coordinator.
 
 | Boundary | Representation | Purpose |
 | --- | --- | --- |
-| ROAST network traffic | Four-byte big-endian length + protobuf `Envelope` | Typed RPCs, session control, and `Events` |
+| ROAST and enrollment network traffic | Four-byte big-endian length + protobuf `Envelope` | Typed RPCs, session control, and `Events` |
 | Domain values inside messages | Canonical `Writable` bytes | Signed proposals, keys, commitments, snapshots, and event bodies |
 | Flutter host/worker communication | Versioned Dart maps, byte arrays, and selected public DTOs | Local commands, replies, provider calls, and UI events |
 
-Room enrollment has a fourth, separate format: a small canonical binary
-protocol on its own Iroh ALPN, with a four-byte **little-endian** length prefix.
-It does not use the ROAST protobuf envelope.
+Room enrollment uses the same protobuf envelope and framing on its dedicated
+Iroh ALPN. Its typed begin/redeem RPCs carry canonical invite and proof bytes;
+the signed transcript encoding is independent of protobuf serialization.
 
 Protobuf describes message structure; it does not encrypt data, persist state,
 or turn arbitrary Dart objects into transferable values. The network

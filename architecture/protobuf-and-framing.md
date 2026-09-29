@@ -9,7 +9,7 @@ implemented directly over Iroh bidirectional QUIC streams.
 
 ## Envelope structure
 
-Every ordinary ROAST frame contains one `Envelope`:
+Every ROAST or enrollment frame contains one `Envelope`:
 
 ```proto
 message Envelope {
@@ -31,7 +31,7 @@ The `oneof` describes which body is present. The generated Dart API exposes
 `whichPayload()`, `whichRequest()`, and `whichResponse()` discriminators.
 An envelope without a recognized payload is invalid for the framing API.
 
-`RpcRequest` contains a nonempty caller-generated `request_id` plus one of 14
+`RpcRequest` contains a nonempty caller-generated `request_id` plus one of 16
 operations. `RpcResponse` echoes that ID and contains a typed result or error.
 The client verifies the ID and expected result variant before decoding data.
 
@@ -53,10 +53,16 @@ The client verifies the ID and expected result variant before decoding data.
 | `submitSignatureReplies` | `SignaturesReplies` | `oneof`: no update, new round, completed signatures |
 | `shareSecretShare` | `SecretShare` | Already-known constructed-key events |
 | `ackKeyConstructed` | `ConstructedKey` | Explicit empty success |
+| `beginEnrollment` | `BeginEnrollmentRequest` | Serialized `EnrollmentChallenge` |
+| `redeemRoomInvite` | `RedeemRoomInviteRequest` | Serialized `RoomSnapshot` |
 
 The concrete mappings live in the
 [client adapter](../packages/noosphere_client/lib/src/iroh/client_api.dart) and
 [server connection handler](../packages/noosphere_server/lib/src/iroh/connection_handler.dart).
+The enrollment operations use the
+[enrollment client](../packages/noosphere_client/lib/src/iroh/room_enrollment_api.dart)
+and [enrollment handler](../packages/noosphere_server/lib/src/iroh/enrollment_connection_handler.dart)
+on the dedicated enrollment ALPN, before a ROAST session exists.
 The schema also retains older wrapper messages such as `SignaturesResponse`;
 the active envelope RPC uses `SubmitSignatureRepliesResponse` with typed
 outcomes instead of that older type-plus-data response.
@@ -155,6 +161,13 @@ The current server maps many caught errors to `INVALID_REQUEST`; the client
 also exposes local timeout/transport failures. A retryable field does not
 automatically replay a mutation.
 
+Enrollment domain failures also set the optional `room_failure_code` to the
+`RoomFailureCode` index. Presence distinguishes `unknownRoom` (zero) from an
+error without a room code. `RoomEnrollmentProtocolException` preserves that
+index, uses `0xffff` when it is absent, and exposes the protobuf error. A
+request that could be decoded receives a correlated `RpcResponse.error`;
+framing, wire-version and envelope-shape failures use `Envelope.error`.
+
 ## Generation and other formats
 
 Generated files live in
@@ -164,7 +177,6 @@ into temporary storage and compares the result. The script uses the local
 pinned Dart protoc plugin and retains `.pb.dart`, `.pbenum.dart` and
 `.pbjson.dart`. There are no generated gRPC service stubs.
 
-Protobuf is not used for every boundary. Worker messages are Dart maps/DTOs,
-room enrollment uses its own little-endian-prefixed binary protocol, and the
-server persistence snapshot is versioned JSON with binary components. Each
-format has its own purpose and decoder.
+Worker messages are Dart maps/DTOs, and the server persistence snapshot is
+versioned JSON with binary components. Those local boundaries have their own
+decoders; both network ALPNs share protobuf framing.

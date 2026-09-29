@@ -62,8 +62,8 @@ extension _ServerSessions on ServerApiHandler {
   }
 
   /// Creates a fresh logical session for an already authenticated participant.
-  /// Legacy gRPC calls this immediately after challenge verification; Iroh
-  /// calls it only after receiving StartSession.
+  /// Direct API calls start the session after challenge verification; Iroh
+  /// waits for StartSession on the session stream.
   Future<LoginCompleteResponse> _startSession(Identifier pid) async {
     await _prepare();
     _checkParticipantId(pid);

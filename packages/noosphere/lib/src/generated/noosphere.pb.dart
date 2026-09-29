@@ -1427,11 +1427,13 @@ class ProtocolError extends $pb.GeneratedMessage {
     ProtocolErrorCode? code,
     $core.String? message,
     $core.bool? retryable,
+    $core.int? roomFailureCode,
   }) {
     final result = create();
     if (code != null) result.code = code;
     if (message != null) result.message = message;
     if (retryable != null) result.retryable = retryable;
+    if (roomFailureCode != null) result.roomFailureCode = roomFailureCode;
     return result;
   }
 
@@ -1454,6 +1456,8 @@ class ProtocolError extends $pb.GeneratedMessage {
         enumValues: ProtocolErrorCode.values)
     ..aOS(2, _omitFieldNames ? '' : 'message')
     ..aOB(3, _omitFieldNames ? '' : 'retryable')
+    ..a<$core.int>(
+        4, _omitFieldNames ? '' : 'roomFailureCode', $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1503,6 +1507,17 @@ class ProtocolError extends $pb.GeneratedMessage {
   $core.bool hasRetryable() => $_has(2);
   @$pb.TagNumber(3)
   void clearRetryable() => $_clearField(3);
+
+  /// RoomFailureCode index when enrollment fails with a room-domain error.
+  /// Presence matters: unknownRoom has index zero.
+  @$pb.TagNumber(4)
+  $core.int get roomFailureCode => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set roomFailureCode($core.int value) => $_setUnsignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasRoomFailureCode() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRoomFailureCode() => $_clearField(4);
 }
 
 /// Successful result for operations which intentionally return no value.
@@ -2590,6 +2605,275 @@ class AckKeyConstructedResponse extends $pb.GeneratedMessage {
   EmptySuccess ensureSuccess() => $_ensure(0);
 }
 
+class BeginEnrollmentRequest extends $pb.GeneratedMessage {
+  factory BeginEnrollmentRequest({
+    $core.List<$core.int>? invite,
+    $core.List<$core.int>? participantPublicKey,
+  }) {
+    final result = create();
+    if (invite != null) result.invite = invite;
+    if (participantPublicKey != null)
+      result.participantPublicKey = participantPublicKey;
+    return result;
+  }
+
+  BeginEnrollmentRequest._();
+
+  factory BeginEnrollmentRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BeginEnrollmentRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BeginEnrollmentRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'invite', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'participantPublicKey', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginEnrollmentRequest clone() =>
+      BeginEnrollmentRequest()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginEnrollmentRequest copyWith(
+          void Function(BeginEnrollmentRequest) updates) =>
+      super.copyWith((message) => updates(message as BeginEnrollmentRequest))
+          as BeginEnrollmentRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BeginEnrollmentRequest create() => BeginEnrollmentRequest._();
+  @$core.override
+  BeginEnrollmentRequest createEmptyInstance() => create();
+  static $pb.PbList<BeginEnrollmentRequest> createRepeated() =>
+      $pb.PbList<BeginEnrollmentRequest>();
+  @$core.pragma('dart2js:noInline')
+  static BeginEnrollmentRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BeginEnrollmentRequest>(create);
+  static BeginEnrollmentRequest? _defaultInstance;
+
+  /// Canonically serialized RoomInvite, including its enrollment version.
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get invite => $_getN(0);
+  @$pb.TagNumber(1)
+  set invite($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasInvite() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearInvite() => $_clearField(1);
+
+  /// Compressed secp256k1 public key (33 bytes).
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get participantPublicKey => $_getN(1);
+  @$pb.TagNumber(2)
+  set participantPublicKey($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasParticipantPublicKey() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearParticipantPublicKey() => $_clearField(2);
+}
+
+class BeginEnrollmentResponse extends $pb.GeneratedMessage {
+  factory BeginEnrollmentResponse({
+    $core.List<$core.int>? challenge,
+  }) {
+    final result = create();
+    if (challenge != null) result.challenge = challenge;
+    return result;
+  }
+
+  BeginEnrollmentResponse._();
+
+  factory BeginEnrollmentResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BeginEnrollmentResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BeginEnrollmentResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'challenge', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginEnrollmentResponse clone() =>
+      BeginEnrollmentResponse()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginEnrollmentResponse copyWith(
+          void Function(BeginEnrollmentResponse) updates) =>
+      super.copyWith((message) => updates(message as BeginEnrollmentResponse))
+          as BeginEnrollmentResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BeginEnrollmentResponse create() => BeginEnrollmentResponse._();
+  @$core.override
+  BeginEnrollmentResponse createEmptyInstance() => create();
+  static $pb.PbList<BeginEnrollmentResponse> createRepeated() =>
+      $pb.PbList<BeginEnrollmentResponse>();
+  @$core.pragma('dart2js:noInline')
+  static BeginEnrollmentResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BeginEnrollmentResponse>(create);
+  static BeginEnrollmentResponse? _defaultInstance;
+
+  /// Canonically serialized EnrollmentChallenge.
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get challenge => $_getN(0);
+  @$pb.TagNumber(1)
+  set challenge($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasChallenge() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearChallenge() => $_clearField(1);
+}
+
+class RedeemRoomInviteRequest extends $pb.GeneratedMessage {
+  factory RedeemRoomInviteRequest({
+    $core.List<$core.int>? transcript,
+    $core.List<$core.int>? signature,
+  }) {
+    final result = create();
+    if (transcript != null) result.transcript = transcript;
+    if (signature != null) result.signature = signature;
+    return result;
+  }
+
+  RedeemRoomInviteRequest._();
+
+  factory RedeemRoomInviteRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory RedeemRoomInviteRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RedeemRoomInviteRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'transcript', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'signature', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RedeemRoomInviteRequest clone() =>
+      RedeemRoomInviteRequest()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RedeemRoomInviteRequest copyWith(
+          void Function(RedeemRoomInviteRequest) updates) =>
+      super.copyWith((message) => updates(message as RedeemRoomInviteRequest))
+          as RedeemRoomInviteRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RedeemRoomInviteRequest create() => RedeemRoomInviteRequest._();
+  @$core.override
+  RedeemRoomInviteRequest createEmptyInstance() => create();
+  static $pb.PbList<RedeemRoomInviteRequest> createRepeated() =>
+      $pb.PbList<RedeemRoomInviteRequest>();
+  @$core.pragma('dart2js:noInline')
+  static RedeemRoomInviteRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RedeemRoomInviteRequest>(create);
+  static RedeemRoomInviteRequest? _defaultInstance;
+
+  /// Canonically serialized EnrollmentTranscript; these exact bytes are signed.
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get transcript => $_getN(0);
+  @$pb.TagNumber(1)
+  set transcript($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTranscript() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTranscript() => $_clearField(1);
+
+  /// Schnorr signature (64 bytes).
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get signature => $_getN(1);
+  @$pb.TagNumber(2)
+  set signature($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSignature() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSignature() => $_clearField(2);
+}
+
+class RedeemRoomInviteResponse extends $pb.GeneratedMessage {
+  factory RedeemRoomInviteResponse({
+    $core.List<$core.int>? snapshot,
+  }) {
+    final result = create();
+    if (snapshot != null) result.snapshot = snapshot;
+    return result;
+  }
+
+  RedeemRoomInviteResponse._();
+
+  factory RedeemRoomInviteResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory RedeemRoomInviteResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RedeemRoomInviteResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'snapshot', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RedeemRoomInviteResponse clone() =>
+      RedeemRoomInviteResponse()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RedeemRoomInviteResponse copyWith(
+          void Function(RedeemRoomInviteResponse) updates) =>
+      super.copyWith((message) => updates(message as RedeemRoomInviteResponse))
+          as RedeemRoomInviteResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RedeemRoomInviteResponse create() => RedeemRoomInviteResponse._();
+  @$core.override
+  RedeemRoomInviteResponse createEmptyInstance() => create();
+  static $pb.PbList<RedeemRoomInviteResponse> createRepeated() =>
+      $pb.PbList<RedeemRoomInviteResponse>();
+  @$core.pragma('dart2js:noInline')
+  static RedeemRoomInviteResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RedeemRoomInviteResponse>(create);
+  static RedeemRoomInviteResponse? _defaultInstance;
+
+  /// Canonically serialized RoomSnapshot.
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get snapshot => $_getN(0);
+  @$pb.TagNumber(1)
+  set snapshot($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSnapshot() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSnapshot() => $_clearField(1);
+}
+
 enum RpcRequest_Request {
   login,
   respondToChallenge,
@@ -2605,6 +2889,8 @@ enum RpcRequest_Request {
   submitSignatureReplies,
   shareSecretShare,
   ackKeyConstructed,
+  beginEnrollment,
+  redeemRoomInvite,
   notSet
 }
 
@@ -2625,6 +2911,8 @@ class RpcRequest extends $pb.GeneratedMessage {
     SignaturesReplies? submitSignatureReplies,
     SecretShare? shareSecretShare,
     ConstructedKey? ackKeyConstructed,
+    BeginEnrollmentRequest? beginEnrollment,
+    RedeemRoomInviteRequest? redeemRoomInvite,
   }) {
     final result = create();
     if (requestId != null) result.requestId = requestId;
@@ -2646,6 +2934,8 @@ class RpcRequest extends $pb.GeneratedMessage {
       result.submitSignatureReplies = submitSignatureReplies;
     if (shareSecretShare != null) result.shareSecretShare = shareSecretShare;
     if (ackKeyConstructed != null) result.ackKeyConstructed = ackKeyConstructed;
+    if (beginEnrollment != null) result.beginEnrollment = beginEnrollment;
+    if (redeemRoomInvite != null) result.redeemRoomInvite = redeemRoomInvite;
     return result;
   }
 
@@ -2674,13 +2964,15 @@ class RpcRequest extends $pb.GeneratedMessage {
     21: RpcRequest_Request.submitSignatureReplies,
     22: RpcRequest_Request.shareSecretShare,
     23: RpcRequest_Request.ackKeyConstructed,
+    24: RpcRequest_Request.beginEnrollment,
+    25: RpcRequest_Request.redeemRoomInvite,
     0: RpcRequest_Request.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RpcRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
       createEmptyInstance: create)
-    ..oo(0, [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23])
+    ..oo(0, [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25])
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'requestId', $pb.PbFieldType.OY)
     ..aOM<LoginRequest>(10, _omitFieldNames ? '' : 'login',
@@ -2713,6 +3005,11 @@ class RpcRequest extends $pb.GeneratedMessage {
         subBuilder: SecretShare.create)
     ..aOM<ConstructedKey>(23, _omitFieldNames ? '' : 'ackKeyConstructed',
         subBuilder: ConstructedKey.create)
+    ..aOM<BeginEnrollmentRequest>(24, _omitFieldNames ? '' : 'beginEnrollment',
+        subBuilder: BeginEnrollmentRequest.create)
+    ..aOM<RedeemRoomInviteRequest>(
+        25, _omitFieldNames ? '' : 'redeemRoomInvite',
+        subBuilder: RedeemRoomInviteRequest.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2738,8 +3035,7 @@ class RpcRequest extends $pb.GeneratedMessage {
       _RpcRequest_RequestByTag[$_whichOneof(0)]!;
   void clearRequest() => $_clearField($_whichOneof(0));
 
-  /// Opaque, non-empty identifier generated by the caller. It is stable across
-  /// retries and scoped to the logical session.
+  /// Opaque, non-empty correlation identifier generated for each RPC.
   @$pb.TagNumber(1)
   $core.List<$core.int> get requestId => $_getN(0);
   @$pb.TagNumber(1)
@@ -2903,6 +3199,28 @@ class RpcRequest extends $pb.GeneratedMessage {
   void clearAckKeyConstructed() => $_clearField(23);
   @$pb.TagNumber(23)
   ConstructedKey ensureAckKeyConstructed() => $_ensure(14);
+
+  @$pb.TagNumber(24)
+  BeginEnrollmentRequest get beginEnrollment => $_getN(15);
+  @$pb.TagNumber(24)
+  set beginEnrollment(BeginEnrollmentRequest value) => $_setField(24, value);
+  @$pb.TagNumber(24)
+  $core.bool hasBeginEnrollment() => $_has(15);
+  @$pb.TagNumber(24)
+  void clearBeginEnrollment() => $_clearField(24);
+  @$pb.TagNumber(24)
+  BeginEnrollmentRequest ensureBeginEnrollment() => $_ensure(15);
+
+  @$pb.TagNumber(25)
+  RedeemRoomInviteRequest get redeemRoomInvite => $_getN(16);
+  @$pb.TagNumber(25)
+  set redeemRoomInvite(RedeemRoomInviteRequest value) => $_setField(25, value);
+  @$pb.TagNumber(25)
+  $core.bool hasRedeemRoomInvite() => $_has(16);
+  @$pb.TagNumber(25)
+  void clearRedeemRoomInvite() => $_clearField(25);
+  @$pb.TagNumber(25)
+  RedeemRoomInviteRequest ensureRedeemRoomInvite() => $_ensure(16);
 }
 
 enum RpcResponse_Response {
@@ -2920,6 +3238,8 @@ enum RpcResponse_Response {
   submitSignatureReplies,
   shareSecretShare,
   ackKeyConstructed,
+  beginEnrollment,
+  redeemRoomInvite,
   error,
   notSet
 }
@@ -2941,6 +3261,8 @@ class RpcResponse extends $pb.GeneratedMessage {
     SubmitSignatureRepliesResponse? submitSignatureReplies,
     ShareSecretShareResponse? shareSecretShare,
     AckKeyConstructedResponse? ackKeyConstructed,
+    BeginEnrollmentResponse? beginEnrollment,
+    RedeemRoomInviteResponse? redeemRoomInvite,
     ProtocolError? error,
   }) {
     final result = create();
@@ -2963,6 +3285,8 @@ class RpcResponse extends $pb.GeneratedMessage {
       result.submitSignatureReplies = submitSignatureReplies;
     if (shareSecretShare != null) result.shareSecretShare = shareSecretShare;
     if (ackKeyConstructed != null) result.ackKeyConstructed = ackKeyConstructed;
+    if (beginEnrollment != null) result.beginEnrollment = beginEnrollment;
+    if (redeemRoomInvite != null) result.redeemRoomInvite = redeemRoomInvite;
     if (error != null) result.error = error;
     return result;
   }
@@ -2992,6 +3316,8 @@ class RpcResponse extends $pb.GeneratedMessage {
     21: RpcResponse_Response.submitSignatureReplies,
     22: RpcResponse_Response.shareSecretShare,
     23: RpcResponse_Response.ackKeyConstructed,
+    24: RpcResponse_Response.beginEnrollment,
+    25: RpcResponse_Response.redeemRoomInvite,
     100: RpcResponse_Response.error,
     0: RpcResponse_Response.notSet
   };
@@ -2999,7 +3325,8 @@ class RpcResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'RpcResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
       createEmptyInstance: create)
-    ..oo(0, [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 100])
+    ..oo(0,
+        [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 100])
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'requestId', $pb.PbFieldType.OY)
     ..aOM<LoginResponse>(10, _omitFieldNames ? '' : 'login',
@@ -3037,6 +3364,11 @@ class RpcResponse extends $pb.GeneratedMessage {
     ..aOM<AckKeyConstructedResponse>(
         23, _omitFieldNames ? '' : 'ackKeyConstructed',
         subBuilder: AckKeyConstructedResponse.create)
+    ..aOM<BeginEnrollmentResponse>(24, _omitFieldNames ? '' : 'beginEnrollment',
+        subBuilder: BeginEnrollmentResponse.create)
+    ..aOM<RedeemRoomInviteResponse>(
+        25, _omitFieldNames ? '' : 'redeemRoomInvite',
+        subBuilder: RedeemRoomInviteResponse.create)
     ..aOM<ProtocolError>(100, _omitFieldNames ? '' : 'error',
         subBuilder: ProtocolError.create)
     ..hasRequiredFields = false;
@@ -3235,16 +3567,38 @@ class RpcResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(23)
   AckKeyConstructedResponse ensureAckKeyConstructed() => $_ensure(14);
 
+  @$pb.TagNumber(24)
+  BeginEnrollmentResponse get beginEnrollment => $_getN(15);
+  @$pb.TagNumber(24)
+  set beginEnrollment(BeginEnrollmentResponse value) => $_setField(24, value);
+  @$pb.TagNumber(24)
+  $core.bool hasBeginEnrollment() => $_has(15);
+  @$pb.TagNumber(24)
+  void clearBeginEnrollment() => $_clearField(24);
+  @$pb.TagNumber(24)
+  BeginEnrollmentResponse ensureBeginEnrollment() => $_ensure(15);
+
+  @$pb.TagNumber(25)
+  RedeemRoomInviteResponse get redeemRoomInvite => $_getN(16);
+  @$pb.TagNumber(25)
+  set redeemRoomInvite(RedeemRoomInviteResponse value) => $_setField(25, value);
+  @$pb.TagNumber(25)
+  $core.bool hasRedeemRoomInvite() => $_has(16);
+  @$pb.TagNumber(25)
+  void clearRedeemRoomInvite() => $_clearField(25);
+  @$pb.TagNumber(25)
+  RedeemRoomInviteResponse ensureRedeemRoomInvite() => $_ensure(16);
+
   @$pb.TagNumber(100)
-  ProtocolError get error => $_getN(15);
+  ProtocolError get error => $_getN(17);
   @$pb.TagNumber(100)
   set error(ProtocolError value) => $_setField(100, value);
   @$pb.TagNumber(100)
-  $core.bool hasError() => $_has(15);
+  $core.bool hasError() => $_has(17);
   @$pb.TagNumber(100)
   void clearError() => $_clearField(100);
   @$pb.TagNumber(100)
-  ProtocolError ensureError() => $_ensure(15);
+  ProtocolError ensureError() => $_ensure(17);
 }
 
 class StartSession extends $pb.GeneratedMessage {

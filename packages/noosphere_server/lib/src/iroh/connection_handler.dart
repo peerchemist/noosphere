@@ -171,7 +171,7 @@ final class IrohConnectionHandler {
           requestId: request.requestId,
           error: ProtocolError(
             code: ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
-            message: 'RPC is not implemented by the Iroh adapter yet',
+            message: 'RPC is not supported on the ROAST ALPN',
           ),
         ),
       };

@@ -51,7 +51,7 @@ class NewDkgDetails with cl.Writable, Signable {
   /// key is to be used for. The name must be within 40 characters and the
   /// description must be within 1,000 characters.
   ///
-  /// The [threshold] should be within the group participant size minus one.
+  /// The [threshold] must not exceed the group participant count.
   ///
   /// The [expiry] is the maximum time after which the request will expire.
   /// The DKG must be completed by this time.

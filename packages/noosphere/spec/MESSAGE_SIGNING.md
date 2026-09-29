@@ -5,7 +5,7 @@ wire and verification requirements.
 
 ## Scope and existing support
 
-Provide a wallet-style sign/verify message feature using the existing
+Noosphere provides wallet-style message signing and verification using the
 ROAST/FROST signing flow. The output is a BIP-340 signature under the untweaked
 group public key. Version 1 uses the base group key with an empty HD derivation
 path.
@@ -23,9 +23,9 @@ message envelope defined by BIP-340 itself.
 
 ## Message format and digest
 
-Introduce `SignedMessagePayload` in the shared `noosphere` package with a
-format version, message text, and computed 32-byte digest. Initially the only
-supported format version is `1`.
+`SignedMessagePayload` in the shared `noosphere` package contains a format
+version, message text, and computed 32-byte digest. The supported format
+version is `1`.
 
 For version 1, compute:
 
@@ -54,18 +54,18 @@ version is independent of the ROAST transport version.
 
 ## Request metadata and signing
 
-Add `MessageSignatureMetadata` to the metadata decoder with type ID `2`
-(`0` and `1` already identify empty and Taproot transaction metadata).
+`MessageSignatureMetadata` uses metadata type ID `2` (`0` and `1` identify
+empty and Taproot transaction metadata).
 Its encoding is the metadata type byte followed by `SignedMessagePayload`.
 
-`verifyRequiredSigs()` must require:
+`verifyRequiredSigs()` requires:
 
 - Exactly one requested signature.
 - Its message equals the digest reconstructed from the payload.
 - Its `mastHash` is `null`, so no Taproot tweak is applied.
 - Its HD derivation path is empty for version 1.
 
-Introduce a convenience factory with this proposed API:
+The convenience factory constructs a message-signing request:
 
 ```dart
 SignaturesRequestDetails.forMessage(
@@ -103,7 +103,7 @@ message signature and is not included in this message digest.
 
 ## Result and local verification
 
-Add `SignedMessage` containing:
+`SignedMessage` contains:
 
 - Format version and original text.
 - The base group public key in 32-byte BIP-340 x-only encoding.
@@ -112,14 +112,14 @@ Add `SignedMessage` containing:
 Construct this result from the completed request's validated metadata, requested
 group key, and returned signature. Verify the signature before exporting it.
 
-Provide `verify()` that recomputes the payload digest and calls coinlib's
+`verify()` recomputes the payload digest and calls coinlib's
 `SchnorrSignature.verify()` with the supplied public key. Reject unsupported
 versions, invalid keys, malformed encodings, and incorrect lengths. A valid
 signature establishes validity under that key; callers must separately match
 the key to the expected group identity. The signature does not encode the
 threshold or identify which participants signed.
 
-Provide JSON import/export with these fields:
+`toJson()` and `fromJson()` export and import these JSON-compatible fields:
 
 ```text
 format:    "noosphere-signed-message"
@@ -133,26 +133,6 @@ Require these field types and canonical hex encodings on import. JSON is a
 transport envelope: key order and JSON escaping do not enter the digest; the
 decoded text does. Verification is offline and needs no coordinator, private
 shares, or signing transcript.
-
-## Implementation sequence
-
-1. Add `SignedMessagePayload`, shared limits, digest calculation, and bounded
-   serialization in `packages/noosphere/lib/api/types/`.
-2. Add `MessageSignatureMetadata` and its decoder branch in
-   `signature_metadata.dart`, enforcing digest, count, tweak, and derivation
-   checks during request construction and decoding.
-3. Add `SignaturesRequestDetails.forMessage()` and export the new public types
-   through `domain.dart`.
-4. Add `SignedMessage`, completion-to-result conversion, offline verification,
-   and JSON import/export.
-5. Integrate metadata-based text display into the example's approval flow and
-   confirm existing client, server, and Flutter worker serialization transports
-   the new metadata without losing or substituting the payload.
-6. Add the verification coverage below and a README example covering request,
-   approval, completion, export/import, and verification.
-
-Follow `VERSIONING.md`: update development clients, servers, and tests together
-without bumping the ROAST protocol version or adding legacy decoding branches.
 
 ## Verification coverage
 

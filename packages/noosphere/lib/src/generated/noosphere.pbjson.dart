@@ -423,6 +423,18 @@ const ProtocolError$json = {
     },
     {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
     {'1': 'retryable', '3': 3, '4': 1, '5': 8, '10': 'retryable'},
+    {
+      '1': 'room_failure_code',
+      '3': 4,
+      '4': 1,
+      '5': 13,
+      '9': 0,
+      '10': 'roomFailureCode',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_room_failure_code'},
   ],
 };
 
@@ -430,7 +442,8 @@ const ProtocolError$json = {
 final $typed_data.Uint8List protocolErrorDescriptor = $convert.base64Decode(
     'Cg1Qcm90b2NvbEVycm9yEjAKBGNvZGUYASABKA4yHC5ub29zcGhlcmUuUHJvdG9jb2xFcnJvck'
     'NvZGVSBGNvZGUSGAoHbWVzc2FnZRgCIAEoCVIHbWVzc2FnZRIcCglyZXRyeWFibGUYAyABKAhS'
-    'CXJldHJ5YWJsZQ==');
+    'CXJldHJ5YWJsZRIvChFyb29tX2ZhaWx1cmVfY29kZRgEIAEoDUgAUg9yb29tRmFpbHVyZUNvZG'
+    'WIAQFCFAoSX3Jvb21fZmFpbHVyZV9jb2Rl');
 
 @$core.Deprecated('Use emptySuccessDescriptor instead')
 const EmptySuccess$json = {
@@ -763,6 +776,69 @@ final $typed_data.Uint8List ackKeyConstructedResponseDescriptor =
         'ChlBY2tLZXlDb25zdHJ1Y3RlZFJlc3BvbnNlEjEKB3N1Y2Nlc3MYASABKAsyFy5ub29zcGhlcm'
         'UuRW1wdHlTdWNjZXNzUgdzdWNjZXNz');
 
+@$core.Deprecated('Use beginEnrollmentRequestDescriptor instead')
+const BeginEnrollmentRequest$json = {
+  '1': 'BeginEnrollmentRequest',
+  '2': [
+    {'1': 'invite', '3': 1, '4': 1, '5': 12, '10': 'invite'},
+    {
+      '1': 'participant_public_key',
+      '3': 2,
+      '4': 1,
+      '5': 12,
+      '10': 'participantPublicKey'
+    },
+  ],
+};
+
+/// Descriptor for `BeginEnrollmentRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List beginEnrollmentRequestDescriptor =
+    $convert.base64Decode(
+        'ChZCZWdpbkVucm9sbG1lbnRSZXF1ZXN0EhYKBmludml0ZRgBIAEoDFIGaW52aXRlEjQKFnBhcn'
+        'RpY2lwYW50X3B1YmxpY19rZXkYAiABKAxSFHBhcnRpY2lwYW50UHVibGljS2V5');
+
+@$core.Deprecated('Use beginEnrollmentResponseDescriptor instead')
+const BeginEnrollmentResponse$json = {
+  '1': 'BeginEnrollmentResponse',
+  '2': [
+    {'1': 'challenge', '3': 1, '4': 1, '5': 12, '10': 'challenge'},
+  ],
+};
+
+/// Descriptor for `BeginEnrollmentResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List beginEnrollmentResponseDescriptor =
+    $convert.base64Decode(
+        'ChdCZWdpbkVucm9sbG1lbnRSZXNwb25zZRIcCgljaGFsbGVuZ2UYASABKAxSCWNoYWxsZW5nZQ'
+        '==');
+
+@$core.Deprecated('Use redeemRoomInviteRequestDescriptor instead')
+const RedeemRoomInviteRequest$json = {
+  '1': 'RedeemRoomInviteRequest',
+  '2': [
+    {'1': 'transcript', '3': 1, '4': 1, '5': 12, '10': 'transcript'},
+    {'1': 'signature', '3': 2, '4': 1, '5': 12, '10': 'signature'},
+  ],
+};
+
+/// Descriptor for `RedeemRoomInviteRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List redeemRoomInviteRequestDescriptor =
+    $convert.base64Decode(
+        'ChdSZWRlZW1Sb29tSW52aXRlUmVxdWVzdBIeCgp0cmFuc2NyaXB0GAEgASgMUgp0cmFuc2NyaX'
+        'B0EhwKCXNpZ25hdHVyZRgCIAEoDFIJc2lnbmF0dXJl');
+
+@$core.Deprecated('Use redeemRoomInviteResponseDescriptor instead')
+const RedeemRoomInviteResponse$json = {
+  '1': 'RedeemRoomInviteResponse',
+  '2': [
+    {'1': 'snapshot', '3': 1, '4': 1, '5': 12, '10': 'snapshot'},
+  ],
+};
+
+/// Descriptor for `RedeemRoomInviteResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List redeemRoomInviteResponseDescriptor =
+    $convert.base64Decode(
+        'ChhSZWRlZW1Sb29tSW52aXRlUmVzcG9uc2USGgoIc25hcHNob3QYASABKAxSCHNuYXBzaG90');
+
 @$core.Deprecated('Use rpcRequestDescriptor instead')
 const RpcRequest$json = {
   '1': 'RpcRequest',
@@ -894,6 +970,24 @@ const RpcRequest$json = {
       '9': 0,
       '10': 'ackKeyConstructed'
     },
+    {
+      '1': 'begin_enrollment',
+      '3': 24,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.BeginEnrollmentRequest',
+      '9': 0,
+      '10': 'beginEnrollment'
+    },
+    {
+      '1': 'redeem_room_invite',
+      '3': 25,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.RedeemRoomInviteRequest',
+      '9': 0,
+      '10': 'redeemRoomInvite'
+    },
   ],
   '8': [
     {'1': 'request'},
@@ -920,8 +1014,10 @@ final $typed_data.Uint8List rpcRequestDescriptor = $convert.base64Decode(
     'VzGBUgASgLMhwubm9vc3BoZXJlLlNpZ25hdHVyZXNSZXBsaWVzSABSFnN1Ym1pdFNpZ25hdHVy'
     'ZVJlcGxpZXMSRgoSc2hhcmVfc2VjcmV0X3NoYXJlGBYgASgLMhYubm9vc3BoZXJlLlNlY3JldF'
     'NoYXJlSABSEHNoYXJlU2VjcmV0U2hhcmUSSwoTYWNrX2tleV9jb25zdHJ1Y3RlZBgXIAEoCzIZ'
-    'Lm5vb3NwaGVyZS5Db25zdHJ1Y3RlZEtleUgAUhFhY2tLZXlDb25zdHJ1Y3RlZEIJCgdyZXF1ZX'
-    'N0');
+    'Lm5vb3NwaGVyZS5Db25zdHJ1Y3RlZEtleUgAUhFhY2tLZXlDb25zdHJ1Y3RlZBJOChBiZWdpbl'
+    '9lbnJvbGxtZW50GBggASgLMiEubm9vc3BoZXJlLkJlZ2luRW5yb2xsbWVudFJlcXVlc3RIAFIP'
+    'YmVnaW5FbnJvbGxtZW50ElIKEnJlZGVlbV9yb29tX2ludml0ZRgZIAEoCzIiLm5vb3NwaGVyZS'
+    '5SZWRlZW1Sb29tSW52aXRlUmVxdWVzdEgAUhByZWRlZW1Sb29tSW52aXRlQgkKB3JlcXVlc3Q=');
 
 @$core.Deprecated('Use rpcResponseDescriptor instead')
 const RpcResponse$json = {
@@ -1055,6 +1151,24 @@ const RpcResponse$json = {
       '10': 'ackKeyConstructed'
     },
     {
+      '1': 'begin_enrollment',
+      '3': 24,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.BeginEnrollmentResponse',
+      '9': 0,
+      '10': 'beginEnrollment'
+    },
+    {
+      '1': 'redeem_room_invite',
+      '3': 25,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.RedeemRoomInviteResponse',
+      '9': 0,
+      '10': 'redeemRoomInvite'
+    },
+    {
       '1': 'error',
       '3': 100,
       '4': 1,
@@ -1092,8 +1206,11 @@ final $typed_data.Uint8List rpcResponseDescriptor = $convert.base64Decode(
     'dWJtaXRTaWduYXR1cmVSZXBsaWVzElMKEnNoYXJlX3NlY3JldF9zaGFyZRgWIAEoCzIjLm5vb3'
     'NwaGVyZS5TaGFyZVNlY3JldFNoYXJlUmVzcG9uc2VIAFIQc2hhcmVTZWNyZXRTaGFyZRJWChNh'
     'Y2tfa2V5X2NvbnN0cnVjdGVkGBcgASgLMiQubm9vc3BoZXJlLkFja0tleUNvbnN0cnVjdGVkUm'
-    'VzcG9uc2VIAFIRYWNrS2V5Q29uc3RydWN0ZWQSMAoFZXJyb3IYZCABKAsyGC5ub29zcGhlcmUu'
-    'UHJvdG9jb2xFcnJvckgAUgVlcnJvckIKCghyZXNwb25zZQ==');
+    'VzcG9uc2VIAFIRYWNrS2V5Q29uc3RydWN0ZWQSTwoQYmVnaW5fZW5yb2xsbWVudBgYIAEoCzIi'
+    'Lm5vb3NwaGVyZS5CZWdpbkVucm9sbG1lbnRSZXNwb25zZUgAUg9iZWdpbkVucm9sbG1lbnQSUw'
+    'oScmVkZWVtX3Jvb21faW52aXRlGBkgASgLMiMubm9vc3BoZXJlLlJlZGVlbVJvb21JbnZpdGVS'
+    'ZXNwb25zZUgAUhByZWRlZW1Sb29tSW52aXRlEjAKBWVycm9yGGQgASgLMhgubm9vc3BoZXJlLl'
+    'Byb3RvY29sRXJyb3JIAFIFZXJyb3JCCgoIcmVzcG9uc2U=');
 
 @$core.Deprecated('Use startSessionDescriptor instead')
 const StartSession$json = {

@@ -190,8 +190,7 @@ class Client {
       // Check identifiers exist in group
       _checkIdentifierSet(config, ids);
 
-      // Check positive signature index, though this shouldn't happen when using
-      // gRpc
+      // Check that the signature index is nonnegative.
       if (round.sigI < 0) {
         throw ServerMisbehaviour.sigRoundOutOfRange();
       }

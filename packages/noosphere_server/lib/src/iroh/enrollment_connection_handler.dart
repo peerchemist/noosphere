@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere/api/types/signed.dart';
-import 'package:noosphere/common/serial.dart';
+import 'package:noosphere/iroh.dart';
+import 'package:noosphere/noosphere.dart' as protocol;
 import 'package:noosphere/room.dart';
 
 import '../room/manager.dart';
@@ -48,59 +50,51 @@ final class IrohEnrollmentConnectionHandler {
   }
 
   Future<void> _handle(SendStream send, RecvStream receive) async {
+    protocol.RpcRequest? request;
+    var requestReceived = false;
     try {
-      final request = await _readFrame(
-        receive,
-        maxMessageLength,
-      ).timeout(timeout);
-      final reader = cl.BytesReader(request);
-      final protocol = reader.readString();
-      final version = reader.readUInt16();
-      if (protocol != noosphereEnrollmentProtocol ||
-          version != noosphereEnrollmentProtocolVersion) {
+      final envelope = await protocol
+          .decodeEnvelopes(
+            _readChunks(receive),
+            maxEnvelopeLength: maxMessageLength,
+          )
+          .single
+          .timeout(timeout);
+      requestReceived = true;
+      if (envelope.wireVersion != noosphereIrohWireVersion) {
         throw const RoomException(RoomFailureCode.unsupportedVersion);
       }
-      final operation = reader.readUInt8();
-      final Uint8List payload;
-      switch (operation) {
-        case 1:
-          final invite = RoomInvite.fromBytes(reader.readVarSlice());
-          final publicKey = reader.readPubKey();
-          if (!reader.atEnd) {
-            throw const FormatException('trailing request data');
-          }
-          payload = (await rooms.beginEnrollment(
-            invite: invite,
-            participantPublicKey: publicKey,
-          )).toBytes();
-        case 2:
-          final transcript = EnrollmentTranscript.fromBytes(
-            reader.readVarSlice(),
-          );
-          final signature = reader.readSignature();
-          if (!reader.atEnd) {
-            throw const FormatException('trailing request data');
-          }
-          payload = (await rooms.redeemRoomInvite(
-            Signed(obj: transcript, signature: signature),
-          )).toBytes();
-        default:
-          throw const FormatException('unknown enrollment operation');
+      if (envelope.whichPayload() != protocol.Envelope_Payload.rpcRequest) {
+        throw const FormatException('expected enrollment RpcRequest');
       }
-      await _writeFrame(
+      request = envelope.rpcRequest;
+      if (request.requestId.isEmpty) {
+        throw const FormatException('request_id is empty');
+      }
+      final response = await _dispatch(request);
+      await _write(
         send,
-        _EnrollmentResponse.success(operation, payload),
-      ).timeout(timeout);
+        protocol.Envelope(
+          wireVersion: noosphereIrohWireVersion,
+          rpcResponse: response,
+        ),
+      );
     } on Object catch (error) {
-      final code = error is RoomException ? error.code.index : 0xffff;
-      final message = error is RoomException
-          ? error.message
-          : 'invalid enrollment request';
+      final failure = _protocolError(error);
       try {
-        await _writeFrame(
+        await _write(
           send,
-          _EnrollmentResponse.failure(code, message),
-        ).timeout(timeout);
+          protocol.Envelope(
+            wireVersion: noosphereIrohWireVersion,
+            rpcResponse: request == null
+                ? null
+                : protocol.RpcResponse(
+                    requestId: request.requestId,
+                    error: failure,
+                  ),
+            error: request == null ? failure : null,
+          ),
+        );
       } on Object {
         // The peer may already have closed the stream.
       }
@@ -110,55 +104,92 @@ final class IrohEnrollmentConnectionHandler {
       } on Object {
         // Connection loss is already represented by the failed request.
       }
+      if (!requestReceived) {
+        try {
+          // Finish the reply before stopping a potentially blocked native read.
+          await receive.stop(1).timeout(timeout);
+        } on TimeoutException {
+          connection.close(
+            reason: 'enrollment stream cleanup failed'.codeUnits,
+          );
+        } on Object {
+          // Preserve the request failure if the stream is already closed.
+        }
+      }
     }
   }
-}
 
-final class _EnrollmentResponse with cl.Writable {
-  _EnrollmentResponse.success(this.operation, this.payload)
-    : success = true,
-      errorCode = 0,
-      message = '';
-
-  _EnrollmentResponse.failure(this.errorCode, this.message)
-    : success = false,
-      operation = 0,
-      payload = Uint8List(0);
-
-  final bool success;
-  final int operation;
-  final Uint8List payload;
-  final int errorCode;
-  final String message;
-
-  @override
-  void write(cl.Writer writer) {
-    writer.writeBool(success);
-    if (success) {
-      writer
-        ..writeUInt8(operation)
-        ..writeVarSlice(payload);
-    } else {
-      writer
-        ..writeUInt16(errorCode)
-        ..writeString(message);
+  Future<protocol.RpcResponse> _dispatch(protocol.RpcRequest request) async {
+    switch (request.whichRequest()) {
+      case protocol.RpcRequest_Request.beginEnrollment:
+        final body = request.beginEnrollment;
+        final challenge = await rooms.beginEnrollment(
+          invite: RoomInvite.fromBytes(Uint8List.fromList(body.invite)),
+          participantPublicKey: cl.ECCompressedPublicKey(
+            Uint8List.fromList(body.participantPublicKey),
+          ),
+        );
+        return protocol.RpcResponse(
+          requestId: request.requestId,
+          beginEnrollment: protocol.BeginEnrollmentResponse(
+            challenge: challenge.toBytes(),
+          ),
+        );
+      case protocol.RpcRequest_Request.redeemRoomInvite:
+        final body = request.redeemRoomInvite;
+        final snapshot = await rooms.redeemRoomInvite(
+          Signed(
+            obj: EnrollmentTranscript.fromBytes(
+              Uint8List.fromList(body.transcript),
+            ),
+            signature: cl.SchnorrSignature(Uint8List.fromList(body.signature)),
+          ),
+        );
+        return protocol.RpcResponse(
+          requestId: request.requestId,
+          redeemRoomInvite: protocol.RedeemRoomInviteResponse(
+            snapshot: snapshot.toBytes(),
+          ),
+        );
+      default:
+        throw const FormatException(
+          'RPC is not supported on the enrollment ALPN',
+        );
     }
   }
+
+  Future<void> _write(SendStream send, protocol.Envelope envelope) => send
+      .writeAll(
+        protocol.encodeEnvelope(envelope, maxEnvelopeLength: maxMessageLength),
+      )
+      .timeout(timeout);
 }
 
-Future<Uint8List> _readFrame(RecvStream receive, int maximum) async {
-  final prefix = await receive.readExact(4);
-  final length = ByteData.sublistView(prefix).getUint32(0, Endian.little);
-  if (length < 1 || length > maximum) {
-    throw const FormatException('invalid enrollment frame length');
+protocol.ProtocolError _protocolError(Object error) {
+  final roomError = error is RoomException
+      ? error
+      : error is UnsupportedRoomInviteVersion
+      ? const RoomException(RoomFailureCode.unsupportedVersion)
+      : null;
+  return protocol.ProtocolError(
+    code: switch (error) {
+      _ when roomError?.code == RoomFailureCode.unsupportedVersion =>
+        protocol.ProtocolErrorCode.PROTOCOL_ERROR_UNSUPPORTED_VERSION,
+      protocol.FrameTooLargeException() =>
+        protocol.ProtocolErrorCode.PROTOCOL_ERROR_RESOURCE_EXHAUSTED,
+      TimeoutException() =>
+        protocol.ProtocolErrorCode.PROTOCOL_ERROR_DEADLINE_EXCEEDED,
+      _ => protocol.ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
+    },
+    message: roomError?.message ?? 'invalid enrollment request',
+    roomFailureCode: roomError?.code.index,
+  );
+}
+
+Stream<List<int>> _readChunks(RecvStream receive) async* {
+  while (true) {
+    final chunk = await receive.read(64 * 1024);
+    if (chunk == null) return;
+    if (chunk.isNotEmpty) yield chunk;
   }
-  return receive.readExact(length);
-}
-
-Future<void> _writeFrame(SendStream send, cl.Writable value) async {
-  final payload = value.toBytes();
-  final frame = Uint8List(4 + payload.length);
-  ByteData.sublistView(frame).setUint32(0, payload.length, Endian.little);
-  frame.setRange(4, frame.length, payload);
-  await send.writeAll(frame);
 }

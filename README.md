@@ -236,8 +236,8 @@ host provider instance so the replacement waits for any previous write; hosts
 with multiple provider instances/processes must enforce ordering themselves.
 
 The host implements the domain-specific `ClientStorageInterface`,
-`RoomPersistence` and `ServerIdentityStore` using its own storage backend.
-Server DKG/ROAST persistence is a subsequent step. See
+`RoomPersistence`, `ServerPersistence` and `ServerIdentityStore` using its own
+storage backend. `ServerPersistence` stores coordinator DKG/ROAST snapshots. See
 [architecture.md](architecture.md) for storage ownership and recovery boundaries.
 
 A provider timeout reports an unknown outcome and is never blindly retried.

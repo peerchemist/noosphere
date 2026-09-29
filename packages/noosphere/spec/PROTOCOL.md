@@ -9,10 +9,11 @@ The current reference implementation supports participant and coordinator
 roles. A process may run either role or both. Iroh/QUIC is the reference
 transport, not part of the protocol semantics.
 
-The existing client and server behavior remains normative during the initial
-monorepo migration. Authentication, session, DKG, signing, expiry, reconnect,
-replay and error rules will be transcribed here without changing their current
-wire behavior.
+The [architecture guide](../../../architecture.md) describes authentication,
+sessions, DKG, signing, expiry, reconnect, replay and error handling in the
+current implementation. Both enrollment and ROAST use protobuf `Envelope`
+messages with the shared big-endian length prefix, on separate Iroh ALPNs.
+Canonical domain encodings define signed payloads inside those messages.
 
 ## Message signing
 

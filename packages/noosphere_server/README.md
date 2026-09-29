@@ -115,8 +115,7 @@ dependency on `noosphere_client`; that package is used only by end-to-end tests
 and examples. The 3.0.0 server and 4.0.0 client remove gRPC completely. Migrate
 by replacing
 `GrpcClientApi`/`GrpcConfig` with `IrohClientApi`/`IrohConfig`, pinning the
-server endpoint ID and persisting the server identity key. Existing serialized
-domain messages retain their protobuf field numbers; the transport and session
-semantics are breaking changes.
-
-The legacy REST adapter is outside this migration and is unchanged.
+server endpoint ID and persisting the server identity key. Canonical domain
+bytes are carried inside protobuf messages; the transport and session semantics
+are breaking changes. Enrollment and ROAST share the protobuf envelope and
+framing on separate ALPNs.

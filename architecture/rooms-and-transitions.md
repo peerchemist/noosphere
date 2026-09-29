@@ -72,18 +72,30 @@ reopened and reloaded.
 Challenges are intentionally not durable. A client interrupted during proof
 exchange obtains a fresh one; used/revoked invitations remain recorded.
 
-## Separate enrollment wire protocol
+## Enrollment protobuf RPCs
 
 Enrollment uses `noosphere/roast-enrollment/1` on the coordinator's existing
-Iroh endpoint. The adapter opens one bidirectional stream per operation and
-uses four-byte **little-endian** length framing around custom binary messages.
-This differs from the big-endian protobuf framing on the ROAST ALPN.
+Iroh endpoint. Each operation uses one bidirectional stream with the shared
+four-byte **big-endian** length prefix and protobuf `Envelope`. The client
+sends one `RpcRequest`, finishes its send side, and reads one `RpcResponse`.
+Both adapters enforce the configured envelope-size limit. The server reads
+through EOF before dispatching, rejecting truncated or additional frames.
 
-The request contains the enrollment domain, a 16-bit protocol version, and an
-operation byte: 1 for begin, 2 for redeem. Begin carries invite bytes and the
-public key; redeem carries transcript bytes and its signature. A response has
-a success flag, operation and payload, or a failure code and message.
-Decoders reject trailing data and enforce message-length limits.
+| Request | Fields | Response |
+| --- | --- | --- |
+| `BeginEnrollmentRequest` | Canonical invite bytes and a 33-byte compressed participant public key | `BeginEnrollmentResponse.challenge`: canonical `EnrollmentChallenge` bytes |
+| `RedeemRoomInviteRequest` | Canonical transcript bytes and a 64-byte Schnorr signature | `RedeemRoomInviteResponse.snapshot`: canonical `RoomSnapshot` bytes |
+
+Each RPC has a fresh random 16-byte correlation ID. The client validates the
+wire version, matching ID, and expected response variant. Enrollment does not
+require a ROAST session ID: the invite and proof authorize the operation.
+The invite/transcript retain their canonical domain separator and enrollment
+version. Signatures still cover those domain bytes, never a protobuf encoding.
+
+Errors use `ProtocolError`, with an optional `room_failure_code` preserving
+the manager's domain error index. Malformed frames, unsupported versions and
+size/time limits are rejected before enrollment. There is no automatic retry
+of redemption; a lost reply may follow a successful durable write.
 
 The public network protocol exposes begin/redeem only. Creation, invitation
 issue/revocation, freezing and closing belong to the host's management surface.

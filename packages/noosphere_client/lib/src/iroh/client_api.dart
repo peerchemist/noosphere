@@ -45,10 +45,7 @@ final class IrohClientClosedException implements Exception {
   String toString() => 'IrohClientClosedException';
 }
 
-/// Initial Iroh implementation of the public request interface.
-///
-/// Login/session streaming is implemented here. Domain RPC mappings are added
-/// in the following migration steps; until then they fail explicitly.
+/// Iroh implementation of authentication, session events, and domain RPCs.
 final class IrohClientApi implements ApiRequestInterface {
   IrohClientApi._({
     required this.config,

@@ -40,11 +40,13 @@ the application-owned endpoint.
 | ALPN | Protocol |
 | --- | --- |
 | `noosphere/roast/1` | Protobuf envelopes for login, DKG, signing and events |
-| `noosphere/roast-enrollment/1` | Binary invite enrollment, when room support is enabled |
+| `noosphere/roast-enrollment/1` | Protobuf envelopes for invite enrollment, when room support is enabled |
 
 The server binds both on the same endpoint when a `RoomManager` is provided.
 It routes each accepted connection according to its negotiated ALPN. Freezing
 a room adds its group to the dispatcher; it does not replace or rebind Iroh.
+Both ALPNs use the shared big-endian length prefix and `Envelope` schema.
+Each handler accepts only the operations exposed on its ALPN.
 
 ## Authentication and snapshot handshake
 

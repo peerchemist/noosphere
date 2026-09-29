@@ -178,7 +178,3 @@ to isolated serialization.
 The shared [specifications](../packages/noosphere/spec) describe protocol rules,
 security boundaries and version policy. Group-transition orchestration is
 explicitly a proposed workflow despite implemented proposal/approval models.
-Some older comments still mention gRPC, incomplete Iroh mappings, or future
-server persistence. Current executable code has Iroh mappings and required
-`ServerPersistence`; this guide follows that code rather than those historical
-descriptions.
