@@ -129,10 +129,12 @@ by a fresh `WorkerSnapshotEvent`; mutating RPCs are never replayed.
 `updateSignerAddress` accepts only an address with the existing pinned
 coordinator ID.
 For an app-approved change of coordinator identity, use
-`worker.rotateCoordinator(setupId, newCoordinator: address, persist: saveSelection)`.
+`worker.switchCoordinator(setupId, newCoordinator: address, persist: saveSelection)`.
 It retains the group and FROST keys, stops the old session, checks pending signing
-state and awaits durable pin storage before connecting. See
-[coordinator switching](packages/noosphere/spec/COORDINATOR_ROTATION.md).
+state and awaits durable pin storage before connecting. This is a serialized,
+non-atomic sequence; success confirms only the local signer's connection.
+See [coordinator switching](packages/noosphere/spec/COORDINATOR_ROTATION.md) for the
+host workflow, responsibility boundary and recovery after partial failure.
 Graceful close is idempotent. Forced or unexpected native-worker termination
 marks in-process restart unsafe; restart the application rather than assuming
 native sockets/tasks were released.

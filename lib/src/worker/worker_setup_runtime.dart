@@ -206,35 +206,34 @@ final class _SetupRuntime {
         return null;
       });
 
-  Future<NoosphereWorkerSnapshot> rotateCoordinator(
-    EndpointAddr address,
-  ) => _synchronized(() async {
-    final previous = _clientOptions;
-    if (previous == null) throw StateError('Signer is not configured.');
-    await _stopSigner();
-    _emitSnapshot();
-    final state = await previous.storage.loadState();
-    if (state.preparedOperations.isNotEmpty ||
-        state.sigNonces.values.any(
-          (nonces) => nonces.expiry.time.isAfter(DateTime.now()),
-        )) {
-      throw const NoosphereWorkerException(
-        'pending_signing_operations',
-        'Reconcile pending signing operations before rotating the coordinator.',
-      );
-    }
-    await host.request(setupId, 'coordinator.persist', const {});
-    final updated = previous.withCoordinator(address);
-    try {
-      await _startSigner(updated, replacement: true);
-    } catch (_) {
-      await _stopSigner();
-      // Retain only the committed selection for an explicit retry.
-      _clientOptions = updated;
-      rethrow;
-    }
-    return snapshot();
-  });
+  Future<NoosphereWorkerSnapshot> switchCoordinator(EndpointAddr address) =>
+      _synchronized(() async {
+        final previous = _clientOptions;
+        if (previous == null) throw StateError('Signer is not configured.');
+        await _stopSigner();
+        _emitSnapshot();
+        final state = await previous.storage.loadState();
+        if (state.preparedOperations.isNotEmpty ||
+            state.sigNonces.values.any(
+              (nonces) => nonces.expiry.time.isAfter(DateTime.now()),
+            )) {
+          throw const NoosphereWorkerException(
+            'pending_signing_operations',
+            'Reconcile pending signing operations before switching the coordinator.',
+          );
+        }
+        await host.request(setupId, 'coordinator.persist', const {});
+        final updated = previous.withCoordinator(address);
+        try {
+          await _startSigner(updated, replacement: true);
+        } catch (_) {
+          await _stopSigner();
+          // Retain only the committed selection for an explicit retry.
+          _clientOptions = updated;
+          rethrow;
+        }
+        return snapshot();
+      });
 
   Future<void> _stopSigner() async {
     final node = _clientNode;

@@ -27,9 +27,11 @@ consent and automatic migration is described in
 [`GROUP_TRANSITIONS.md`](GROUP_TRANSITIONS.md). It is a design proposal, not
 current protocol behavior.
 
-The Flutter [coordinator switching helper](COORDINATOR_ROTATION.md) applies an
-app-approved endpoint change, persisting the pin through a host callback. It
-preserves the existing ROAST wire protocol and group keys.
+The Flutter [coordinator switching helper](COORDINATOR_ROTATION.md),
+`NoosphereWorker.switchCoordinator`, applies an app-approved endpoint change to
+one signer, persisting the pin through a host callback. It preserves the existing
+ROAST wire protocol and group keys and does not establish group-wide approval
+or perform a group transition.
 
 ## Signature request explanations
 

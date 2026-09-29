@@ -288,7 +288,7 @@ final class NoosphereWorker {
 
     final setup = _setups.putIfAbsent(setupId, _HostSetup.new);
     if (client != null && setup.persistCoordinator != null) {
-      throw StateError('Coordinator rotation is in progress.');
+      throw StateError('Coordinator switch is in progress.');
     }
     final previousProviders = setup.providers;
     setup.bind(server: server, client: client);
@@ -338,24 +338,37 @@ final class NoosphereWorker {
         payload: {'address': encodeEndpointAddress(address)},
       ).then((_) {});
 
-  /// Switches an existing signer to a coordinator already approved by the app.
-  /// Stops the old session, checks pending signing state, awaits [persist], then
-  /// connects with the new pin. Keys, storage and the server role are retained.
-  /// A persistence error/timeout leaves the signer stopped: reconcile durable
-  /// selection before starting it again. No automatic rollback or RPC replay.
-  Future<NoosphereWorkerSnapshot> rotateCoordinator(
+  /// Switches this setup's signer to a coordinator already approved by the app.
+  ///
+  /// Serializes with lifecycle and signing operations for this setup, stops the
+  /// old session, checks local pending signing state, awaits durable [persist],
+  /// then connects with the new pin. The destination must serve the same group.
+  /// Participant identity, FROST keys, client storage and any embedded server
+  /// role are retained.
+  ///
+  /// This sequence is not atomic. Pending signing state or a persistence failure
+  /// leaves the signer stopped. A timed-out [persist] may still commit: wait for
+  /// or reconcile that write before restarting from the app's stored selection.
+  /// A connection failure after persistence retains the new configuration for
+  /// an explicit retry. There is no automatic rollback or mutation replay.
+  /// [persist] must not re-enter lifecycle or signing commands for this setup.
+  ///
+  /// Success confirms only this signer's connection, not other participants'
+  /// approval or availability. This does not migrate rooms, invitations, server
+  /// state, group membership or funds.
+  Future<NoosphereWorkerSnapshot> switchCoordinator(
     String setupId, {
     required EndpointAddr newCoordinator,
     required Future<void> Function(EndpointAddr) persist,
   }) async {
     final setup = _setups[setupId];
     if (setup?.storage == null || setup!.persistCoordinator != null) {
-      throw StateError('Signer is unavailable or rotation is in progress.');
+      throw StateError('Signer is unavailable or a switch is in progress.');
     }
     setup.persistCoordinator = () => persist(newCoordinator);
     try {
       return (await _invoke(
-            'rotateCoordinator',
+            'switchCoordinator',
             setupId: setupId,
             payload: {'address': encodeEndpointAddress(newCoordinator)},
           ))!

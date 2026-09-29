@@ -124,16 +124,16 @@ room management commands or DTOs. Direct server and enrollment APIs remain
 usable separately. Room snapshot/rejection streams are local manager streams,
 not ROAST network events.
 
-## Coordinator address update versus identity rotation
+## Coordinator address update versus identity switching
 
 Refreshing `EndpointAddr` hints under the same pin uses
 `updateSignerAddress`. Moving the coordinator while retaining its identity
 uses identity backup/restore. An actual change to the trusted endpoint ID uses
-[`NoosphereWorker.rotateCoordinator`](../lib/src/worker.dart), after the
+[`NoosphereWorker.switchCoordinator`](../lib/src/worker.dart), after the
 application has approved that ID:
 
 1. Serialize the switch with other setup operations and stop the old signer.
-2. Load client storage and reject rotation when prepared operations or
+2. Load client storage and reject switching when prepared operations or
    unexpired nonce records remain unresolved.
 3. Await the host's durable coordinator-selection callback.
 4. Build options with the new address/pin and connect to a server serving the
@@ -144,7 +144,13 @@ does not cancel the host callback; reconcile the stored selection before
 starting again. A connection failure after persistence retains the new
 configuration for an explicit retry. There is no automatic fallback to the old
 pin and no voting/quorum protocol in this helper. Room records and invitations
-stay bound to their original coordinator and are not migrated by rotation.
+stay bound to their original coordinator and are not migrated by switching.
+
+This sequence is serialized, not atomic across storage and the network. Success
+confirms only the local signer's connection; it does not establish group-wide
+approval, switching or signing availability. The application coordinates its
+own rollout and recovery using the
+[host workflow](../packages/noosphere/spec/COORDINATOR_ROTATION.md#host-workflow).
 
 ## Group-transition models implemented today
 
@@ -179,6 +185,12 @@ proof of successor readiness or evidence of application migration.
 describes a broader successor workflow: proposed, preparing, ready, migration
 pending, active and retired. There is currently no `GroupTransition` engine,
 transition RPC family or worker command family implementing it end to end.
+
+Coordinator switching remains a small independent primitive. Any future shared
+transition orchestration belongs in a separate layer, with its scope informed
+by application integrations. Protocol-level consent checks and authenticated
+DKG-result bindings remain Noosphere responsibilities in that design; the
+application owns governance and application-specific migration effects.
 
 The intended process creates a fresh successor group/key, obtains bounded
 consent, proves its readiness, authorizes migration under the old threshold,

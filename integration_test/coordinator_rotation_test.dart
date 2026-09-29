@@ -12,7 +12,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'worker rotates with old server offline and signs with unchanged FROST key',
+    'worker switches with old server offline and signs with unchanged FROST key',
     (_) async {
       await NoosphereFlutter.initialize();
       final f = _Fixture();
@@ -95,7 +95,7 @@ void main() {
       var selected = oldAddress;
       for (final afterWrite in [false, true]) {
         await expectLater(
-          worker.rotateCoordinator(
+          worker.switchCoordinator(
             'signer-0',
             newCoordinator: newAddress,
             persist: (address) async {
@@ -125,7 +125,7 @@ void main() {
       // No destination connection is made until persistence has completed.
       final persisting = Completer<void>();
       final durable = Completer<void>();
-      final rotating = worker.rotateCoordinator(
+      final switching = worker.switchCoordinator(
         'signer-0',
         newCoordinator: newAddress,
         persist: (_) {
@@ -136,7 +136,7 @@ void main() {
       await persisting.future;
       expect((await worker.snapshot('signer-0')).connected, isFalse);
       await expectLater(
-        worker.rotateCoordinator(
+        worker.switchCoordinator(
           'signer-0',
           newCoordinator: newAddress,
           persist: (_) async {},
@@ -144,9 +144,9 @@ void main() {
         throwsStateError,
       );
       durable.complete();
-      expect((await rotating).serverRunning, isTrue);
+      expect((await switching).serverRunning, isTrue);
       for (var i = 1; i < 3; i++) {
-        await worker.rotateCoordinator(
+        await worker.switchCoordinator(
           'signer-$i',
           newCoordinator: newAddress,
           persist: (address) async {
@@ -165,7 +165,7 @@ void main() {
       // A failed connection after persistence must not restore the previous pin.
       var committed = false;
       await expectLater(
-        worker.rotateCoordinator(
+        worker.switchCoordinator(
           'signer-2',
           newCoordinator: oldAddress,
           persist: (_) async {
@@ -176,7 +176,7 @@ void main() {
       );
       expect(committed, isTrue);
       expect((await worker.snapshot('signer-2')).connected, isFalse);
-      await worker.rotateCoordinator(
+      await worker.switchCoordinator(
         'signer-2',
         newCoordinator: newAddress,
         persist: (_) async {},
@@ -214,7 +214,7 @@ void main() {
         ).verify(Taproot(internalKey: keys.first.groupKey).tweakedKey, message),
         isTrue,
       );
-      // An unfinished signing request must block rotation before persistence.
+      // An unfinished signing request must block switching before persistence.
       final unfinished = SignaturesRequestDetails(
         requiredSigs: [
           SingleSignatureDetails(
@@ -230,7 +230,7 @@ void main() {
       await worker.requestSignatures('signer-0', unfinished);
       var persisted = false;
       await expectLater(
-        worker.rotateCoordinator(
+        worker.switchCoordinator(
           'signer-0',
           newCoordinator: oldAddress,
           persist: (_) async {

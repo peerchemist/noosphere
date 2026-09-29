@@ -103,7 +103,7 @@ final class _HostSetup {
       case 'coordinator.persist':
         final persist = persistCoordinator;
         if (persist == null) {
-          throw StateError('No coordinator rotation pending.');
+          throw StateError('No coordinator switch pending.');
         }
         return _serializeStorage(() async {
           await persist();

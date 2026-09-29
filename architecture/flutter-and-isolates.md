@@ -146,12 +146,18 @@ delay other work in that worker.
 | `lockSigner` | Stop only the signer; keep an embedded coordinator available |
 | `snapshot` | Obtain the current public setup projection |
 | `updateSignerAddress` | Refresh future connection hints under the existing pin |
-| `rotateCoordinator` | Stop signer, check pending storage, persist an approved selection, connect using its pin |
+| `switchCoordinator` | Stop signer, check pending storage, persist an approved selection, connect using its pin |
 | `requestDkg`, `requestSignatures` | Submit the supplied proposal; caller authorizes local initiation |
 | `acceptDkg`, `rejectDkg` | Act on the matching current DKG proposal bytes |
 | `acceptSignatures`, `rejectSignatures` | Act on the matching current signing proposal bytes |
 | `exportIrohServerIdentity` | Export the host-owned stored server identity secret |
 | `close` | Close every setup and the isolate bridge |
+
+Switching is a serialized, non-atomic operation on one local signer. The
+application owns coordinator approval and durable selection; the worker owns
+the stop/check/persist/connect ordering and local signing-state checks. See
+[coordinator switching](../packages/noosphere/spec/COORDINATOR_ROTATION.md)
+for partial-failure recovery and the host workflow.
 
 `shareKeySecret` and room-management operations are not public worker commands.
 A custom `ServerApiHandler` cannot cross the worker boundary; option encoding

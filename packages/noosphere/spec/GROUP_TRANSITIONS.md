@@ -1,10 +1,17 @@
 # Group membership transitions
 
-Status: implementation in progress. The shared package now provides canonical
-`GroupTransitionProposal`, `GroupTransitionKeyPlan`,
+Status: proposed orchestration with implemented domain primitives. The shared
+package provides canonical `GroupTransitionProposal`, `GroupTransitionKeyPlan`,
 `GroupTransitionMigrationPolicy` and `GroupTransitionApproval` primitives.
 Coordinator orchestration, durable progress records, host callbacks and wire
 messages described below remain future work.
+
+The existing [coordinator switching primitive](COORDINATOR_ROTATION.md) stays
+independent of this workflow. It changes one signer's approved coordinator pin
+while preserving its group and keys. It does not approve a membership change
+or implement a group transition. Any shared transition orchestration should be
+a separate layer, scoped from concrete application integrations; this document
+does not extend `NoosphereWorker.switchCoordinator` into a migration API.
 
 ## Objective
 
@@ -175,6 +182,8 @@ The proposed library orchestration layer owns the transition model,
 canonical encodings, consent checks, identity and DKG bindings, participant
 coordination, progress events and persistence contracts. It reuses enrollment,
 DKG, ACK distribution and ROAST signing, extending their evidence where needed.
+The host chooses governance policy and obtains user approval; reusable protocol
+checks that bind that approval to the actual transition belong in the library.
 Durable storage must support storing a successor without replacing the active
 source, and must explicitly record which group generation is authoritative.
 
