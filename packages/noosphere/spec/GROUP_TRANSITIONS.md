@@ -1,8 +1,10 @@
 # Group membership transitions
 
-Status: proposed design. This document describes the intended workflow and
-requirements for a future implementation; it does not describe an existing
-`GroupTransition` API or add wire messages.
+Status: implementation in progress. The shared package now provides canonical
+`GroupTransitionProposal`, `GroupTransitionKeyPlan`,
+`GroupTransitionMigrationPolicy` and `GroupTransitionApproval` primitives.
+Coordinator orchestration, durable progress records, host callbacks and wire
+messages described below remain future work.
 
 ## Objective
 
@@ -181,8 +183,8 @@ account and asset discovery, transaction construction, fee estimation,
 broadcasting and external completion verification. Host callbacks drive these
 steps automatically under the approved policy; they are not manual user steps.
 The Flutter worker facade will need commands and public progress DTOs for the
-workflow, including scoped consent and host integration. An illustrative
-`GroupTransition` name here does not imply these APIs already exist.
+workflow, including scoped consent and host integration. There is not yet a
+`GroupTransition` orchestration API implementing this workflow.
 
 The UI should normally show approval counts, waiting for participants,
 migration progress and completion. It should surface a recovery action only

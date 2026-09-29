@@ -28,6 +28,7 @@ export 'api/types/signed_dkg_ack.dart';
 export 'api/types/signed_message.dart';
 export 'api/types/signed_message_payload.dart';
 export 'api/types/single_signature_details.dart';
+export 'group_transition.dart';
 export 'room.dart';
 
 /// R&D baseline; revised in place until the first stable protocol release.

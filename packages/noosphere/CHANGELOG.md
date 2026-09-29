@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Add canonical group-transition proposals, bounded host migration policies,
+  exact DKG plan bindings, and participant identity-key approvals.
 - Add versioned pubkey-bound room invites, canonical enrollment transcripts,
   room lifecycle snapshots, and the transport-independent enrollment API.
 
