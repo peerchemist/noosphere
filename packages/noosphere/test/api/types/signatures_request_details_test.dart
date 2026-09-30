@@ -90,6 +90,13 @@ void main() {
         () => SignaturesRequestDetails.fromBytes(details.toBytes()),
         throwsArgumentError,
       );
+      final historical = SignaturesRequestDetails.fromBytesAllowExpired(
+        details.toBytes(),
+      );
+      expect(historical.expiry.isExpired, isTrue);
+      expect(historical.message, details.message);
+      expect(historical.toBytes(), details.toBytes());
+
       final decoded = CompletedSignaturesRequest.fromBytes(completed.toBytes());
       expect(decoded.details.obj.expiry.isExpired, isTrue);
       expect(decoded.details.obj.message, details.message);

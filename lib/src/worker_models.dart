@@ -202,7 +202,7 @@ final class WorkerSigningResultEvent extends NoosphereWorkerEvent {
   final String creator;
 
   SignaturesRequestDetails decodeProposal() =>
-      SignaturesRequestDetails.fromBytes(proposalBytes);
+      SignaturesRequestDetails.fromBytesAllowExpired(proposalBytes);
 
   /// Converts a completed message-signing request into a verified result.
   SignedMessage toSignedMessage() => SignedMessage.fromCompletedRequest(

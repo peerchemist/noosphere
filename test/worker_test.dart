@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:coinlib/coinlib.dart' as cl;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(cl.loadCoinlib);
 
   test('worker performs a ready handshake and closes idempotently', () async {
     final worker = await NoosphereWorker.startForTesting();
@@ -221,6 +223,55 @@ void main() {
     final received = await Isolate.run(() => request);
     request.id[0] = 8;
     expect(received.id, orderedEquals([1, 2, 3]));
+  });
+
+  test('completed signing results tolerate only expired proposals', () {
+    final key = ECPrivateKey(Uint8List(32)..last = 1);
+    final active = SignaturesRequestDetails.forMessage(
+      text: 'Completed before expiry',
+      groupKey: ECCompressedPublicKey.fromPubkey(key.pubkey),
+      expiry: Expiry(const Duration(hours: 1)),
+    );
+    final expired = SignaturesRequestDetails.allowNegativeExpiry(
+      requiredSigs: active.requiredSigs,
+      metadata: active.metadata,
+      expiry: Expiry(const Duration(days: -1)),
+    );
+    final signature = SchnorrSignature.sign(
+      key,
+      expired.requiredSigs.single.signDetails.message,
+    );
+    WorkerSigningResultEvent result({
+      Uint8List? proposal,
+      Uint8List? completedSignature,
+    }) => WorkerSigningResultEvent(
+      'setup',
+      1,
+      requestId: expired.id.toBytes(),
+      proposalBytes: proposal ?? expired.toBytes(),
+      signatures: [completedSignature ?? signature.data],
+      creator: 'participant',
+    );
+
+    expect(result().decodeProposal().expiry.isExpired, isTrue);
+    expect(result().toSignedMessage().verify(), isTrue);
+
+    final invalidMetadata = Uint8List.fromList(expired.toBytes())..[2] ^= 1;
+    expect(
+      () => result(proposal: invalidMetadata).decodeProposal(),
+      throwsA(isA<InvalidMetaData>()),
+    );
+    final bytes = expired.toBytes();
+    final truncated = Uint8List.sublistView(bytes, 0, bytes.length - 1);
+    expect(
+      () => result(proposal: truncated).decodeProposal(),
+      throwsA(isA<cl.OutOfData>()),
+    );
+    final invalidSignature = Uint8List.fromList(signature.data)..last ^= 1;
+    expect(
+      () => result(completedSignature: invalidSignature).toSignedMessage(),
+      throwsArgumentError,
+    );
   });
 }
 

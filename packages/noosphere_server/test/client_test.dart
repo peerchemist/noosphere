@@ -1718,7 +1718,7 @@ void main() {
           }
         });
 
-        test("invalid login completedSigs", () async {
+        test("login validates and replays completedSigs", () async {
           // Create new request requiring only one 3-of-3 sig
           final singleReq = getSigDetailsWithKeys(
             keys: groupKeys.take(1).toList(),
@@ -1772,6 +1772,29 @@ void main() {
           );
 
           await login(0, storage: stores.first);
+
+          // A completion may be replayed after its original request expired.
+          final expiredSingleReq = getSigDetailsWithKeys(
+            keys: groupKeys.take(1).toList(),
+            expiry: Expiry(const Duration(days: -1)),
+          );
+          ctx = TestContext(
+            LoginRespMockApi(
+              completedSigs: [
+                CompletedSignaturesRequest(
+                  details: signObject(expiredSingleReq),
+                  signatures: [validFirstSig],
+                  creator: ids.first,
+                ),
+              ],
+            ),
+          );
+
+          final replayed = await login(0, storage: stores.first);
+          final completion = await replayed.evCollector
+              .getExpectOneEvent<SignaturesCompleteClientEvent>();
+          expect(completion.details.expiry.isExpired, isTrue);
+          expect(completion.details.id, expiredSingleReq.id);
         });
 
         void expectStatus(TestClient tc, SignaturesRequestStatus status) =>

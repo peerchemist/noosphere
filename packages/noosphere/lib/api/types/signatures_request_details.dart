@@ -171,6 +171,13 @@ class SignaturesRequestDetails with cl.Writable, Signable {
   SignaturesRequestDetails.fromBytes(Uint8List bytes)
     : this.fromReader(cl.BytesReader(bytes));
 
+  /// Decodes a historical, completed request that may already be expired.
+  ///
+  /// Active and newly submitted requests must use [fromBytes], which retains
+  /// the normal expiry validation.
+  SignaturesRequestDetails.fromBytesAllowExpired(Uint8List bytes)
+    : this.fromReaderAllowNegativeExpiry(cl.BytesReader(bytes));
+
   /// Convenience constructor to construct from encoded [hex].
   SignaturesRequestDetails.fromHex(String hex)
     : this.fromBytes(cl.hexToBytes(hex));
