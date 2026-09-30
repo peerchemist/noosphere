@@ -74,6 +74,12 @@ class SignaturesRequestClientEvent extends ClientEvent {
   SignaturesRequestClientEvent(this.request);
 }
 
+/// Provided whenever coordinator-observed signing progress changes.
+class SignaturesProgressClientEvent extends ClientEvent {
+  final SignaturesRequest request;
+  SignaturesProgressClientEvent(this.request);
+}
+
 /// Provided when the signatures [request] has failed.
 class SignaturesFailureClientEvent extends ClientEvent {
   /// The request that has failed and has been removed.

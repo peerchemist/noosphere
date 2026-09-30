@@ -24,6 +24,7 @@ protocol.Events encodeEvent(Event event) => protocol.Events(
     SignatureNewRoundsEvent() => protocol.EventType.SIG_NEW_ROUNDS_EVENT,
     SignaturesCompleteEvent() => protocol.EventType.SIG_COMPLETE_EVENT,
     SignaturesFailureEvent() => protocol.EventType.SIG_FAILURE_EVENT,
+    SignaturesProgressEvent() => protocol.EventType.SIG_PROGRESS_EVENT,
     SecretShareEvent() => protocol.EventType.SECRET_SHARE_EVENT,
     ConstructedKeyEvent() => protocol.EventType.CONSTRUCTED_KEY_EVENT,
     KeepaliveEvent() => protocol.EventType.KEEPALIVE_EVENT,

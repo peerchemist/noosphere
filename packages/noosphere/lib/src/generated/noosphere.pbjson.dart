@@ -48,6 +48,7 @@ const EventType$json = {
     {'1': 'KEEPALIVE_EVENT', '2': 11},
     {'1': 'SECRET_SHARE_EVENT', '2': 12},
     {'1': 'CONSTRUCTED_KEY_EVENT', '2': 13},
+    {'1': 'SIG_PROGRESS_EVENT', '2': 14},
   ],
 };
 
@@ -59,7 +60,7 @@ final $typed_data.Uint8List eventTypeDescriptor = $convert.base64Decode(
     '9SRVFVRVNUX0VWRU5UEAYSEQoNU0lHX1JFUV9FVkVOVBAHEhgKFFNJR19ORVdfUk9VTkRTX0VW'
     'RU5UEAgSFgoSU0lHX0NPTVBMRVRFX0VWRU5UEAkSFQoRU0lHX0ZBSUxVUkVfRVZFTlQQChITCg'
     '9LRUVQQUxJVkVfRVZFTlQQCxIWChJTRUNSRVRfU0hBUkVfRVZFTlQQDBIZChVDT05TVFJVQ1RF'
-    'RF9LRVlfRVZFTlQQDQ==');
+    'RF9LRVlfRVZFTlQQDRIWChJTSUdfUFJPR1JFU1NfRVZFTlQQDg==');
 
 @$core.Deprecated('Use protocolErrorCodeDescriptor instead')
 const ProtocolErrorCode$json = {

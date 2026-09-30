@@ -122,6 +122,7 @@ enum EventType {
   KEEPALIVE_EVENT = 11;
   SECRET_SHARE_EVENT = 12;
   CONSTRUCTED_KEY_EVENT = 13;
+  SIG_PROGRESS_EVENT = 14;
 }
 
 message Events {

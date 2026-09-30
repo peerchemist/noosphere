@@ -69,6 +69,8 @@ class EventType extends $pb.ProtobufEnum {
       EventType._(12, _omitEnumNames ? '' : 'SECRET_SHARE_EVENT');
   static const EventType CONSTRUCTED_KEY_EVENT =
       EventType._(13, _omitEnumNames ? '' : 'CONSTRUCTED_KEY_EVENT');
+  static const EventType SIG_PROGRESS_EVENT =
+      EventType._(14, _omitEnumNames ? '' : 'SIG_PROGRESS_EVENT');
 
   static const $core.List<EventType> values = <EventType>[
     PARTICIPANT_STATUS_EVENT,
@@ -85,10 +87,11 @@ class EventType extends $pb.ProtobufEnum {
     KEEPALIVE_EVENT,
     SECRET_SHARE_EVENT,
     CONSTRUCTED_KEY_EVENT,
+    SIG_PROGRESS_EVENT,
   ];
 
   static final $core.List<EventType?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 13);
+      $pb.ProtobufEnum.$_initByValueList(values, 14);
   static EventType? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 

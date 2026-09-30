@@ -1160,6 +1160,12 @@ void main() {
         expiry: expiry ?? futureExpiry,
       );
 
+      SignaturesProgress progress() => SignaturesProgress(
+        threshold: 6,
+        contributingParticipants: [ids.first],
+        stage: SignaturesProgressStage.collecting,
+      );
+
       void expectNoSecretsInFirst() => expect(
         stores.first.keys.values.map((key) => key.keyConstruction),
         everyElement(
@@ -1222,6 +1228,9 @@ void main() {
           expect(request.details.id, reqDetails.id);
           expect(request.details.message, 'Approve invoice #123');
           expect(request.status, status);
+          expect(request.progress.threshold, 6);
+          expect(request.progress.contributingParticipants, {ids.first});
+          expect(request.progress.stage, SignaturesProgressStage.collecting);
         }
 
         // Other clients receive event
@@ -1396,7 +1405,11 @@ void main() {
         ) async {
           await expectBadEventRelogin(
             0,
-            SignaturesRequestEvent(details: details, creator: id),
+            SignaturesRequestEvent(
+              details: details,
+              creator: id,
+              progress: progress(),
+            ),
           );
         }
 
@@ -1429,6 +1442,7 @@ void main() {
           SignaturesRequestEvent(
             details: signObject(reqDetails, 1),
             creator: ids[1],
+            progress: progress(),
           ),
         );
       });
@@ -1441,6 +1455,7 @@ void main() {
           SignaturesRequestEvent(
             details: signObject(details, 1),
             creator: ids[1],
+            progress: progress(),
           ),
           exclude: [ctx.api.debugState.participantToSession[ids[1]]!.sessionID],
         );
@@ -1504,8 +1519,10 @@ void main() {
         expect(ctx.api.debugState.sigRequests.values, isEmpty);
 
         final evs = await tcs.first.evCollector.getEvents();
-        expect(evs, hasLength(3));
+        expect(evs, hasLength(4));
         expect(evs.take(2), everyElement(isA<ParticipantStatusClientEvent>()));
+        final progress = evs[2] as SignaturesProgressClientEvent;
+        expect(progress.request.progress.stage, SignaturesProgressStage.failed);
         final ev = evs.last as SignaturesFailureClientEvent;
         expect(ev.request.details.id, sigDetails.id);
       });
@@ -1521,6 +1538,7 @@ void main() {
           details: reqDetails,
           creator: ids.first,
           expiry: Expiry(Duration(seconds: -1)),
+          progress: progress(),
         );
 
         // Should get an expiry event
@@ -1690,6 +1708,7 @@ void main() {
                   SignaturesRequestEvent(
                     details: signedDetails,
                     creator: ids.first,
+                    progress: progress(),
                   ),
                 ],
                 sigRounds: badSigRounds,
@@ -1786,8 +1805,14 @@ void main() {
 
           // Everyone gets failure event and signature request is removed
           for (final tc in tcs) {
-            final ev = await tc.evCollector
-                .getExpectOneEvent<SignaturesFailureClientEvent>();
+            final events = await tc.evCollector.getEvents();
+            expect(events, hasLength(2));
+            final progress = events.first as SignaturesProgressClientEvent;
+            expect(
+              progress.request.progress.stage,
+              SignaturesProgressStage.failed,
+            );
+            final ev = events.last as SignaturesFailureClientEvent;
             expect(ev.request.details.id, reqDetails.id);
             expect(tc.client.signaturesRequests, isEmpty);
             expect(tc.store.sigsRejected, isEmpty);
@@ -1924,22 +1949,42 @@ void main() {
             waitFor(() => ctx.api.debugState.completedSigs.values.isNotEmpty);
 
         Future<void> expectSigsEv(TestClient tc) async {
-          final ev = await tc.evCollector
-              .getExpectOneEvent<SignaturesCompleteClientEvent>();
+          final events = await tc.evCollector.getEvents();
+          expect(
+            events.where(
+              (event) =>
+                  event is! SignaturesProgressClientEvent &&
+                  event is! SignaturesCompleteClientEvent,
+            ),
+            isEmpty,
+          );
+          final completions = events.whereType<SignaturesCompleteClientEvent>();
+          expect(completions, hasLength(1));
+          final ev = completions.single;
           expect(ev.details.id, reqDetails.id);
           expect(ev.creator, ids.first);
           expect(ev.signatures, hasLength(2));
         }
 
-        Future<void> expectNoEvents() =>
-            Future.wait(tcs.map((tc) => tc.evCollector.expectNoEvents()));
+        Future<void> expectOnlyProgressEvents() => Future.wait(
+          tcs.map(
+            (tc) => tc.evCollector
+                .expectOnlyOneEventType<SignaturesProgressClientEvent>(),
+          ),
+        );
 
         Future<void> expectOnlyStatusEvents(Iterable<TestClient> tcs) =>
             Future.wait(
-              tcs.map(
-                (tc) => tc.evCollector
-                    .expectOnlyOneEventType<ParticipantStatusClientEvent>(),
-              ),
+              tcs.map((tc) async {
+                final events = await tc.evCollector.getEvents();
+                expect(
+                  events.where(
+                    (event) => event is! SignaturesProgressClientEvent,
+                  ),
+                  everyElement(isA<ParticipantStatusClientEvent>()),
+                );
+                await tc.evCollector.expectNoError();
+              }),
             );
 
         test("can create valid signature", () async {
@@ -1950,7 +1995,7 @@ void main() {
           // Not completed after 2 more approvals
           // First is ignored
           await massAccept(tcs.take(3));
-          await expectNoEvents();
+          await expectOnlyProgressEvents();
 
           // 3 more approvals completes signatures
           await massAccept(tcs.skip(3).take(3));
@@ -1984,7 +2029,7 @@ void main() {
 
           // Approve 3 more
           await massAccept(tcs.skip(5).take(3));
-          await expectNoEvents();
+          await expectOnlyProgressEvents();
 
           // Of original rejectors, accept again giving 6 in total
           // This creates round with 4, 5, 6, 7, 8, 1

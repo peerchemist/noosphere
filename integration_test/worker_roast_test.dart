@@ -262,6 +262,20 @@ Future<void> _runScenario({
       () => worker.requestSignatures('signer-0', details),
     );
     final request = await secondRequest.timeout(const Duration(seconds: 15));
+    expect(request.request.progress.threshold, threshold);
+    expect(request.request.progress.contributingParticipants, [
+      request.request.creator,
+    ]);
+    expect(request.request.progress.stage, 'collecting');
+    final signingProgress = events
+        .where((event) => event is WorkerSigningRequestEvent)
+        .cast<WorkerSigningRequestEvent>()
+        .firstWhere(
+          (event) =>
+              event.setupId == 'signer-0' &&
+              event.request.decodeProposal().id == details.id &&
+              event.request.progress.stage == 'signing',
+        );
     stores[1].armSigningGate();
     final accepting = timed(
       'acceptSignatures',
@@ -278,6 +292,13 @@ Future<void> _runScenario({
       () => worker.snapshot('signer-${participants - 1}'),
     );
     await accepting;
+    expect(
+      (await signingProgress.timeout(const Duration(seconds: 15)))
+          .request
+          .progress
+          .threshold,
+      threshold,
+    );
     final results = await Future.wait(resultFutures)
         .timeout(const Duration(minutes: 2));
 

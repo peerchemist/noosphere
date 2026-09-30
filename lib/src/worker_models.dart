@@ -64,6 +64,21 @@ final class WorkerKeyInfo {
   final String description;
 }
 
+/// Coordinator-observed progress for a threshold-signing request.
+final class WorkerSigningProgress {
+  WorkerSigningProgress({
+    required this.threshold,
+    required List<String> contributingParticipants,
+    required this.stage,
+  }) : contributingParticipants = List.unmodifiable(contributingParticipants);
+
+  final int threshold;
+  final List<String> contributingParticipants;
+
+  /// `collecting`, `signing`, `completed`, or `failed`.
+  final String stage;
+}
+
 /// Sanitized signing proposal used both for display and approval binding.
 final class WorkerSigningRequest {
   WorkerSigningRequest({
@@ -72,6 +87,7 @@ final class WorkerSigningRequest {
     required this.creator,
     required this.expiry,
     required this.status,
+    required this.progress,
   }) : id = Uint8List.fromList(id),
        proposalBytes = Uint8List.fromList(proposalBytes);
 
@@ -82,6 +98,7 @@ final class WorkerSigningRequest {
 
   /// `waiting`, `accepted`, or `rejected`.
   final String status;
+  final WorkerSigningProgress progress;
 
   SignaturesRequestDetails decodeProposal() =>
       SignaturesRequestDetails.fromBytes(proposalBytes);

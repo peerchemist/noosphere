@@ -174,6 +174,7 @@ int approximateMessageBytes(Object? value) => switch (value) {
   final WorkerDkgStatus value => _workerDtoBytes(value),
   final WorkerKeyInfo value => _workerDtoBytes(value),
   final WorkerSigningRequest value => _workerDtoBytes(value),
+  final WorkerSigningProgress value => _workerDtoBytes(value),
   final NoosphereWorkerSnapshot value => _workerDtoBytes(value),
   final NoosphereWorkerEvent value => _workerDtoBytes(value),
   _ => 8,
@@ -204,7 +205,10 @@ int _workerDtoBytes(Object value) => switch (value) {
     _strings([value.creator, value.status]) +
         value.id.length +
         value.proposalBytes.length +
+        _workerDtoBytes(value.progress) +
         8,
+  final WorkerSigningProgress value =>
+    _strings([value.stage, ...value.contributingParticipants]) + 8,
   final NoosphereWorkerSnapshot value =>
     _strings([value.setupId, ...value.onlineParticipants]) +
         (value.coordinator == null ? 0 : _workerDtoBytes(value.coordinator!)) +

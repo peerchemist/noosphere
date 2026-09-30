@@ -208,6 +208,11 @@ void main() {
       creator: 'participant',
       expiry: DateTime.fromMillisecondsSinceEpoch(1),
       status: 'waiting',
+      progress: WorkerSigningProgress(
+        threshold: 2,
+        contributingParticipants: const ['participant'],
+        stage: 'collecting',
+      ),
     );
     bytes[0] = 9;
 

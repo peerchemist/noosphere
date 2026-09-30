@@ -23,6 +23,7 @@ export 'api/types/signature_metadata.dart';
 export 'api/types/signature_reply.dart';
 export 'api/types/signature_round_start.dart';
 export 'api/types/signatures_request_details.dart';
+export 'api/types/signatures_progress.dart';
 export 'api/types/signed.dart';
 export 'api/types/signed_dkg_ack.dart';
 export 'api/types/signed_message.dart';

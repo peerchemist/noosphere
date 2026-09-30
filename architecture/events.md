@@ -35,13 +35,14 @@ client explicitly translate every supported variant.
 | 4 | `DkgRound2ShareEvent` | Name, commitment-set signature, sender and recipient ciphertext |
 | 5 | `DkgAckEvent` | Nonempty set of signed key ACKs |
 | 6 | `DkgAckRequestEvent` | Nonempty set of missing-ACK requests |
-| 7 | `SignaturesRequestEvent` | Signed signing proposal and creator |
+| 7 | `SignaturesRequestEvent` | Signed signing proposal, creator and current coordinator progress |
 | 8 | `SignatureNewRoundsEvent` | Request ID and signature-index/commitment-set rounds |
 | 9 | `SignaturesCompleteEvent` | Request ID and ordered final signatures |
 | 10 | `SignaturesFailureEvent` | Request ID that can no longer reach threshold |
 | 11 | `KeepaliveEvent` | No payload; optional stream activity |
 | 12 | `SecretShareEvent` | Sender, group key and encrypted recovery share |
 | 13 | `ConstructedKeyEvent` | Participant and signed claim of full-key reconstruction |
+| 14 | `SignaturesProgressEvent` | Request ID, current threshold, contributing participants and stage |
 
 `NewDkgEvent` and `SignaturesRequestEvent` implement `DetailsEvent`, allowing
 common checks of the creator's signature and expiry. They carry authenticated
@@ -76,6 +77,7 @@ variants are:
 | `UpdatedDkgClientEvent` | Current `DkgInProgress` |
 | `RejectedDkgClientEvent` | Removed proposal, attributed participant if any and `DkgFault` |
 | `SignaturesRequestClientEvent` | Public signing request |
+| `SignaturesProgressClientEvent` | Updated coordinator-observed signing progress |
 | `SignaturesFailureClientEvent` | Removed/failed request |
 | `SignaturesExpiryClientEvent` | Expired request |
 | `SignaturesCompleteClientEvent` | Original details, creator and verified signatures |
@@ -107,7 +109,7 @@ maps the participant event to a deliberate public DTO in
 | `WorkerSnapshotEvent` | Startup, replacement, explicit mutations, role changes and server-address refresh; complete public setup projection |
 | `WorkerParticipantEvent` | Presence; public ID string and boolean |
 | `WorkerDkgEvent` | DKG progress/rejection; proposal bytes and public progress fields |
-| `WorkerSigningRequestEvent` | Proposal with request ID, creator, expiry, status and exact bytes |
+| `WorkerSigningRequestEvent` | Proposal with request ID, creator, expiry, local status, exact bytes and coordinator progress |
 | `WorkerSigningResultEvent` | Verified completion with request/proposal bytes, creator and signature byte arrays |
 | `WorkerKeyUpdatedEvent` | Recovery-share update reduced to public key/name/description |
 | `WorkerSessionReplacedEvent` | A replacement `Client` has been attached |

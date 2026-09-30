@@ -565,6 +565,9 @@ void main() {
       signatureRequest.details.toBytes(),
       signedSignatureDetails.toBytes(),
     );
+    expect(signatureRequest.progress.threshold, 2);
+    expect(signatureRequest.progress.contributingParticipants, {ids[0]});
+    expect(signatureRequest.progress.stage, SignaturesProgressStage.collecting);
 
     final roundResponse = await api1.submitSignatureReplies(
       sid: login1.id,
@@ -573,8 +576,15 @@ void main() {
     );
     expect(roundResponse, isA<SignatureNewRoundsResponse>());
     final round = (roundResponse as SignatureNewRoundsResponse).rounds.single;
-    final roundEvent = await events0
-        .getExpectOneEvent<SignatureNewRoundsEvent>();
+    final roundEvents = await events0.getEvents();
+    final roundProgress = roundEvents
+        .whereType<SignaturesProgressEvent>()
+        .single
+        .progress;
+    expect(roundProgress.threshold, 2);
+    expect(roundProgress.contributingParticipants, isEmpty);
+    expect(roundProgress.stage, SignaturesProgressStage.signing);
+    final roundEvent = roundEvents.whereType<SignatureNewRoundsEvent>().single;
     expect(roundEvent.reqId, signatureDetails.id);
     expect(roundEvent.rounds.single.toBytes(), round.toBytes());
 
@@ -617,9 +627,24 @@ void main() {
       ),
       isTrue,
     );
-    final completeEvent = await events0
-        .getExpectOneEvent<SignaturesCompleteEvent>();
+    final completeEvents = await events0.getEvents();
+    final progressEvents = completeEvents
+        .whereType<SignaturesProgressEvent>()
+        .map((event) => event.progress)
+        .toList();
+    expect(progressEvents, hasLength(2));
+    expect(progressEvents.first.contributingParticipants, {ids[0]});
+    expect(progressEvents.last.stage, SignaturesProgressStage.completed);
+    expect(progressEvents.last.threshold, 2);
+    expect(progressEvents.last.contributingParticipants, {ids[0], ids[1]});
+    final completeEvent = completeEvents
+        .whereType<SignaturesCompleteEvent>()
+        .single;
     expect(completeEvent.signatures.single.data, signature.data);
+    expect(
+      await events1.getEvents(),
+      everyElement(isA<SignaturesProgressEvent>()),
+    );
 
     final rejectedDetails = SignaturesRequestDetails(
       requiredSigs: [

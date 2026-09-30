@@ -39,6 +39,7 @@ Future<Client> _loginClient({
   // Verify Signatures Requests
   for (final req in resp2.sigRequests) {
     Client._checkDetailsEvent(config, req);
+    Client._checkSignaturesProgress(config, req.progress);
   }
 
   // Check for duplicate requests
@@ -104,7 +105,11 @@ Future<Client> _loginClient({
 
   // Add signature requests to state
   for (final req in resp2.sigRequests) {
-    await client._handleSigsReq(signed: req.details, creator: req.creator);
+    await client._handleSigsReq(
+      signed: req.details,
+      creator: req.creator,
+      progress: req.progress,
+    );
   }
 
   // Handle signature rounds

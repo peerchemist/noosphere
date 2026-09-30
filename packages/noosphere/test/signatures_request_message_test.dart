@@ -29,6 +29,12 @@ void main() {
     message: message,
   );
 
+  SignaturesProgress progress() => SignaturesProgress(
+    threshold: 1,
+    contributingParticipants: [Identifier.fromUint16(1)],
+    stage: SignaturesProgressStage.collecting,
+  );
+
   test('round-trips empty, Unicode, multiline and long explanations', () {
     for (final message in [
       '',
@@ -92,11 +98,17 @@ void main() {
     final event = SignaturesRequestEvent(
       details: signed,
       creator: Identifier.fromUint16(1),
+      progress: progress(),
     );
     final decoded = SignaturesRequestEvent.fromBytes(event.toBytes());
     expect(decoded.details.obj.message, original.message);
     expect(decoded.details.verify(key.pubkey), isTrue);
     expect(decoded.creator, event.creator);
+    expect(decoded.progress.threshold, 1);
+    expect(decoded.progress.contributingParticipants, {
+      Identifier.fromUint16(1),
+    });
+    expect(decoded.progress.stage, SignaturesProgressStage.collecting);
     expect(decoded.toBytes(), event.toBytes());
 
     final changed = details('Approve invoice #456');
@@ -120,6 +132,7 @@ void main() {
     final event = SignaturesRequestEvent(
       details: Signed.sign(obj: expired, key: key),
       creator: Identifier.fromUint16(1),
+      progress: progress(),
     );
 
     final decoded = SignaturesRequestEvent.fromBytes(event.toBytes());
@@ -141,6 +154,7 @@ void main() {
         SignaturesRequestEvent(
           details: Signed.sign(obj: original, key: key),
           creator: Identifier.fromUint16(1),
+          progress: progress(),
         ),
       ],
       sigRounds: [],
@@ -153,6 +167,7 @@ void main() {
       const Stream.empty(),
     );
     expect(decoded.sigRequests.single.details.obj.message, original.message);
+    expect(decoded.sigRequests.single.progress.threshold, 1);
     expect(decoded.sigRequests.single.details.verify(key.pubkey), isTrue);
     expect(decoded.toBytes(), response.toBytes());
   });

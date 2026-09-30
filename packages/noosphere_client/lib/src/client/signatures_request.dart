@@ -1,6 +1,7 @@
 import 'package:noosphere/api/types/expirable.dart';
 import 'package:noosphere/api/types/expiry.dart';
 import 'package:noosphere/api/types/signatures_request_details.dart';
+import 'package:noosphere/api/types/signatures_progress.dart';
 import 'package:frosty/frosty.dart';
 
 /// If [waiting] the request hasn't received a response by the client, otherwise
@@ -13,11 +14,13 @@ class SignaturesRequest implements Expirable {
   @override
   final Expiry expiry;
   final SignaturesRequestStatus status;
+  final SignaturesProgress progress;
 
   SignaturesRequest({
     required this.details,
     required this.creator,
     required this.expiry,
     required this.status,
+    required this.progress,
   });
 }

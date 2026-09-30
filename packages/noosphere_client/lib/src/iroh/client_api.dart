@@ -569,6 +569,9 @@ Event _decodeEvent(protocol.Events event) {
     protocol.EventType.SIG_FAILURE_EVENT => SignaturesFailureEvent.fromBytes(
       bytes,
     ),
+    protocol.EventType.SIG_PROGRESS_EVENT => SignaturesProgressEvent.fromBytes(
+      bytes,
+    ),
     protocol.EventType.SECRET_SHARE_EVENT => SecretShareEvent.fromBytes(bytes),
     protocol.EventType.CONSTRUCTED_KEY_EVENT => ConstructedKeyEvent.fromBytes(
       bytes,

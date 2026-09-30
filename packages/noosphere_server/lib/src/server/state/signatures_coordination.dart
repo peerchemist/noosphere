@@ -28,7 +28,8 @@ class SingleSignatureInProgressState extends SingleSignatureState {
 /// A completed signature
 class SingleSignatureFinishedState extends SingleSignatureState {
   final cl.SchnorrSignature signature;
-  SingleSignatureFinishedState(this.signature);
+  final Set<Identifier> contributors;
+  SingleSignatureFinishedState(this.signature, this.contributors);
 }
 
 /// Handles the state for ROAST signature coordination for a set of requested
@@ -59,6 +60,47 @@ class SignaturesCoordinationState implements Expirable {
 
   @override
   Expiry get expiry => details.obj.expiry;
+
+  /// A compact request-level view based on the highest-threshold unfinished
+  /// signature. This keeps the count meaningful when one request contains
+  /// keys with different thresholds.
+  SignaturesProgress get progress {
+    final unfinished = sigs.whereType<SingleSignatureInProgressState>().toList()
+      ..sort((a, b) => b.key.group.threshold.compareTo(a.key.group.threshold));
+
+    if (unfinished.isEmpty) {
+      final finished = sigs.cast<SingleSignatureFinishedState>().toList()
+        ..sort(
+          (a, b) => b.contributors.length.compareTo(a.contributors.length),
+        );
+      final contributors = finished.first.contributors;
+      return SignaturesProgress(
+        threshold: contributors.length,
+        contributingParticipants: contributors,
+        stage: SignaturesProgressStage.completed,
+      );
+    }
+
+    final signature = unfinished.first;
+    final rounds = signature.roundForId.values.toSet();
+    if (rounds.isNotEmpty) {
+      final mostAdvanced = rounds.toList()
+        ..sort((a, b) => b.shares.length.compareTo(a.shares.length));
+      return SignaturesProgress(
+        threshold: signature.key.group.threshold,
+        contributingParticipants: mostAdvanced.first.shares.map(
+          (share) => share.$1,
+        ),
+        stage: SignaturesProgressStage.signing,
+      );
+    }
+
+    return SignaturesProgress(
+      threshold: signature.key.group.threshold,
+      contributingParticipants: signature.nextCommitments.keys,
+      stage: SignaturesProgressStage.collecting,
+    );
+  }
 
   List<SignatureRoundStart> pendingRoundsForId(Identifier id) {
     final List<SignatureRoundStart> rounds = [];

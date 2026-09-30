@@ -1157,8 +1157,10 @@ void main() {
       Future<void> expectFailedReq() async {
         for (final client in clients) {
           final evs = await client.getEvents();
-          expect(evs, hasLength(1));
-          final failEvent = evs.first as SignaturesFailureEvent;
+          expect(evs, hasLength(2));
+          final progressEvent = evs.first as SignaturesProgressEvent;
+          expect(progressEvent.progress.stage, SignaturesProgressStage.failed);
+          final failEvent = evs.last as SignaturesFailureEvent;
           expect(failEvent.reqId, sigsDetails.id);
         }
         expectSigReqExists(false);
@@ -1429,8 +1431,17 @@ void main() {
             List<int> sigIs,
           ) async {
             final evs = await clients[i].getEvents();
-            expect(evs, hasLength(1));
-            final newRoundsEv = evs.first as SignatureNewRoundsEvent;
+            expect(
+              evs.where(
+                (event) =>
+                    event is! SignaturesProgressEvent &&
+                    event is! SignatureNewRoundsEvent,
+              ),
+              isEmpty,
+            );
+            final newRounds = evs.whereType<SignatureNewRoundsEvent>();
+            expect(newRounds, hasLength(1));
+            final newRoundsEv = newRounds.single;
             expect(newRoundsEv.reqId, sigsDetails.id);
             expectAndProcessRounds(i, newRoundsEv.rounds, sigIs);
           }
@@ -1535,7 +1546,13 @@ void main() {
 
           // Malicious 2 has no effect
           await expectInvalid(() => submit(2, [0, 1, 2, 3]));
-          await ctx.expectNoEventsOrError();
+          for (final client in clients) {
+            expect(
+              await client.getEvents(),
+              everyElement(isA<SignaturesProgressEvent>()),
+            );
+            await client.expectNoError();
+          }
 
           // Complete 0 and 1 with successful share in 1nd round by 0, but do
           // not complete 3
@@ -1544,7 +1561,13 @@ void main() {
           // 2: r=[0ok,1ok,2,3ok] r=[1,3,6,7] p=[]
           // 3: r=[0ok,1ok,2] r=[0,1ok,3ok] r=[1,3,8] p=[]
           await submit(0, [0, 1]);
-          await ctx.expectNoEventsOrError();
+          for (final client in clients) {
+            expect(
+              await client.getEvents(),
+              everyElement(isA<SignaturesProgressEvent>()),
+            );
+            await client.expectNoError();
+          }
 
           // Give 6 malicious int total (5 more) without failure
           Future.wait([5, 6, 7, 8, 9].map(doMalicious));
@@ -1608,8 +1631,17 @@ void main() {
           for (int i = 0; i < 10; i++) {
             if (i == 4) continue;
             final evs = await clients[i].getEvents();
-            expect(evs, hasLength(1));
-            final completeEv = evs.first as SignaturesCompleteEvent;
+            expect(
+              evs.where(
+                (event) =>
+                    event is! SignaturesProgressEvent &&
+                    event is! SignaturesCompleteEvent,
+              ),
+              isEmpty,
+            );
+            final completeEvents = evs.whereType<SignaturesCompleteEvent>();
+            expect(completeEvents, hasLength(1));
+            final completeEv = completeEvents.single;
             expect(
               completeEv.signatures.map((s) => s.data),
               sigs.map((s) => s.data),
@@ -1627,6 +1659,7 @@ void main() {
           reqState.sigs[2] = SingleSignatureFinishedState(
             // Dummy signature
             cl.SchnorrSignature.sign(getPrivkey(0), Uint8List(32)),
+            ids.take(3).toSet(),
           );
 
           // Do not double count rejector and malicious

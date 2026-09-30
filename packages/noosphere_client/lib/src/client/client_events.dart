@@ -207,6 +207,7 @@ extension _ClientEvents on Client {
             final sigsState = await _handleSigsReq(
               signed: ev.details,
               creator: ev.creator,
+              progress: ev.progress,
             );
             if (sigsState == null) return;
 
@@ -217,8 +218,27 @@ extension _ClientEvents on Client {
                   creator: ev.creator,
                   expiry: sigsState.expiry,
                   status: SignaturesRequestStatus.waiting,
+                  progress: sigsState.progress,
                 ),
               ),
+            );
+          });
+
+        case SignaturesProgressEvent():
+          Client._checkSignaturesProgress(config, ev.progress);
+          await _runSigsReqSyncIfExists(ev.reqId, (sigsState) async {
+            final validThresholds = sigsState.details.requiredSigs
+                .map(
+                  (signature) =>
+                      _keys[signature.groupKey]!.keyInfo.group.threshold,
+                )
+                .toSet();
+            if (!validThresholds.contains(ev.progress.threshold)) {
+              throw ServerMisbehaviour('Invalid signatures progress threshold');
+            }
+            sigsState.progress = ev.progress;
+            _sendEvent(
+              SignaturesProgressClientEvent(_sigsStateToObj(sigsState)),
             );
           });
 

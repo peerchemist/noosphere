@@ -116,9 +116,12 @@ public aggregate key information, generates initial commitments and persists
 the prepared request plus nonces before submitting it.
 
 On a received proposal, the client verifies the creator's signature and the
-metadata. Missing keys cause durable rejection. Otherwise the application can
-accept or reject the request. Initial acceptance generates commitments and
-nonces, durably prepares the reply operation and sends it.
+metadata, including that coordinator progress references roster participants
+and a threshold belonging to one of the requested keys. Missing keys cause
+durable rejection. Otherwise the application can accept or reject the request.
+Initial acceptance generates commitments and nonces, durably prepares the
+reply operation and sends it. Later progress updates produce
+`SignaturesProgressClientEvent` without changing the local approval status.
 
 When a new round arrives, the client checks:
 

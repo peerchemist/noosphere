@@ -2,6 +2,7 @@ import 'package:noosphere/api/types/expirable.dart';
 import 'package:noosphere/api/types/expiry.dart';
 import 'package:noosphere/api/types/signature_round_start.dart';
 import 'package:noosphere/api/types/signatures_request_details.dart';
+import 'package:noosphere/api/types/signatures_progress.dart';
 import 'package:frosty/frosty.dart';
 
 class ClientSigsState implements Expirable {
@@ -10,10 +11,12 @@ class ClientSigsState implements Expirable {
   @override
   final Expiry expiry;
   final List<SignatureRoundStart> pendingRounds = [];
+  SignaturesProgress progress;
 
   ClientSigsState({
     required this.details,
     required this.creator,
     required this.expiry,
+    required this.progress,
   });
 }

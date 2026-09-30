@@ -349,6 +349,14 @@ final class _SetupRuntime {
         creator: request.creator.toString(),
         expiry: request.expiry.time,
         status: request.status.name,
+        progress: WorkerSigningProgress(
+          threshold: request.progress.threshold,
+          contributingParticipants: [
+            for (final id in request.progress.contributingParticipants)
+              id.toString(),
+          ]..sort(),
+          stage: request.progress.stage.name,
+        ),
       );
 
   WorkerKeyInfo _key(FrostKeyWithDetails key) => WorkerKeyInfo(
@@ -412,6 +420,14 @@ final class _SetupRuntime {
           ),
         );
       case SignaturesRequestClientEvent():
+        emit(
+          WorkerSigningRequestEvent(
+            setupId,
+            generation,
+            request: _signing(event.request),
+          ),
+        );
+      case SignaturesProgressClientEvent():
         emit(
           WorkerSigningRequestEvent(
             setupId,

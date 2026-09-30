@@ -130,6 +130,7 @@ extension _ServerSessions on ServerApiHandler {
             (sig) => SignaturesRequestEvent(
               details: sig.details,
               creator: sig.creator,
+              progress: sig.progress,
             ),
           )
           .toList(),

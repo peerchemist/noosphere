@@ -66,12 +66,13 @@ extension _ServerSigning on ServerApiHandler {
       SignaturesRequestEvent(
         details: signedDetails,
         creator: session.participantId,
+        progress: reqState.progress,
       ),
       sid,
     );
   }
 
-  SignaturesRequestId? _checkSigReqFail(
+  SignaturesProgressEvent? _checkSigReqFail(
     SignaturesCoordinationState sigReqState,
   ) {
     final malAndRej =
@@ -85,8 +86,11 @@ extension _ServerSigning on ServerApiHandler {
     if (available < maxThreshold) {
       // Cannot sign one of the signatures as threshold is too high
       final id = sigReqState.details.obj.id;
+      final progress = sigReqState.progress.withStage(
+        SignaturesProgressStage.failed,
+      );
       _state.sigRequests.remove(id);
-      return id;
+      return SignaturesProgressEvent(reqId: id, progress: progress);
     }
     return null;
   }
@@ -110,7 +114,8 @@ extension _ServerSigning on ServerApiHandler {
     final failed = _checkSigReqFail(sigReq);
     await _persist();
     if (failed != null) {
-      _state.sendEventToAll(SignaturesFailureEvent(failed));
+      _state.sendEventToAll(failed);
+      _state.sendEventToAll(SignaturesFailureEvent(failed.reqId));
     }
   }
 
@@ -133,7 +138,8 @@ extension _ServerSigning on ServerApiHandler {
       final failed = _checkSigReqFail(sigReq);
       await _persist();
       if (failed != null) {
-        _state.sendEventToAll(SignaturesFailureEvent(failed));
+        _state.sendEventToAll(failed);
+        _state.sendEventToAll(SignaturesFailureEvent(failed.reqId));
       }
       throw exp;
     }
@@ -226,6 +232,7 @@ extension _ServerSigning on ServerApiHandler {
 
           sigState = sigReq.sigs[sigI] = SingleSignatureFinishedState(
             signature,
+            round.shares.map((share) => share.$1).toSet(),
           );
         }
       }
@@ -288,6 +295,10 @@ extension _ServerSigning on ServerApiHandler {
 
       await _persist();
 
+      _state.sendEventToAll(
+        SignaturesProgressEvent(reqId: reqId, progress: sigReq.progress),
+      );
+
       _state.sendEventToOthers(
         SignaturesCompleteEvent(reqId: reqId, signatures: signatures),
         sid,
@@ -300,6 +311,9 @@ extension _ServerSigning on ServerApiHandler {
     // participants
     if (newRounds.isNotEmpty) {
       await _persist();
+      _state.sendEventToAll(
+        SignaturesProgressEvent(reqId: reqId, progress: sigReq.progress),
+      );
       for (final id in newRounds.keys.where((id) => id != pid)) {
         _state.participantToSession[id]?.sendEvent(
           SignatureNewRoundsEvent(reqId: reqId, rounds: newRounds[id]!),
@@ -311,6 +325,9 @@ extension _ServerSigning on ServerApiHandler {
 
     // Nothing to provide otherwise
     await _persist();
+    _state.sendEventToAll(
+      SignaturesProgressEvent(reqId: reqId, progress: sigReq.progress),
+    );
     return null;
   }
 }

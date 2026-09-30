@@ -4,9 +4,11 @@ extension _ClientSigning on Client {
   Future<ClientSigsState?> _handleSigsReq({
     required Signed<SignaturesRequestDetails> signed,
     required Identifier creator,
+    required SignaturesProgress progress,
   }) async {
     final details = signed.obj;
     if (details.expiry.isExpired) return null;
+    Client._checkSignaturesProgress(config, progress);
 
     // Reject if we do not own any one of the keys
     if (details.requiredSigs.any((sig) => !_keys.keys.contains(sig.groupKey))) {
@@ -21,12 +23,20 @@ extension _ClientSigning on Client {
       return null;
     }
 
+    final expectedThresholds = details.requiredSigs
+        .map((signature) => _keys[signature.groupKey]!.keyInfo.group.threshold)
+        .toSet();
+    if (!expectedThresholds.contains(progress.threshold)) {
+      throw ServerMisbehaviour('Invalid signatures progress threshold');
+    }
+
     // Add to state
     final sigsState = _state.sigRequests[details.id] = ClientSigsState(
       details: details,
       creator: creator,
       // Clamp TTL to max
       expiry: details.expiry.clampUpperTTL(config.maxSignaturesTTL),
+      progress: progress,
     );
 
     // Re-deliver a durable rejection after reconnecting. The storage decision
@@ -394,6 +404,16 @@ extension _ClientSigning on Client {
         details: details,
         creator: config.id,
         expiry: details.expiry,
+        progress: SignaturesProgress(
+          threshold: aggregateKeys.fold<int>(
+            0,
+            (threshold, key) => key.group.threshold > threshold
+                ? key.group.threshold
+                : threshold,
+          ),
+          contributingParticipants: [config.id],
+          stage: SignaturesProgressStage.collecting,
+        ),
       );
     });
   }

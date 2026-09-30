@@ -98,6 +98,13 @@ rejectors and participants found to send invalid contributions. Each
 participant-to-round mappings. A `SignatureRoundState` holds a commitment set
 and collected signature shares.
 
+The coordinator derives `SignaturesProgress` from this state and publishes it
+with the initial request, after each valid reply, and immediately before a
+terminal completion or failure. In `collecting`, contributors are participants
+with queued commitments. In `signing`, they are participants with verified
+shares in the most advanced active round. For a multi-signature request, the
+highest-threshold unfinished signature is the representative progress item.
+
 For each submitted reply, the server checks the index, duplicates, expected
 commitment/share phase, and whether a next commitment is already pending.
 When a participant owes a share, `verifySignatureShare` checks it using the

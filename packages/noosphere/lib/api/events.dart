@@ -14,6 +14,7 @@ import 'types/expiry.dart';
 import 'types/new_dkg_details.dart';
 import 'types/signature_round_start.dart';
 import 'types/signatures_request_details.dart';
+import 'types/signatures_progress.dart';
 import 'types/signed.dart';
 import 'types/signed_dkg_ack.dart';
 
@@ -233,7 +234,12 @@ class SignaturesRequestEvent extends Event implements DetailsEvent {
   Expiry get expiry => details.obj.expiry;
   @override
   final Identifier creator;
-  SignaturesRequestEvent({required this.details, required this.creator});
+  final SignaturesProgress progress;
+  SignaturesRequestEvent({
+    required this.details,
+    required this.creator,
+    required this.progress,
+  });
 
   SignaturesRequestEvent.fromReader(cl.BytesReader reader)
     : this(
@@ -242,6 +248,7 @@ class SignaturesRequestEvent extends Event implements DetailsEvent {
           () => SignaturesRequestDetails.fromReaderAllowNegativeExpiry(reader),
         ),
         creator: reader.readIdentifier(),
+        progress: SignaturesProgress.fromReader(reader),
       );
   SignaturesRequestEvent.fromBytes(Uint8List bytes)
     : this.fromReader(cl.BytesReader(bytes));
@@ -250,6 +257,30 @@ class SignaturesRequestEvent extends Event implements DetailsEvent {
   void write(cl.Writer writer) {
     details.write(writer);
     writer.writeIdentifier(creator);
+    progress.write(writer);
+  }
+}
+
+/// Sent whenever the coordinator-observed signing progress changes.
+class SignaturesProgressEvent extends Event {
+  final SignaturesRequestId reqId;
+  final SignaturesProgress progress;
+
+  SignaturesProgressEvent({required this.reqId, required this.progress});
+
+  SignaturesProgressEvent.fromReader(cl.BytesReader reader)
+    : this(
+        reqId: SignaturesRequestId.fromReader(reader),
+        progress: SignaturesProgress.fromReader(reader),
+      );
+
+  SignaturesProgressEvent.fromBytes(Uint8List bytes)
+    : this.fromReader(cl.BytesReader(bytes));
+
+  @override
+  void write(cl.Writer writer) {
+    reqId.write(writer);
+    progress.write(writer);
   }
 }
 

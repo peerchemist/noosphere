@@ -174,6 +174,7 @@ class ServerState {
             SignaturesRequestEvent(
               details: value.details,
               creator: value.creator,
+              progress: value.progress,
             ).toBytes(),
           ),
         },

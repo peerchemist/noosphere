@@ -167,6 +167,17 @@ class Client {
     _checkIdentifierSet(config, _idsFromCommitments(dkg.commitments));
   }
 
+  static void _checkSignaturesProgress(
+    ClientConfig config,
+    SignaturesProgress progress,
+  ) {
+    if (progress.threshold > config.groupN ||
+        progress.contributingParticipants.length > progress.threshold) {
+      throw ServerMisbehaviour('Invalid signatures progress');
+    }
+    _checkIdentifierSet(config, progress.contributingParticipants);
+  }
+
   // Check round information without state context
   static void _checkRounds(
     ClientConfig config,
@@ -378,6 +389,7 @@ class Client {
               _store.sigNonces.containsKey(sigsState.details.id)
                   ? SignaturesRequestStatus.accepted
                   : SignaturesRequestStatus.waiting),
+        progress: sigsState.progress,
       );
 
   /// A list of all outstanding signatures requests, including those already
