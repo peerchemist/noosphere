@@ -57,6 +57,10 @@ The production default remains a durable external server with Flutter clients.
 An embedded server is available only while its Linux or macOS process is
 alive.
 
+Using the Flutter package as a headless server may also be possible, but this
+has not been tested. Its headless deployment and operational workflow has not
+yet been designed or evaluated.
+
 ## Supported toolchain and pins
 
 - Dart `^3.13.0` and Flutter `>=3.47.0`.
