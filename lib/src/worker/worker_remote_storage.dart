@@ -2,12 +2,16 @@ part of '../worker_runtime.dart';
 
 final class _RemoteRoomPersistence(this.host, this.setupId)
     implements RoomPersistence {
-  final _HostBridge host;
+  final WorkerHost host;
   final String setupId;
 
   @override
   Future<Map<String, Uint8List>> loadAll() async {
-    final records = await host.request(setupId, 'rooms.loadAll', const {});
+    final records = await host.request(
+      setupId,
+      ProviderOperation.loadRooms,
+      const {},
+    );
     return {
       for (final entry in (records! as Map).entries)
         entry.key as String: asBytes(entry.value),
@@ -16,7 +20,7 @@ final class _RemoteRoomPersistence(this.host, this.setupId)
 
   @override
   Future<void> write(String roomId, Uint8List state) => host
-      .request(setupId, 'rooms.write', {
+      .request(setupId, ProviderOperation.writeRoom, {
         'roomId': roomId,
         'state': Uint8List.fromList(state),
       })
@@ -25,12 +29,12 @@ final class _RemoteRoomPersistence(this.host, this.setupId)
 
 final class _RemoteServerPersistence(this.host, this.setupId)
     implements ServerPersistence {
-  final _HostBridge host;
+  final WorkerHost host;
   final String setupId;
 
   @override
   Future<ServerStateSnapshot?> load(String groupId) async {
-    final value = await host.request(setupId, 'server.load', {
+    final value = await host.request(setupId, ProviderOperation.loadServer, {
       'groupId': groupId,
     });
     return value == null ? null : ServerStateSnapshot.fromBytes(asBytes(value));
@@ -38,7 +42,7 @@ final class _RemoteServerPersistence(this.host, this.setupId)
 
   @override
   Future<void> write(String groupId, ServerStateSnapshot state) => host
-      .request(setupId, 'server.write', {
+      .request(setupId, ProviderOperation.writeServer, {
         'groupId': groupId,
         'state': state.toBytes(),
       })
@@ -47,12 +51,16 @@ final class _RemoteServerPersistence(this.host, this.setupId)
 
 final class _RemoteIdentityStore(this.host, this.setupId)
     implements ServerIdentityStore {
-  final _HostBridge host;
+  final WorkerHost host;
   final String setupId;
 
   @override
   Future<Uint8List> read() async {
-    final result = await host.request(setupId, 'identity.read', const {});
+    final result = await host.request(
+      setupId,
+      ProviderOperation.readIdentity,
+      const {},
+    );
     return asBytes(result);
   }
 
@@ -64,12 +72,16 @@ final class _RemoteIdentityStore(this.host, this.setupId)
 
 final class _RemoteClientStorage(this.host, this.setupId)
     implements ClientStorageInterface {
-  final _HostBridge host;
+  final WorkerHost host;
   final String setupId;
 
   @override
   Future<ClientStorageSnapshot> loadState() async {
-    final value = await host.request(setupId, 'storage.loadState', const {});
+    final value = await host.request(
+      setupId,
+      ProviderOperation.loadState,
+      const {},
+    );
     final snapshot = value! as Map<Object?, Object?>;
     final keys = {
       for (final bytes in snapshot['keys']! as List)
@@ -109,7 +121,7 @@ final class _RemoteClientStorage(this.host, this.setupId)
 
   @override
   Future<void> addOrReplaceFrostKey(FrostKeyWithDetails newKey) => host
-      .request(setupId, 'storage.addKey', {'key': newKey.toBytes()})
+      .request(setupId, ProviderOperation.addKey, {'key': newKey.toBytes()})
       .then((_) {});
 
   @override
@@ -118,7 +130,7 @@ final class _RemoteClientStorage(this.host, this.setupId)
     SignaturesNonces nonces,
     int capacity,
   ) => host
-      .request(setupId, 'storage.addNonces', {
+      .request(setupId, ProviderOperation.addNonces, {
         'id': id.toBytes(),
         'nonces': encodeSignaturesNonces(nonces),
         'capacity': capacity,
@@ -130,7 +142,7 @@ final class _RemoteClientStorage(this.host, this.setupId)
     PreparedSignaturesOperation operation,
     int capacity,
   ) => host
-      .request(setupId, 'storage.prepareSignatures', {
+      .request(setupId, ProviderOperation.prepareSignatures, {
         'operation': operation.toBytes(),
         'capacity': capacity,
       })
@@ -138,7 +150,9 @@ final class _RemoteClientStorage(this.host, this.setupId)
 
   @override
   Future<void> completeSignaturesOperation(SignaturesRequestId id) => host
-      .request(setupId, 'storage.completeSignatures', {'id': id.toBytes()})
+      .request(setupId, ProviderOperation.completeSignatures, {
+        'id': id.toBytes(),
+      })
       .then((_) {});
 
   @override
@@ -146,7 +160,7 @@ final class _RemoteClientStorage(this.host, this.setupId)
     SignaturesRequestId id,
     FinalExpirable expirable,
   ) => host
-      .request(setupId, 'storage.addRejection', {
+      .request(setupId, ProviderOperation.addRejection, {
         'id': id.toBytes(),
         'expiryMicros': expirable.expiry.time.microsecondsSinceEpoch,
       })
@@ -154,11 +168,13 @@ final class _RemoteClientStorage(this.host, this.setupId)
 
   @override
   Future<void> removeRejectionOfSigsRequest(SignaturesRequestId id) => host
-      .request(setupId, 'storage.removeRejection', {'id': id.toBytes()})
+      .request(setupId, ProviderOperation.removeRejection, {'id': id.toBytes()})
       .then((_) {});
 
   @override
   Future<void> removeSigsRequest(SignaturesRequestId id) => host
-      .request(setupId, 'storage.removeSignatures', {'id': id.toBytes()})
+      .request(setupId, ProviderOperation.removeSignatures, {
+        'id': id.toBytes(),
+      })
       .then((_) {});
 }

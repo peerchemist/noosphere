@@ -39,6 +39,8 @@ jobs:
       - name: Run native Linux integration tests
         working-directory: noosphere
         run: |
+          xvfb-run -a flutter test integration_test/worker_setup_runtime_test.dart -d linux
+          xvfb-run -a flutter test integration_test/example_session_test.dart -d linux
           xvfb-run -a flutter test integration_test/native_transport_test.dart -d linux
           xvfb-run -a flutter test integration_test/roast_2_of_2_test.dart -d linux
           xvfb-run -a flutter test integration_test/message_signing_2_of_2_test.dart -d linux
@@ -53,6 +55,9 @@ jobs:
           xvfb-run -a flutter test integration_test/worker_forced_shutdown_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_process_relaunch_test.dart -d linux --dart-define=NOOSPHERE_RELAUNCH_PHASE=prepare
           xvfb-run -a flutter test integration_test/worker_process_relaunch_test.dart -d linux --dart-define=NOOSPHERE_RELAUNCH_PHASE=recover
+      - name: Validate standalone source consumer
+        working-directory: noosphere
+        run: xvfb-run -a ./tool/validate_release_consumer.sh
       - name: Analyze and build example
         working-directory: noosphere/example
         run: |
@@ -99,6 +104,8 @@ jobs:
       - name: Run native macOS integration tests
         working-directory: noosphere
         run: |
+          flutter test integration_test/worker_setup_runtime_test.dart -d macos
+          flutter test integration_test/example_session_test.dart -d macos
           flutter test integration_test/native_transport_test.dart -d macos
           flutter test integration_test/roast_2_of_2_test.dart -d macos
           flutter test integration_test/message_signing_2_of_2_test.dart -d macos
@@ -113,6 +120,9 @@ jobs:
           flutter test integration_test/worker_forced_shutdown_test.dart -d macos
           flutter test integration_test/worker_process_relaunch_test.dart -d macos --dart-define=NOOSPHERE_RELAUNCH_PHASE=prepare
           flutter test integration_test/worker_process_relaunch_test.dart -d macos --dart-define=NOOSPHERE_RELAUNCH_PHASE=recover
+      - name: Validate standalone source consumer
+        working-directory: noosphere
+        run: ./tool/validate_release_consumer.sh
       - name: Analyze and build example
         working-directory: noosphere/example
         run: |

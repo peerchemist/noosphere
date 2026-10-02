@@ -94,30 +94,26 @@ isolate-local even when underlying Rust resources are process-wide.
 
 ## Internal message protocol
 
-[`worker_protocol.dart`](../lib/src/worker_protocol.dart) defines version 1 and
-configuration encoders. This is Dart port communication, not protobuf:
+[`worker_protocol.dart`](../lib/src/worker_protocol.dart) re-exports internal
+message types, configuration/storage codecs, size accounting and the FIFO
+executor. This is same-build Dart port communication, not the peer wire
+protocol. Sealed message envelopes distinguish commands, provider requests,
+replies, events and startup results. Operation enums replace string dispatch;
+`MessageFields` owns bytes and collections and checks payload field types.
+Native objects are encoded by the configuration and storage codecs.
 
-```text
-command:
-  version, generation, type='command', commandId,
-  operation, setupId, payload
-reply:
-  version, generation, type='reply', commandId, ok,
-  result OR code/message
-host request:
-  version, generation, type='hostRequest', hostRequestId,
-  setupId, operation, payload
-host reply:
-  version, generation, type='hostReply', hostRequestId, ok,
-  result OR code/message
-event:
-  version, generation, type='event', event=<public DTO>
-```
+Every envelope carries a generation; stale generations are ignored. Command
+and provider request IDs have separate completion maps. Successful replies and
+sanitized failures have distinct constructors. Public DTOs contain only owned
+bytes, immutable collections and scalar values.
 
-Messages with a stale generation or wrong version are ignored. Separate maps
-of completers correlate command replies and host replies. DTOs and byte arrays
-are copied deliberately where public snapshots are constructed; native objects
-are reconstructed from serialized values in the receiving isolate.
+The host facade delegates isolate startup, correlation, limits and shutdown to
+[`WorkerCommandChannel`](../lib/src/worker/command_channel.dart), and provider
+binding/lifecycle exclusion to
+[`HostProviderRegistry`](../lib/src/worker/provider_registry.dart). Per-provider
+queues stay in `worker_host_setup.dart` so ordering survives worker replacement.
+Worker role lifecycle uses an injected `WorkerNodeFactory`; event and snapshot
+projection lives in [`WorkerDtoMapper`](../lib/src/worker/dto_mapper.dart).
 
 The default approximate message limit is 8 MiB and the default outstanding
 command limit is 64. The same configured count bounds pending worker-to-host
@@ -127,7 +123,7 @@ DTO requires updating that accounting.
 
 Startup and host-provider timeouts default to 30 seconds; shutdown stages
 default to 5 seconds. There is no blanket per-command execution timeout in
-`_invoke`; command futures can depend on lower-layer timeouts or worker exit.
+`invoke`; command futures can depend on lower-layer timeouts or worker exit.
 Oversized events are replaced with a failure event, and oversized replies
 produce a command error.
 
@@ -178,11 +174,11 @@ core client/server need no knowledge of isolates. For example:
 ```text
 ClientCachedStorage.prepareSignaturesOperation
   -> _RemoteClientStorage
-  -> _HostBridge.request('storage.prepareSignatures')
-  -> NoosphereWorker._handleHostRequest
-  -> _HostSetup serialized provider call
+  -> _HostBridge.request(ProviderOperation.prepareSignatures)
+  -> WorkerCommandChannel._handleHostRequest
+  -> HostSetup serialized provider call
   -> host ClientStorageInterface transaction
-  -> correlated hostReply
+  -> correlated ProviderReply
   -> client may now send its RPC
 ```
 
@@ -200,7 +196,9 @@ their scopes and why provider timeouts are not transaction cancellation.
 The setup attaches the current `Client`, subscribes to its events and emits a
 snapshot before later events from that session. It listens for replacement
 clients from `ReconnectingIrohClient.sessions`, cancels the old subscription,
-attaches the new client and emits replacement then snapshot events. Host
+attaches the new client and emits its snapshot, then the replacement event.
+`SessionDelivery` buffers events during attachment and discards stale-session
+callbacks as soon as replacement begins. Host
 applications do not retain a worker-owned `Client` object.
 
 For an embedded server, the worker polls the public endpoint address snapshot
@@ -249,3 +247,19 @@ snapshot plus a `WorkerFailureEvent` with operation `serve`. The host keeps the
 role's providers reserved until `stopSetup` acknowledges cleanup. Call
 `stopSetup` for that role before restarting it; a false health flag alone does
 not permit replacing providers while old cleanup may still be using them.
+
+A `startup_cleanup_failed` error reserves providers until explicit stop or
+worker close completes. A failed stop also retains the role node for cleanup
+retry; stopping both roles attempts both cleanups even if the first fails.
+These states must not be interpreted as permission to rebind providers.
+
+## Example session ownership
+
+The example's `DemoSessionController` owns startup, participant-specific stores,
+worker subscriptions and shutdown. `NodeScreen` owns form controls and delegates
+session actions; proposal widgets render DTOs and disable expired approvals.
+Disposal cancels address discovery and closes workers returned by an in-flight
+factory. Tests cover disposal during factory creation, server startup, address
+discovery, signer startup and final snapshot, as well as a running session.
+Historical completion display derives the requested HD key and Taproot MAST
+tweak before verifying the signature.

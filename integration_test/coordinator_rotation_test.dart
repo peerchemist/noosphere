@@ -114,7 +114,16 @@ void main() {
         final stopped = await worker.snapshot('signer-0');
         expect(stopped.signerRunning, isFalse);
         expect(stopped.serverRunning, isTrue);
-        // The app reconciles its own durable selection before restarting.
+        // A stopped snapshot does not release the providers. Acknowledge
+        // cleanup, then restart from the app's reconciled durable selection.
+        await expectLater(
+          worker.startSetup(
+            setupId: 'signer-0',
+            client: options[0].withCoordinator(selected),
+          ),
+          throwsStateError,
+        );
+        await worker.lockSigner('signer-0');
         await worker.startSetup(
           setupId: 'signer-0',
           client: options[0].withCoordinator(selected),

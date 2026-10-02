@@ -1,6 +1,6 @@
 part of '../worker_runtime.dart';
 
-final class _HostBridge {
+final class _HostBridge implements WorkerHost {
   _HostBridge(
     this.port,
     this.generation,
@@ -16,9 +16,10 @@ final class _HostBridge {
   int _nextId = 1;
   bool _closed = false;
 
+  @override
   Future<Object?> request(
     String setupId,
-    String operation,
+    ProviderOperation operation,
     Map<String, Object?> payload,
   ) {
     if (_closed) throw StateError('Host bridge is closed.');
@@ -26,15 +27,13 @@ final class _HostBridge {
       throw StateError('Too many host requests are outstanding.');
     }
     final id = _nextId++;
-    final message = <String, Object?>{
-      'version': workerProtocolVersion,
-      'generation': generation,
-      'type': 'hostRequest',
-      'hostRequestId': id,
-      'setupId': setupId,
-      'operation': operation,
-      'payload': payload,
-    };
+    final message = ProviderRequest(
+      generation,
+      id,
+      setupId,
+      operation,
+      payload,
+    );
     if (approximateMessageBytes(message) > maxMessageBytes) {
       throw StateError('Host request exceeds worker message limit.');
     }
@@ -44,20 +43,13 @@ final class _HostBridge {
     return completer.future;
   }
 
-  void complete(Map<Object?, Object?> message) {
-    final id = message['hostRequestId'];
-    if (id is! int) return;
-    final completer = _pending.remove(id);
+  void complete(ProviderReply message) {
+    final completer = _pending.remove(message.id);
     if (completer == null) return;
-    if (message['ok'] == true) {
-      completer.complete(message['result']);
+    if (message.failure case final failure?) {
+      completer.completeError(failure);
     } else {
-      completer.completeError(
-        NoosphereWorkerException(
-          message['code'] as String? ?? 'host_failure',
-          message['message'] as String? ?? 'Host operation failed.',
-        ),
-      );
+      completer.complete(message.result);
     }
   }
 

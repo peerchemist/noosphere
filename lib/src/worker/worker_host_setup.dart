@@ -1,6 +1,17 @@
-part of '../worker.dart';
+import 'dart:async';
+import 'dart:typed_data';
 
-typedef _HostProviders = ({
+import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere_server/noosphere_server.dart'
+    show RoomPersistence, ServerPersistence, ServerStateSnapshot;
+
+import '../client_options.dart';
+import '../server_identity_store.dart';
+import '../server_options.dart';
+import '../worker_models.dart';
+import '../worker_protocol.dart';
+
+typedef HostProviders = ({
   ServerIdentityStore? identityStore,
   ServerPersistence? serverPersistence,
   ClientStorageInterface? storage,
@@ -20,7 +31,7 @@ final _serverPersistenceQueues = Expando<SerialExecutor>(
 );
 final _clientStorageQueues = Expando<SerialExecutor>('Client storage queues');
 
-final class _HostSetup {
+final class HostSetup {
   ServerIdentityStore? identityStore;
   ServerPersistence? serverPersistence;
   Future<Uint8List>? _identity;
@@ -39,7 +50,7 @@ final class _HostSetup {
       roomPersistence != null ||
       getPrivateKey != null;
 
-  _HostProviders get providers => (
+  HostProviders get providers => (
     identityStore: identityStore,
     serverPersistence: serverPersistence,
     storage: storage,
@@ -48,7 +59,7 @@ final class _HostSetup {
     participant: participant,
   );
 
-  set providers(_HostProviders value) {
+  set providers(HostProviders value) {
     identityStore = value.identityStore;
     serverPersistence = value.serverPersistence;
     if (!identical(_identityProvider, identityStore)) {
@@ -97,11 +108,11 @@ final class _HostSetup {
   }
 
   Future<Object?> dispatch(
-    String operation,
+    ProviderOperation operation,
     Map<Object?, Object?> payload,
   ) async {
     switch (operation) {
-      case 'coordinator.persist':
+      case ProviderOperation.persistCoordinator:
         final persist = persistCoordinator;
         if (persist == null) {
           throw StateError('No coordinator switch pending.');
@@ -110,16 +121,16 @@ final class _HostSetup {
           await persist();
           return null;
         });
-      case 'identity.read':
+      case ProviderOperation.readIdentity:
         return loadOrCreateIdentity();
-      case 'rooms.loadAll':
-      case 'rooms.write':
+      case ProviderOperation.loadRooms:
+      case ProviderOperation.writeRoom:
         final rooms = roomPersistence;
         if (rooms == null) throw StateError('No room persistence provider.');
         final queue = _roomPersistenceQueues[rooms] ??= SerialExecutor();
         return queue.run(
           () => _serializeStorage(() async {
-            if (operation == 'rooms.loadAll') {
+            if (operation == ProviderOperation.loadRooms) {
               return {
                 for (final entry in (await rooms.loadAll()).entries)
                   entry.key: Uint8List.fromList(entry.value),
@@ -132,8 +143,8 @@ final class _HostSetup {
             return null;
           }),
         );
-      case 'server.load':
-      case 'server.write':
+      case ProviderOperation.loadServer:
+      case ProviderOperation.writeServer:
         final server = serverPersistence;
         if (server == null) {
           throw StateError('No server persistence provider.');
@@ -142,7 +153,7 @@ final class _HostSetup {
         return queue.run(
           () => _serializeStorage(() async {
             final groupId = payload['groupId']! as String;
-            if (operation == 'server.load') {
+            if (operation == ProviderOperation.loadServer) {
               return (await server.load(groupId))?.toBytes();
             }
             await server.write(
@@ -152,7 +163,7 @@ final class _HostSetup {
             return null;
           }),
         );
-      case 'getPrivateKey':
+      case ProviderOperation.getPrivateKey:
         final provider = getPrivateKey;
         if (provider == null) throw StateError('Signer is locked.');
         if (payload['participant'] != participant) {
@@ -193,14 +204,14 @@ final class _HostSetup {
 
   Future<Object?> _dispatchStorage(
     ClientStorageInterface store,
-    String operation,
+    ProviderOperation operation,
     Map<Object?, Object?> payload,
   ) async {
     final id = payload['id'] == null
         ? null
         : SignaturesRequestId.fromBytes(asBytes(payload['id']));
     switch (operation) {
-      case 'storage.loadState':
+      case ProviderOperation.loadState:
         final snapshot = await store.loadState();
         return {
           'keys': [for (final key in snapshot.keys) key.toBytes()],
@@ -223,24 +234,24 @@ final class _HostSetup {
               },
           ],
         };
-      case 'storage.addKey':
+      case ProviderOperation.addKey:
         await store.addOrReplaceFrostKey(
           FrostKeyWithDetails.fromBytes(asBytes(payload['key'])),
         );
-      case 'storage.addNonces':
+      case ProviderOperation.addNonces:
         await store.addSignaturesNonces(
           id!,
           decodeSignaturesNonces(payload['nonces']! as Map<Object?, Object?>),
           payload['capacity']! as int,
         );
-      case 'storage.prepareSignatures':
+      case ProviderOperation.prepareSignatures:
         await store.prepareSignaturesOperation(
           PreparedSignaturesOperation.fromBytes(asBytes(payload['operation'])),
           payload['capacity']! as int,
         );
-      case 'storage.completeSignatures':
+      case ProviderOperation.completeSignatures:
         await store.completeSignaturesOperation(id!);
-      case 'storage.addRejection':
+      case ProviderOperation.addRejection:
         await store.addRejectedSigsRequest(
           id!,
           FinalExpirable(
@@ -251,9 +262,9 @@ final class _HostSetup {
             ),
           ),
         );
-      case 'storage.removeRejection':
+      case ProviderOperation.removeRejection:
         await store.removeRejectionOfSigsRequest(id!);
-      case 'storage.removeSignatures':
+      case ProviderOperation.removeSignatures:
         await store.removeSigsRequest(id!);
       default:
         throw ArgumentError.value(
@@ -265,27 +276,3 @@ final class _HostSetup {
     return null;
   }
 }
-
-void _validateSetupId(String value) {
-  if (value.isEmpty || value.length > 128) {
-    throw ArgumentError.value(
-      value,
-      'setupId',
-      'must contain 1-128 characters',
-    );
-  }
-}
-
-String _hostErrorCode(Object error) => switch (error) {
-  TimeoutException() => 'host_timeout',
-  StateError() => 'host_state',
-  ArgumentError() => 'host_argument',
-  _ => 'host_failure',
-};
-
-String _safeHostFailure(Object error) => switch (error) {
-  TimeoutException() =>
-    'Host provider timed out; durable outcome may be unknown.',
-  _ =>
-    'Host provider failed (${error.runtimeType}); durable outcome may be unknown.',
-};

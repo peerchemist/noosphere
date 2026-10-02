@@ -51,8 +51,11 @@ worker lifecycle or signing commands for this setup while the switch waits.
 A connection failure after persistence keeps the signer stopped and retains
 the new configuration for an explicit retry. There is no automatic fallback
 or mutation replay. Retry `switchCoordinator` with the selected address and an
-idempotent persistence callback, or start from the app's stored selection using
-`clientOptions.withCoordinator(address)`. Subsequent disconnects after a
+idempotent persistence callback, or call `lockSigner(setupId)` to acknowledge cleanup and release the reserved
+providers, then use `startSetup` with
+`clientOptions.withCoordinator(address)` from the app's stored selection.
+A stopped snapshot alone does not release providers. This explicit stop is also
+required before restarting after a pending-state or persistence failure. Subsequent disconnects after a
 successful connection use the existing reconnect behavior. On process restart,
 load the persisted selection before `startSetup`.
 

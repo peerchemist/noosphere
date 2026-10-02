@@ -48,7 +48,8 @@ final class WorkerDkgStatus {
   /// bound to the proposal that the host reviewed.
   final Uint8List proposalBytes;
 
-  NewDkgDetails decodeProposal() => NewDkgDetails.fromBytes(proposalBytes);
+  NewDkgDetails decodeProposal() =>
+      NewDkgDetails.fromBytesAllowExpired(proposalBytes);
 }
 
 /// Public view of a locally available FROST key. It contains no secret share.
@@ -101,7 +102,7 @@ final class WorkerSigningRequest {
   final WorkerSigningProgress progress;
 
   SignaturesRequestDetails decodeProposal() =>
-      SignaturesRequestDetails.fromBytes(proposalBytes);
+      SignaturesRequestDetails.fromBytesAllowExpired(proposalBytes);
 }
 
 /// A point-in-time public view of one setup.

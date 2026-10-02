@@ -1,26 +1,28 @@
 part of '../worker_runtime.dart';
 
-typedef _Emit = void Function(NoosphereWorkerEvent event);
+typedef WorkerEventSink = void Function(NoosphereWorkerEvent event);
 
-final class _SetupRuntime {
-  _SetupRuntime({
+final class WorkerSetupRuntime {
+  WorkerSetupRuntime({
     required this.setupId,
     required this.generation,
     required this.host,
     required this.emit,
+    this.nodeFactory = startWorkerNode,
   });
 
   final String setupId;
   final int generation;
-  final _HostBridge host;
-  final _Emit emit;
-  NoosphereNode? _serverNode;
-  NoosphereNode? _clientNode;
+  final WorkerHost host;
+  final WorkerNodeFactory nodeFactory;
+  final WorkerEventSink emit;
+  WorkerNode? _serverNode;
+  WorkerNode? _clientNode;
   Client? _client;
   ClientNodeOptions? _clientOptions;
   String? _participant;
   StreamSubscription<Client>? _sessions;
-  StreamSubscription<ClientEvent>? _events;
+  final _events = SessionDelivery<ClientEvent>();
   Timer? _serverAddressPoll;
   EndpointAddr? _serverAddress;
   final _serial = SerialExecutor();
@@ -28,31 +30,25 @@ final class _SetupRuntime {
   bool get hasRoles => _serverNode != null || _clientNode != null;
 
   Future<void> start({
-    required Map<Object?, Object?>? serverMessage,
-    required Map<Object?, Object?>? clientMessage,
+    EmbeddedServerOptions? server,
+    ClientNodeOptions? client,
   }) => _synchronized(() async {
-    if (serverMessage == null && clientMessage == null) {
+    if (server == null && client == null) {
       throw ArgumentError('At least one worker role is required.');
     }
-    final startedServer = serverMessage != null && _serverNode == null;
-    if (serverMessage != null && _serverNode != null) {
+    final startedServer = server != null && _serverNode == null;
+    if (server != null && _serverNode != null) {
       throw StateError('Server role is already running.');
     }
-    if (clientMessage != null && _clientNode != null) {
+    if (client != null && _clientNode != null) {
       throw StateError('Signer role is already running.');
     }
 
     try {
-      if (serverMessage != null) {
-        final options = decodeServerOptions(
-          serverMessage,
-          _RemoteIdentityStore(host, setupId),
-          _RemoteServerPersistence(host, setupId),
-          _RemoteRoomPersistence(host, setupId),
-        );
-        final node = await NoosphereNode.startInitialized(server: options);
+      if (server != null) {
+        final node = await nodeFactory(server: server);
         _serverNode = node;
-        _serverAddress = node.server!.address;
+        _serverAddress = node.serverAddress;
         unawaited(
           node.serverDone!.then(
             (termination) => _serverTerminated(node, termination),
@@ -67,25 +63,29 @@ final class _SetupRuntime {
           (_) => _refreshServerAddress(node),
         );
       }
-      if (clientMessage != null) {
-        final options = decodeClientOptions(
-          clientMessage,
-          _RemoteClientStorage(host, setupId),
-          (purpose) => _getPrivateKey(purpose),
-        );
-        await _startSigner(options);
+      if (client != null) {
+        await _startSigner(client);
       }
       _emitSnapshot();
-    } catch (_) {
-      if (clientMessage != null && _clientNode != null) {
-        await _stopSigner();
-      } else if (clientMessage != null) {
-        _participant = null;
+    } catch (error, stackTrace) {
+      Object? cleanupError;
+      try {
+        if (client != null) await _stopSigner();
+      } catch (failure) {
+        cleanupError = failure;
       }
-      if (startedServer && _serverNode != null) {
-        await _stopServer();
+      try {
+        if (startedServer) await _stopServer();
+      } catch (failure) {
+        cleanupError ??= failure;
       }
-      rethrow;
+      if (cleanupError != null) {
+        throw const NoosphereWorkerException(
+          'startup_cleanup_failed',
+          'Startup failed and role cleanup is incomplete. Stop the setup or close the worker before retrying.',
+        );
+      }
+      Error.throwWithStackTrace(error, stackTrace);
     }
   });
 
@@ -94,7 +94,7 @@ final class _SetupRuntime {
     bool replacement = false,
   }) async {
     _participant = options.clientConfig.id.toString();
-    final node = await NoosphereNode.startInitialized(client: options);
+    final node = await nodeFactory(client: options);
     _clientNode = node;
     _clientOptions = options;
     await _attachClient(node.client!.current, replacement: replacement);
@@ -104,27 +104,27 @@ final class _SetupRuntime {
           if (identical(_clientNode, node)) {
             await _attachClient(client, replacement: true);
           }
-        }),
+        }).catchError((Object error) => _failure('reconnect', error, true)),
       ),
       onError: (Object error) => _failure('reconnect', error, true),
     );
   }
 
   Future<void> _attachClient(Client client, {required bool replacement}) async {
-    await _events?.cancel();
     _client = client;
-    _events = client.events.listen(
-      _onClientEvent,
-      onError: (Object error) => _failure('session', error, true),
+    await _events.attach(
+      client.events,
+      event: _onClientEvent,
+      error: (error) => _failure('session', error, true),
+      snapshot: _emitSnapshot,
+      replaced: replacement
+          ? () => emit(WorkerSessionReplacedEvent(setupId, generation))
+          : null,
     );
-    if (replacement) {
-      emit(WorkerSessionReplacedEvent(setupId, generation));
-    }
-    _emitSnapshot();
   }
 
   Future<coinlib.ECPrivateKey> _getPrivateKey(KeyPurpose purpose) async {
-    final bytes = await host.request(setupId, 'getPrivateKey', {
+    final bytes = await host.request(setupId, ProviderOperation.getPrivateKey, {
       'purpose': purpose.index,
       'participant': _participant,
     });
@@ -205,9 +205,19 @@ final class _SetupRuntime {
 
   Future<Object?> stopRoles(NoosphereWorkerRoles roles) =>
       _synchronized(() async {
-        if (roles != NoosphereWorkerRoles.server) await _stopSigner();
-        if (roles != NoosphereWorkerRoles.signer) await _stopServer();
+        Object? failure;
+        try {
+          if (roles != NoosphereWorkerRoles.server) await _stopSigner();
+        } catch (error) {
+          failure = error;
+        }
+        try {
+          if (roles != NoosphereWorkerRoles.signer) await _stopServer();
+        } catch (error) {
+          failure ??= error;
+        }
         _emitSnapshot();
+        if (failure != null) throw failure;
         return null;
       });
 
@@ -227,7 +237,11 @@ final class _SetupRuntime {
             'Reconcile pending signing operations before switching the coordinator.',
           );
         }
-        await host.request(setupId, 'coordinator.persist', const {});
+        await host.request(
+          setupId,
+          ProviderOperation.persistCoordinator,
+          const {},
+        );
         final updated = previous.withCoordinator(address);
         try {
           await _startSigner(updated, replacement: true);
@@ -242,28 +256,41 @@ final class _SetupRuntime {
 
   Future<void> _stopSigner() async {
     final node = _clientNode;
-    _clientNode = null;
     _client = null;
     _clientOptions = null;
     _participant = null;
-    await _sessions?.cancel();
-    await _events?.cancel();
+    Object? failure;
+    try {
+      await _sessions?.cancel();
+    } catch (error) {
+      failure = error;
+    }
     _sessions = null;
-    _events = null;
-    await node?.close();
+    try {
+      await _events.cancel();
+    } catch (error) {
+      failure ??= error;
+    }
+    try {
+      await node?.close();
+      _clientNode = null;
+    } catch (error) {
+      failure ??= error;
+    }
+    if (failure != null) throw failure;
   }
 
   Future<void> _stopServer() async {
     final node = _serverNode;
-    _serverNode = null;
     _serverAddress = null;
     _serverAddressPoll?.cancel();
     _serverAddressPoll = null;
     await node?.close();
+    _serverNode = null;
   }
 
   Future<void> _serverTerminated(
-    NoosphereNode node,
+    WorkerNode node,
     NoosphereServerTermination termination,
   ) => _synchronized(() async {
     if (!identical(_serverNode, node)) return;
@@ -283,11 +310,11 @@ final class _SetupRuntime {
     );
   });
 
-  void _refreshServerAddress(NoosphereNode node) {
+  void _refreshServerAddress(WorkerNode node) {
     if (!identical(_serverNode, node)) return;
     try {
-      final address = node.server!.address;
-      if (_sameAddress(_serverAddress, address)) return;
+      final address = node.serverAddress;
+      if (address == null || _sameAddress(_serverAddress, address)) return;
       _serverAddress = address;
       _emitSnapshot();
     } catch (error) {
@@ -315,179 +342,17 @@ final class _SetupRuntime {
   Future<T> _synchronized<T>(Future<T> Function() operation) =>
       _serial.run(operation);
 
-  NoosphereWorkerSnapshot snapshot() {
-    final client = _client;
-    final server = _serverNode?.server;
-    final serverAddress = _serverAddress ?? server?.address;
-    return NoosphereWorkerSnapshot(
-      setupId: setupId,
-      generation: generation,
-      serverRunning: _serverNode?.serverRunning == true,
-      signerRunning: _clientNode != null,
-      connected: _clientNode?.client?.isConnected == true,
-      coordinator: server == null || serverAddress == null
-          ? null
-          : WorkerCoordinatorAddress(
-              id: server.id.toZ32(),
-              relayUrls: [for (final url in serverAddress.relayUrls) url.value],
-              ipAddrs: serverAddress.ipAddrs,
-            ),
-      onlineParticipants: client == null
-          ? const []
-          : [for (final id in client.onlineParticipants) id.toString()],
-      dkgs: client == null
-          ? const []
-          : [
-              for (final dkg in client.dkgRequests)
-                _dkgStatus(dkg, stage: 'waiting'),
-              for (final dkg in client.acceptedDkgs) _dkgStatus(dkg),
-            ],
-      signingRequests: client == null
-          ? const []
-          : [
-              for (final request in client.signaturesRequests)
-                _signing(request),
-            ],
-      keys: client == null
-          ? const []
-          : [for (final key in client.keys.values) _key(key)],
-    );
-  }
-
-  WorkerDkgStatus _dkgStatus(DkgInProgress progress, {String? stage}) =>
-      WorkerDkgStatus(
-        name: progress.details.name,
-        description: progress.details.description,
-        threshold: progress.details.threshold,
-        expiry: progress.expiry.time,
-        creator: progress.creator.toString(),
-        stage: stage ?? progress.stage.name,
-        completedParticipants: [
-          for (final id in progress.completed) id.toString(),
-        ],
-        proposalBytes: progress.details.toBytes(),
-      );
-
-  WorkerSigningRequest _signing(SignaturesRequest request) =>
-      WorkerSigningRequest(
-        id: request.details.id.toBytes(),
-        proposalBytes: request.details.toBytes(),
-        creator: request.creator.toString(),
-        expiry: request.expiry.time,
-        status: request.status.name,
-        progress: WorkerSigningProgress(
-          threshold: request.progress.threshold,
-          contributingParticipants: [
-            for (final id in request.progress.contributingParticipants)
-              id.toString(),
-          ]..sort(),
-          stage: request.progress.stage.name,
-        ),
-      );
-
-  WorkerKeyInfo _key(FrostKeyWithDetails key) => WorkerKeyInfo(
-    groupKeyHex: key.groupKey.hex,
-    name: key.name,
-    description: key.description,
+  late final _mapper = WorkerDtoMapper(setupId, generation, emit);
+  NoosphereWorkerSnapshot snapshot() => _mapper.snapshot(
+    client: _client,
+    serverRunning: _serverNode?.serverRunning == true,
+    signerRunning: _clientNode != null,
+    connected: _clientNode?.client?.isConnected == true,
+    serverAddress: _serverAddress,
   );
 
-  void _onClientEvent(ClientEvent event) {
-    switch (event) {
-      case ParticipantStatusClientEvent():
-        emit(
-          WorkerParticipantEvent(
-            setupId,
-            generation,
-            participant: event.id.toString(),
-            online: event.loggedIn,
-          ),
-        );
-      case UpdatedDkgClientEvent():
-        final waitingForLocalApproval =
-            _client?.dkgRequests.any(
-              (dkg) => dkg.details.name == event.progress.details.name,
-            ) ==
-            true;
-        emit(
-          WorkerDkgEvent(
-            setupId,
-            generation,
-            status: _dkgStatus(
-              event.progress,
-              stage: waitingForLocalApproval ? 'waiting' : null,
-            ),
-          ),
-        );
-      case RejectedDkgClientEvent():
-        emit(
-          WorkerDkgEvent(
-            setupId,
-            generation,
-            status: WorkerDkgStatus(
-              name: event.details.name,
-              description: event.details.description,
-              threshold: event.details.threshold,
-              expiry: event.details.expiry.time,
-              creator: event.participant?.toString() ?? '',
-              stage: 'rejected',
-              completedParticipants: const [],
-              proposalBytes: event.details.toBytes(),
-            ),
-            rejected: true,
-            failure: event.fault.name,
-          ),
-        );
-      case CompletedDkgClientEvent():
-        emit(
-          WorkerKeyUpdatedEvent(
-            setupId,
-            generation,
-            key: _key(event.keyDetails),
-          ),
-        );
-      case SignaturesRequestClientEvent():
-        emit(
-          WorkerSigningRequestEvent(
-            setupId,
-            generation,
-            request: _signing(event.request),
-          ),
-        );
-      case SignaturesProgressClientEvent():
-        emit(
-          WorkerSigningRequestEvent(
-            setupId,
-            generation,
-            request: _signing(event.request),
-          ),
-        );
-      case SignaturesFailureClientEvent():
-        _failure('signatures', 'Signing request failed.', false);
-      case SignaturesExpiryClientEvent():
-        _failure('signatures', 'Signing request expired.', false);
-      case SignaturesCompleteClientEvent():
-        emit(
-          WorkerSigningResultEvent(
-            setupId,
-            generation,
-            requestId: event.details.id.toBytes(),
-            proposalBytes: event.details.toBytes(),
-            creator: event.creator.toString(),
-            signatures: [
-              for (final signature in event.signatures) signature.data,
-            ],
-          ),
-        );
-      case SecretShareClientEvent():
-        emit(
-          WorkerKeyUpdatedEvent(
-            setupId,
-            generation,
-            key: _key(event.keyDetails),
-          ),
-        );
-    }
-  }
+  void _onClientEvent(ClientEvent event) =>
+      _mapper.event(event, client: _client);
 
   void _emitSnapshot() => emit(WorkerSnapshotEvent(snapshot()));
 

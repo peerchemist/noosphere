@@ -15,12 +15,16 @@ import 'client_options.dart';
 import 'initialization.dart';
 import 'iroh_node.dart';
 import 'server_identity_store.dart';
+import 'server_options.dart';
+import 'worker/dto_mapper.dart';
+import 'worker/node_factory.dart';
+import 'worker/session_delivery.dart';
 import 'worker_models.dart';
 import 'worker_protocol.dart';
 
-part 'worker/worker_setup_runtime.dart';
 part 'worker/worker_host_bridge.dart';
 part 'worker/worker_remote_storage.dart';
+part 'worker/worker_setup_runtime.dart';
 
 @pragma('vm:entry-point')
 @RecordUse()
@@ -49,21 +53,15 @@ Future<void> runNoosphereWorker(Map<Object?, Object?> bootstrap) async {
       maxOutstandingHostRequests: maxOutstandingHostRequests,
       testing: testing,
     );
-    hostPort.send({
-      'version': workerProtocolVersion,
-      'generation': generation,
-      'type': 'ready',
-      'port': receivePort.sendPort,
-    });
+    hostPort.send(WorkerReady(generation, receivePort.sendPort));
     await runtime.run();
   } catch (error) {
-    hostPort.send({
-      'version': workerProtocolVersion,
-      'generation': generation,
-      'type': 'startupError',
-      'code': _errorCode(error),
-      'message': _safeError(error),
-    });
+    hostPort.send(
+      WorkerStartupFailure(
+        generation,
+        NoosphereWorkerException(_errorCode(error), _safeError(error)),
+      ),
+    );
     receivePort.close();
   }
 }
@@ -88,7 +86,7 @@ final class _WorkerRuntime {
   final ReceivePort receivePort;
   final int maxMessageBytes;
   final bool testing;
-  final _setups = <String, _SetupRuntime>{};
+  final _setups = <String, WorkerSetupRuntime>{};
   final _activeCommands = <Future<void>>{};
   final _done = Completer<void>();
   final _HostBridge _host;
@@ -97,18 +95,15 @@ final class _WorkerRuntime {
 
   Future<void> run() async {
     receivePort.listen((raw) {
-      if (raw is! Map) return;
-      final message = raw.cast<Object?, Object?>();
-      if (message['generation'] != generation ||
-          message['version'] != workerProtocolVersion) {
+      if (raw is! WorkerMessage || raw.generation != generation) return;
+      if (raw is ProviderReply) {
+        _host.complete(raw);
         return;
       }
-      if (message['type'] == 'hostReply') {
-        _host.complete(message);
-        return;
-      }
+      if (raw is! WorkerCommand) return;
+      final message = raw;
       final command = _handleCommand(message);
-      if (message['type'] == 'command' && message['operation'] != 'close') {
+      if (message.operation != WorkerOperation.close) {
         _activeCommands.add(command);
         command.whenComplete(() => _activeCommands.remove(command));
       }
@@ -116,83 +111,80 @@ final class _WorkerRuntime {
     await _done.future;
   }
 
-  Future<void> _handleCommand(Map<Object?, Object?> message) async {
-    final id = message['commandId'];
-    if (id is! int || message['type'] != 'command') return;
+  Future<void> _handleCommand(WorkerCommand message) async {
+    final id = message.id;
     if (approximateMessageBytes(message) > maxMessageBytes) {
       _replyError(id, 'message_too_large', 'Command exceeds worker limit.');
       return;
     }
-    if (_closing && message['operation'] != 'close') {
+    if (_closing && message.operation != WorkerOperation.close) {
       _replyError(id, 'worker_closing', 'Worker is closing.');
       return;
     }
 
     try {
-      final operation = message['operation']! as String;
-      final setupId = message['setupId'] as String?;
-      final payload = message['payload'] as Map<Object?, Object?>? ?? const {};
+      final operation = message.operation;
+      final setupId = message.setupId;
+      final payload = message.fields;
       final Object? result;
       switch (operation) {
-        case 'startSetup':
-          result = await _startSetup(setupId!, payload);
-        case 'stopRoles':
+        case WorkerOperation.startSetup:
+          result = await _startSetup(setupId!, payload.values);
+        case WorkerOperation.stopRoles:
           result = await _setup(setupId!)
-              .stopRoles(NoosphereWorkerRoles.values[payload['roles']! as int]);
+              .stopRoles(NoosphereWorkerRoles.values[payload.integer('roles')]);
           if (!_setup(setupId).hasRoles) _setups.remove(setupId);
-        case 'snapshot':
+        case WorkerOperation.snapshot:
           result = _setup(setupId!).snapshot();
-        case 'switchCoordinator':
-          result = await _setup(setupId!).switchCoordinator(
-            decodeEndpointAddress(payload['address']! as Map<Object?, Object?>),
-          );
-        case 'updateSignerAddress':
-          result = await _setup(setupId!).updateSignerAddress(
-            decodeEndpointAddress(payload['address']! as Map<Object?, Object?>),
-          );
-        case 'requestDkg':
+        case WorkerOperation.switchCoordinator:
+          result = await _setup(setupId!)
+              .switchCoordinator(decodeEndpointAddress(payload.map('address')));
+        case WorkerOperation.updateSignerAddress:
           result = await _setup(
             setupId!,
-          ).requestDkg(NewDkgDetails.fromBytes(asBytes(payload['proposal'])));
-        case 'acceptDkg':
+          ).updateSignerAddress(decodeEndpointAddress(payload.map('address')));
+        case WorkerOperation.requestDkg:
+          result = await _setup(setupId!)
+              .requestDkg(NewDkgDetails.fromBytes(payload.bytes('proposal')));
+        case WorkerOperation.acceptDkg:
           result = await _setup(setupId!).respondDkg(
-            name: payload['name']! as String,
-            proposalBytes: asBytes(payload['proposal']),
+            name: payload.string('name'),
+            proposalBytes: payload.bytes('proposal'),
             accept: true,
           );
-        case 'rejectDkg':
+        case WorkerOperation.rejectDkg:
           result = await _setup(setupId!).respondDkg(
-            name: payload['name']! as String,
-            proposalBytes: asBytes(payload['proposal']),
+            name: payload.string('name'),
+            proposalBytes: payload.bytes('proposal'),
             accept: false,
           );
-        case 'requestSignatures':
+        case WorkerOperation.requestSignatures:
           result = await _setup(setupId!).requestSignatures(
-            SignaturesRequestDetails.fromBytes(asBytes(payload['proposal'])),
+            SignaturesRequestDetails.fromBytes(payload.bytes('proposal')),
           );
-        case 'acceptSignatures':
+        case WorkerOperation.acceptSignatures:
           result = await _setup(setupId!).respondSignatures(
-            id: SignaturesRequestId.fromBytes(asBytes(payload['id'])),
-            proposalBytes: asBytes(payload['proposal']),
+            id: SignaturesRequestId.fromBytes(payload.bytes('id')),
+            proposalBytes: payload.bytes('proposal'),
             accept: true,
           );
-        case 'rejectSignatures':
+        case WorkerOperation.rejectSignatures:
           result = await _setup(setupId!).respondSignatures(
-            id: SignaturesRequestId.fromBytes(asBytes(payload['id'])),
-            proposalBytes: asBytes(payload['proposal']),
+            id: SignaturesRequestId.fromBytes(payload.bytes('id')),
+            proposalBytes: payload.bytes('proposal'),
             accept: false,
           );
-        case 'close':
+        case WorkerOperation.close:
           result = await _close();
-        case 'testStopServing':
+        case WorkerOperation.testStopServing:
           if (!testing) throw StateError('Test command is unavailable.');
-          await _setup(setupId!)._serverNode!.server!.close();
+          await _setup(setupId!)._serverNode!.stopServingForTesting();
           result = null;
-        case 'testPending':
+        case WorkerOperation.testPending:
           if (!testing) throw StateError('Test command is unavailable.');
           await Completer<void>().future;
           result = null;
-        case 'testRoomLoad':
+        case WorkerOperation.testRoomLoad:
           if (!testing) throw StateError('Test command is unavailable.');
           result = await _testRoomStores
               .putIfAbsent(
@@ -200,22 +192,26 @@ final class _WorkerRuntime {
                 () => _RemoteRoomPersistence(_host, setupId),
               )
               .loadAll();
-        case 'testRoomWrite':
+        case WorkerOperation.testRoomWrite:
           if (!testing) throw StateError('Test command is unavailable.');
           await _testRoomStores
               .putIfAbsent(
                 setupId!,
                 () => _RemoteRoomPersistence(_host, setupId),
               )
-              .write(payload['roomId']! as String, asBytes(payload['state']));
+              .write(payload.string('roomId'), payload.bytes('state'));
           result = null;
-        case 'testHost':
+        case WorkerOperation.testHost:
           if (!testing) throw StateError('Test command is unavailable.');
-          result = await _host.request('', 'testHost', const {});
-        case 'testClientStorage':
+          result = await _host.request(
+            '',
+            ProviderOperation.testHost,
+            const {},
+          );
+        case WorkerOperation.testClientStorage:
           if (!testing) throw StateError('Test command is unavailable.');
           final storage = _RemoteClientStorage(_host, setupId!);
-          final requestId = payload['rejectRequestId'];
+          final requestId = payload.optional<Uint8List>('rejectRequestId');
           if (requestId != null) {
             await storage.addRejectedSigsRequest(
               SignaturesRequestId.fromBytes(asBytes(requestId)),
@@ -229,11 +225,9 @@ final class _WorkerRuntime {
                 id.toBytes(),
             ];
           }
-        default:
-          throw ArgumentError.value(operation, 'operation', 'unknown command');
       }
-      _reply(id, result, startedSetup: operation == 'startSetup');
-      if (operation == 'close') {
+      _reply(id, result, startedSetup: operation == WorkerOperation.startSetup);
+      if (operation == WorkerOperation.close) {
         receivePort.close();
         if (!_done.isCompleted) _done.complete();
       }
@@ -242,7 +236,7 @@ final class _WorkerRuntime {
     }
   }
 
-  _SetupRuntime _setup(String id) {
+  WorkerSetupRuntime _setup(String id) {
     final setup = _setups[id];
     if (setup == null) throw StateError('Unknown setup.');
     return setup;
@@ -254,7 +248,7 @@ final class _WorkerRuntime {
   ) async {
     final setup = _setups.putIfAbsent(
       setupId,
-      () => _SetupRuntime(
+      () => WorkerSetupRuntime(
         setupId: setupId,
         generation: generation,
         host: _host,
@@ -262,9 +256,25 @@ final class _WorkerRuntime {
       ),
     );
     try {
+      final fields = MessageFields(payload.cast<String, Object?>());
+      final server = fields.optional<Map<String, Object?>>('server');
+      final client = fields.optional<Map<String, Object?>>('client');
       await setup.start(
-        serverMessage: payload['server'] as Map<Object?, Object?>?,
-        clientMessage: payload['client'] as Map<Object?, Object?>?,
+        server: server == null
+            ? null
+            : decodeServerOptions(
+                server,
+                _RemoteIdentityStore(_host, setupId),
+                _RemoteServerPersistence(_host, setupId),
+                _RemoteRoomPersistence(_host, setupId),
+              ),
+        client: client == null
+            ? null
+            : decodeClientOptions(
+                client,
+                _RemoteClientStorage(_host, setupId),
+                setup._getPrivateKey,
+              ),
       );
       return setup.snapshot();
     } catch (_) {
@@ -295,38 +305,26 @@ final class _WorkerRuntime {
   }
 
   void _emit(NoosphereWorkerEvent event) {
-    final message = <String, Object?>{
-      'version': workerProtocolVersion,
-      'generation': generation,
-      'type': 'event',
-      'event': event,
-    };
+    final message = WorkerEventMessage(generation, event);
     if (approximateMessageBytes(message) <= maxMessageBytes) {
       hostPort.send(message);
     } else {
-      hostPort.send({
-        'version': workerProtocolVersion,
-        'generation': generation,
-        'type': 'event',
-        'event': WorkerFailureEvent(
-          event.setupId,
+      hostPort.send(
+        WorkerEventMessage(
           generation,
-          operation: 'event',
-          message: 'Worker event exceeded the configured message limit.',
+          WorkerFailureEvent(
+            event.setupId,
+            generation,
+            operation: 'event',
+            message: 'Worker event exceeded the configured message limit.',
+          ),
         ),
-      });
+      );
     }
   }
 
   void _reply(int id, Object? result, {bool startedSetup = false}) {
-    final message = <String, Object?>{
-      'version': workerProtocolVersion,
-      'generation': generation,
-      'type': 'reply',
-      'commandId': id,
-      'ok': true,
-      'result': result,
-    };
+    final message = WorkerReply.success(generation, id, result);
     if (approximateMessageBytes(message) > maxMessageBytes) {
       _replyError(
         id,
@@ -341,15 +339,13 @@ final class _WorkerRuntime {
     }
   }
 
-  void _replyError(int id, String code, String message) => hostPort.send({
-    'version': workerProtocolVersion,
-    'generation': generation,
-    'type': 'reply',
-    'commandId': id,
-    'ok': false,
-    'code': code,
-    'message': message,
-  });
+  void _replyError(int id, String code, String message) => hostPort.send(
+    WorkerReply.failure(
+      generation,
+      id,
+      NoosphereWorkerException(code, message),
+    ),
+  );
 }
 
 bool _bytesEqual(Uint8List first, Uint8List second) {

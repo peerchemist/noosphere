@@ -100,7 +100,7 @@ and buffered until the caller subscribes.
 
 ## Client events become worker events
 
-[`_SetupRuntime._onClientEvent`](../lib/src/worker/worker_setup_runtime.dart)
+[`WorkerDtoMapper.event`](../lib/src/worker/dto_mapper.dart)
 maps the participant event to a deliberate public DTO in
 [`worker_models.dart`](../lib/src/worker_models.dart):
 

@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Split signature metadata codecs behind one supported-type registry while
+  preserving wire bytes, authenticated requests and login replay.
+
 - Mark 0.1.0 as a coordinated protocol preview and add fixed wire fixtures.
 - Document retained native-value ownership and pin Frosty 5.0.0.
 

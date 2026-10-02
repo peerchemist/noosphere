@@ -93,16 +93,24 @@ not hidden persistence defaults of the reusable server library.
 
 ## Flutter implementation
 
-[`worker.dart`](../lib/src/worker.dart) is the host-side facade. Its
-`worker_host_setup.dart` part retains application providers and dispatches
-storage/key requests. [`worker_runtime.dart`](../lib/src/worker_runtime.dart)
-is the isolate entry point and command router. Its parts implement setup
-lifecycle, correlated calls back to the host, and remote storage adapters.
+[`worker.dart`](../lib/src/worker.dart) is the public host facade.
+`worker/command_channel.dart` owns isolate startup, correlation, limits and
+shutdown. `worker/provider_registry.dart` reserves application providers and
+serializes setup lifecycle changes; `worker/worker_host_setup.dart` dispatches
+storage/key requests through per-provider queues.
 
-`worker_protocol.dart` defines message versioning, configuration codecs, size
-accounting and a FIFO executor. `worker_models.dart` defines public sendable
-DTOs. `iroh_node.dart` composes the roles; `initialization.dart`,
-`server_identity_store.dart`, and `lifecycle.dart` handle platform integration.
+[`worker_runtime.dart`](../lib/src/worker_runtime.dart) is the isolate entry
+point and command router. Its parts implement setup lifecycle, correlated
+calls back to the host, and remote storage adapters. Setup lifecycle uses an
+injectable node factory; `worker/dto_mapper.dart` owns public projections and
+`worker/session_delivery.dart` orders snapshots and replacement-session events.
+
+`worker_protocol.dart` re-exports typed internal envelopes, configuration and
+storage codecs, size accounting and a FIFO executor from `worker/`.
+`worker_models.dart` defines public sendable DTOs. `iroh_node.dart` composes the
+roles; `initialization.dart`, `server_identity_store.dart`, and `lifecycle.dart`
+handle platform integration. The example separates session ownership from
+screen state, proposal widgets and diagnostics.
 
 ## Native and supporting code
 

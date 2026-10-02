@@ -1,5 +1,14 @@
 ## 0.1.0
 
+- Separate the worker command channel, provider registry, role lifecycle and
+  DTO projection. Use typed internal envelopes and isolated codecs/limits.
+- Retain nodes and providers after failed cleanup so explicit stop can retry;
+  acknowledge failed coordinator switches with `lockSigner` before restarting.
+- Deliver replacement-session snapshots before events and report attachment
+  failures without leaving unobserved asynchronous errors.
+- Extract the example session controller and proposal widgets; close sessions
+  disposed during startup and verify historical HD/Taproot completions.
+
 - Preserve host providers when startup succeeds but its snapshot exceeds the
   worker message limit; report `start_result_too_large` with a stop/retry path.
 - Serialize identity operations without caching failed restore futures.

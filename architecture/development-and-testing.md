@@ -175,3 +175,14 @@ to isolated serialization.
 The shared [specifications](../packages/noosphere/spec) describe protocol rules,
 security boundaries and version policy. Group-transition orchestration is
 explicitly a proposed workflow despite implemented proposal/approval models.
+
+## Standalone consumer check
+
+Run `./tool/validate_release_consumer.sh` with Flutter on `PATH` (and a desktop
+session or `xvfb-run -a` on Linux). It stages the four runtime packages outside
+the workspace, removes workspace resolution, creates a fresh Flutter consumer,
+analyzes it and starts/closes an embedded server through a native worker.
+Temporary files are removed on exit. Dependency overrides select the staged
+sources; this checks source consumption and native loading, not compatibility
+with a hosted release set. Run a hosted consumer check again after the
+compatible dependencies have actually been published.
