@@ -2,9 +2,17 @@
 
 [Architecture overview](../architecture.md)
 
-An event describes protocol activity. It is not automatically a command,
-approval, persisted record or application state transition. Noosphere has
-three primary event layers plus local room-manager streams.
+An `Event` is a typed message from the coordinator to a participant's protocol
+state machine. It tells that participant about a proposal, another participant's
+contribution, a round to process, or a change in coordinator state. Processing
+it can update local state, verify cryptographic data, write storage, send a new
+RPC, and eventually notify the importing application.
+
+The shared `Event` model exists independently of Iroh and protobuf. The server
+creates domain objects; the transport encodes and delivers them; the receiving
+client reconstructs those objects and applies their protocol meaning. The UI
+usually sees a later `ClientEvent` or `NoosphereWorkerEvent` projection.
+Noosphere has three primary event APIs plus local room-manager streams.
 
 ```mermaid
 flowchart LR
@@ -19,30 +27,215 @@ flowchart LR
     WE --> A["Host updates application state"]
 ```
 
+## What an event means
+
+[`Event`](../packages/noosphere/lib/api/events.dart) is a sealed family of
+protocol messages, rather than a single record with arbitrary application
+fields. Each variant defines its own fields, binary writer and, except for the
+empty keepalive, reader. Examples illustrate the different jobs they perform:
+
+- `NewDkgEvent` and `SignaturesRequestEvent` announce proposals for review.
+- `DkgCommitmentEvent` and `DkgRound2ShareEvent` deliver cryptographic inputs.
+- `SignatureNewRoundsEvent` tells selected signers which commitment sets to
+  process under an already accepted signing request.
+- `SignaturesCompleteEvent` delivers a result that the recipient must verify.
+- `ParticipantStatusEvent` and `SignaturesProgressEvent` report coordinator
+  observations; `KeepaliveEvent` carries no protocol-state update.
+
+Receiving an event is therefore an input to the protocol, not evidence that
+all its contents have already been accepted by the receiver. A well-formed
+signing proposal still needs signature, expiry, key and state checks, and
+receiving it does not supply the application's approval to sign.
+
+The base class provides serialization behavior but no common event ID,
+timestamp, sequence number, sender or recipient fields. Correlation belongs to
+each variant: DKG events commonly use a DKG name; signing events use a
+`SignaturesRequestId`. Sender/creator fields appear where needed. Group and
+receiving participant context come from the authenticated session to which the
+server routes the event.
+
+| Message or object | Who produces it and why |
+| --- | --- |
+| Domain RPC request | Participant asks the coordinator to perform an operation, such as `requestSignatures` or `submitSignatureReplies` |
+| RPC response | Coordinator answers that call, correlated by the protobuf `request_id` |
+| Domain `Event` | Coordinator delivers protocol information to one or more participant sessions, independently of an outstanding RPC at those recipients |
+| `ClientEvent` | Local client reports the outcome of protocol processing or a local action to its consumer |
+| `NoosphereWorkerEvent` | Local worker exposes public fields to the Flutter host through a Dart isolate port |
+
+The RPC `request_id` identifies one network call. A signing request's
+`SignaturesRequestId` identifies the signing operation across calls, events and
+reconnection. Neither is a generic delivery ID or acknowledgment for an event.
+The worker's `generation` is another separate identifier, for an isolate
+lifetime; it is not part of the network `Event` encoding.
+
+## Creation and routing on the coordinator
+
+Domain methods create events after the relevant checks and state updates. For
+example, [`_requestSignatures`](../packages/noosphere_server/lib/src/server/api_signing.dart)
+validates the authenticated requester, signed proposal, expiry, supplied keys
+and commitments. It creates the coordination state, awaits `_persist()`, then
+publishes a `SignaturesRequestEvent` to the other sessions in that group.
+The event preserves the signed proposal and adds the creator ID and the
+coordinator's current progress. This ordering describes this operation; there
+is no universal transaction that combines persistence and network delivery.
+
+[`ServerRuntimeState`](../packages/noosphere_server/lib/src/server/state/state.dart)
+routes through `sendEventToAll` and `sendEventToOthers`, or a domain method calls
+a particular `ClientSession.sendEvent`. Each session exposes its own
+`Stream<Event>`. The domain layer does not need to construct protobuf objects
+or write a QUIC stream.
+
+| Routing | Examples and reason |
+| --- | --- |
+| Other active sessions in the group | New DKG/signing proposals; the initiating participant already owns its proposal and receives an RPC response |
+| All active sessions in the group | Signing progress and terminal failure reports |
+| One recipient | An encrypted DKG round-two share or recovery share |
+| Selected round participants | New signing rounds; the submitting caller can receive its rounds in the RPC response |
+| RPC caller plus events to others | Final signatures can be returned to the caller whose submission completes signing and sent as completion events to the other sessions |
+
+An event is not normally sent directly between participant endpoints. Even
+recipient-encrypted shares travel through the coordinator. Routing determines
+who receives the event; the share's inner ciphertext determines who can read
+its secret content.
+
+## From a Dart event to Iroh bytes, and back
+
+There are two encodings and one framing step. They serve different purposes:
+
+| Layer | Representation | What understands it |
+| --- | --- | --- |
+| Domain value | A concrete `Event`, such as `SignaturesRequestEvent` | Coordinator/client protocol code |
+| Domain payload | `event.toBytes()`, defined by that variant's `write` method | The matching variant's `fromBytes` constructor |
+| Protobuf wrapper | `Events(type: SIG_REQ_EVENT, data: payload)` inside `Envelope.event` | Generated protobuf code plus the explicit event-type mapping |
+| Application frame | Four-byte big-endian envelope length, then protobuf envelope bytes | `encodeEnvelope` / `decodeEnvelopes` |
+| Transport | Bytes on the server-to-client half of the Iroh session QUIC stream | Iroh; it does not interpret the event's fields |
+
+Despite the plural protobuf name `Events`, each wrapper contains **one** event.
+The enum is outside the domain payload. `Event.toBytes()` does not prepend a
+universal event tag, and the base class has no generic `Event.fromBytes` factory.
+The receiving adapter must select the concrete reader using `Events.type`.
+
+For a signing proposal the nesting is:
+
+```text
+Iroh session stream bytes
+  length prefix: sizeof(protobuf Envelope), unsigned 32-bit big-endian
+  Envelope:
+    wire_version: current Iroh wire version
+    event:                           protobuf field 28
+      type: SIG_REQ_EVENT            enum value 7
+      data:                          canonical domain bytes
+        signed details:
+          SignaturesRequestDetails   proposal's own binary layout
+          requester signature        64-byte Schnorr signature
+        creator                      32-byte participant identifier
+        SignaturesProgress           threshold, participant IDs, stage
+```
+
+This is a structural illustration, not JSON sent over the wire. Within `data`,
+fields are written in the order defined by `SignaturesRequestEvent.write` and
+read in that order by `SignaturesRequestEvent.fromReader`. They are not separate
+protobuf fields. `Signed` writes the proposal followed by its signature; that
+signature verifies the proposal's `sigHash`. The creator selects the roster key
+used to check that signature. Progress is coordinator-reported metadata,
+validated separately from the requester-signed proposal.
+
+The implementation path is explicit:
+
+1. [`ClientSession.sendEvent`](../packages/noosphere_server/lib/src/server/state/client_session.dart)
+   enqueues a domain object for that recipient's session.
+2. [`IrohDispatcher.ready`](../packages/noosphere_server/lib/src/iroh/dispatcher.dart)
+   maps the session stream into envelopes.
+   [`encodeEvent`](../packages/noosphere_server/lib/src/iroh/messages.dart)
+   selects the `EventType` and places `event.toBytes()` in `Events.data`.
+3. [`_handleStartSession`](../packages/noosphere_server/lib/src/iroh/connection_handler.dart)
+   writes those envelopes sequentially after `Ready`. Its `_write` method uses
+   [`encodeEnvelope`](../packages/noosphere/lib/src/framing.dart), then
+   `SendStream.writeAll`. Socket writes do not hold the group's dispatch lane.
+4. [`IrohClientApi`](../packages/noosphere_client/lib/src/iroh/client_api.dart)
+   reads native chunks and runs `decodeEnvelopes`. Its `_pumpEvents` checks the
+   wire version and session-envelope kind, and `_decodeEvent` selects the domain
+   constructor using the enum.
+5. The resulting `Stream<Event>` is attached to `LoginCompleteResponse.events`.
+   [`Client._handleEvent`](../packages/noosphere_client/lib/src/client/client_events.dart)
+   performs the protocol-specific validation and state work. Selected outcomes
+   become `ClientEvent` notifications; a worker maps those to public DTOs.
+
+QUIC read chunks are not event boundaries: one read can contain several frames,
+and one frame can span several reads. The frame limit applies to the entire
+protobuf envelope body, including its wrapper overhead. A decoder accepting
+protobuf only proves that it parsed the outer structure; it has not yet
+validated the domain payload or authorized a protocol action. See
+[protobuf and framing](protobuf-and-framing.md#the-events-payload) for the
+schema and the separate validation stages.
+
+## Worked example: a signing proposal reaches another participant
+
+Assume A and B already have authenticated sessions in the same group and the
+local keys needed for the proposed signature. The path below ends at B's
+approval decision; it does not imply automatic acceptance.
+
+```mermaid
+sequenceDiagram
+    participant A as Requesting client A
+    participant S as Coordinator domain handler
+    participant T as Iroh/protobuf adapters
+    participant B as Receiving client B
+    participant H as B's application
+    A->>S: requestSignatures RPC: signed proposal, keys, commitments
+    S->>S: Validate, create coordination state, await persistence
+    S->>T: B's session: SignaturesRequestEvent
+    Note over S,T: A receives its RPC result on a separate stream
+    T->>T: Event bytes -> Events(type, data) -> framed Envelope
+    T-->>B: B's persistent session stream
+    B->>B: Decode; check creator signature, expiry, keys and state
+    B-->>H: SignaturesRequestClientEvent (waiting proposal)
+    Note over B,H: Worker users receive WorkerSigningRequestEvent
+    H->>B: Explicit accept or reject of the reviewed proposal
+    B->>S: Subsequent protocol RPC under that decision
+```
+
+For the successful incoming path, `_handleEvent` checks the creator against the
+roster, verifies the signed details and rejects a duplicate active request.
+`_handleSigsReq` checks the progress and locally held keys and establishes the
+local request state. Missing keys can cause a durable rejection and a rejection
+RPC instead of a proposal notification. Existing durable rejection/prepared
+operation records also affect processing, especially during restoration.
+
+The UI notification is a newly constructed local object; the protobuf message
+is not forwarded unchanged to the UI. With a worker, `WorkerDtoMapper` serializes
+the public proposal into `proposalBytes` and exposes request/progress fields.
+Approval echoes those exact bytes, binding the action to the proposal reviewed
+by the host. The worker event travels over a `SendPort`, not over Iroh.
+
+Later, a `SignatureNewRoundsEvent` may cause the accepted request to produce
+signature replies without prompting the UI for every cryptographic round.
+A completion event is independently verified before a
+`SignaturesCompleteClientEvent` / `WorkerSigningResultEvent` is exposed. These
+are different protocol stages, not interchangeable meanings of “event”.
+
 ## Wire and domain events
 
-[`Event`](../packages/noosphere/lib/api/events.dart) is a sealed base class
-with `Writable`. The network schema uses the plural name `Events` for a single
-type-and-bytes wrapper. `encodeEvent` on the server and `_decodeEvent` on the
-client explicitly translate every supported variant.
+The schema's `EventType` values and the two adapters define this mapping.
+The numbers are explicit protocol enum values, not Dart class identifiers.
 
-| Enum number | Domain event | Payload and effect |
-| --- | --- | --- |
-| 0 | `ParticipantStatusEvent` | Participant ID and login flag; presence and DKG reset/removal effects |
-| 1 | `NewDkgEvent` | Signed DKG details, creator and commitments already received |
-| 2 | `DkgCommitmentEvent` | DKG name, participant and public commitment |
-| 3 | `DkgRejectEvent` | DKG name and rejecting participant |
-| 4 | `DkgRound2ShareEvent` | Name, commitment-set signature, sender and recipient ciphertext |
-| 5 | `DkgAckEvent` | Nonempty set of signed key ACKs |
-| 6 | `DkgAckRequestEvent` | Nonempty set of missing-ACK requests |
-| 7 | `SignaturesRequestEvent` | Signed signing proposal, creator and current coordinator progress |
-| 8 | `SignatureNewRoundsEvent` | Request ID and signature-index/commitment-set rounds |
-| 9 | `SignaturesCompleteEvent` | Request ID and ordered final signatures |
-| 10 | `SignaturesFailureEvent` | Request ID that can no longer reach threshold |
-| 11 | `KeepaliveEvent` | No payload; optional stream activity |
-| 12 | `SecretShareEvent` | Sender, group key and encrypted recovery share |
-| 13 | `ConstructedKeyEvent` | Participant and signed claim of full-key reconstruction |
-| 14 | `SignaturesProgressEvent` | Request ID, current threshold, contributing participants and stage |
+| Enum number | Protobuf `EventType` | Domain event | Payload and effect |
+| --- | --- | --- | --- |
+| 0 | `PARTICIPANT_STATUS_EVENT` | `ParticipantStatusEvent` | Participant ID and login flag; presence and DKG reset/removal effects |
+| 1 | `NEW_DKG_EVENT` | `NewDkgEvent` | Signed DKG details, creator and commitments already received |
+| 2 | `DKG_COMMITMENT_EVENT` | `DkgCommitmentEvent` | DKG name, participant and public commitment |
+| 3 | `DKG_REJECT_EVENT` | `DkgRejectEvent` | DKG name and rejecting participant |
+| 4 | `DKG_ROUND2_SHARE_EVENT` | `DkgRound2ShareEvent` | Name, commitment-set signature, sender and recipient ciphertext |
+| 5 | `DKG_ACK_EVENT` | `DkgAckEvent` | Nonempty set of signed key ACKs |
+| 6 | `DKG_ACK_REQUEST_EVENT` | `DkgAckRequestEvent` | Nonempty set of missing-ACK requests |
+| 7 | `SIG_REQ_EVENT` | `SignaturesRequestEvent` | Signed signing proposal, creator and current coordinator progress |
+| 8 | `SIG_NEW_ROUNDS_EVENT` | `SignatureNewRoundsEvent` | Request ID and signature-index/commitment-set rounds |
+| 9 | `SIG_COMPLETE_EVENT` | `SignaturesCompleteEvent` | Request ID and ordered final signatures |
+| 10 | `SIG_FAILURE_EVENT` | `SignaturesFailureEvent` | Request ID that can no longer reach threshold |
+| 11 | `KEEPALIVE_EVENT` | `KeepaliveEvent` | No payload; optional stream activity |
+| 12 | `SECRET_SHARE_EVENT` | `SecretShareEvent` | Sender, group key and encrypted recovery share |
+| 13 | `CONSTRUCTED_KEY_EVENT` | `ConstructedKeyEvent` | Participant and signed claim of full-key reconstruction |
+| 14 | `SIG_PROGRESS_EVENT` | `SignaturesProgressEvent` | Request ID, current threshold, contributing participants and stage |
 
 `NewDkgEvent` and `SignaturesRequestEvent` implement `DetailsEvent`, allowing
 common checks of the creator's signature and expiry. They carry authenticated
@@ -53,12 +246,6 @@ are coordinator assertions, and a rejection attributed to a peer may reflect
 what the coordinator claims. DKG proposals, signing proposals, ACKs and
 commitment-set attestations have explicit cryptographic verification. Final
 signatures are independently verified by the client.
-
-Routing is intentional. Public proposals normally go to other sessions, while
-the initiator already has its local proposal and RPC result. Encrypted DKG
-shares go only to their recipient. A submission that completes signing returns
-the result in the RPC and broadcasts it to other participants, avoiding an
-unnecessary duplicate to its caller in that live path.
 
 ## Domain events become client events
 
@@ -75,6 +262,7 @@ variants are:
 | --- | --- |
 | `ParticipantStatusClientEvent` | Participant ID and online flag |
 | `UpdatedDkgClientEvent` | Current `DkgInProgress` |
+| `CompletedDkgClientEvent` | Newly completed, durably stored local `FrostKeyWithDetails` |
 | `RejectedDkgClientEvent` | Removed proposal, attributed participant if any and `DkgFault` |
 | `SignaturesRequestClientEvent` | Public signing request |
 | `SignaturesProgressClientEvent` | Updated coordinator-observed signing progress |
@@ -84,14 +272,17 @@ variants are:
 | `SecretShareClientEvent` | Updated `FrostKeyWithDetails` and sender |
 
 DKG faults distinguish ordinary rejection, proof-of-knowledge failure, invalid
-ciphertext, invalid share and expiry. A completed DKG is stored as a key and
-ACKed; there is no dedicated `DkgCompleteClientEvent` in this API. Inspect
-current keys/storage when refreshing completed DKG state.
+ciphertext, invalid share and expiry. `CompletedDkgClientEvent` is emitted after
+a local FROST key has been durably stored. There is no corresponding generic
+network “DKG complete” event: each participant completes from its received
+shares, and signed DKG ACKs communicate key possession. Current keys/storage
+remain the source for restoring the complete local key view.
 
-`SecretShareClientEvent` is particularly different from a worker UI event:
-its key record includes secret material and can include a reconstructed full
-private key. Direct clients must avoid forwarding that object into generic
-logging or public application channels.
+`CompletedDkgClientEvent` and `SecretShareClientEvent` carry local key records
+that include secret material. The latter can include a reconstructed full
+private key. Direct clients must avoid forwarding those records into generic
+logging or public application channels; the worker projection selects public
+key/name/description fields.
 
 `Client.events` is single-subscription and should be consumed immediately.
 Errors appear as stream errors and end that client session. Some notifications,
@@ -111,7 +302,7 @@ maps the participant event to a deliberate public DTO in
 | `WorkerDkgEvent` | DKG progress/rejection; proposal bytes and public progress fields |
 | `WorkerSigningRequestEvent` | Proposal with request ID, creator, expiry, local status, exact bytes and coordinator progress |
 | `WorkerSigningResultEvent` | Verified completion with request/proposal bytes, creator and signature byte arrays |
-| `WorkerKeyUpdatedEvent` | Recovery-share update reduced to public key/name/description |
+| `WorkerKeyUpdatedEvent` | Completed DKG or recovery-share update reduced to public key/name/description |
 | `WorkerSessionReplacedEvent` | A replacement `Client` has been attached |
 | `WorkerFailureEvent` | Sanitized failure category/message and interruption flag |
 
@@ -126,9 +317,9 @@ and public keys. For a client-only setup, `snapshot.coordinator` is null:
 this field describes an embedded server address, not the signer's selected pin.
 
 The worker emits a snapshot on attachment before subsequent events from that
-client session. Replacement emits `WorkerSessionReplacedEvent` followed by
-`WorkerSnapshotEvent`. Initial setup may emit more than one snapshot as roles
-finish starting. A snapshot is not automatically emitted after every incoming
+client session. Replacement emits `WorkerSnapshotEvent`, then
+`WorkerSessionReplacedEvent`, then any events buffered during attachment.
+Initial setup may emit more than one snapshot as roles finish starting. A snapshot is not automatically emitted after every incoming
 client event; apply deltas or request `worker.snapshot(setupId)` when a fresh
 whole view is needed.
 
@@ -167,12 +358,40 @@ uses the same pattern with `WorkerDkgStatus`.
 
 ## Delivery guarantees and limits
 
-The session handshake orders a snapshot before live session events. This is a
-network/session ordering guarantee, not a transaction covering the importing
-application's database.
+The network handshake is `StartSession -> SessionStarted(snapshot) -> Ready`
+on the persistent stream. The server creates the session and captures its
+snapshot through the group's dispatch lane. It can enqueue subsequent domain
+events while the snapshot is being delivered; it starts writing their envelopes
+after `Ready`. This closes the snapshot/subscription gap during normal session
+establishment without turning the snapshot into an event-history replay.
+
+[`LoginCompleteResponse`](../packages/noosphere/lib/api/responses/login_complete.dart)
+reuses concrete event types in some of its collections: pending DKGs, signing
+proposals, pending signing rounds and encrypted recovery shares. These are
+embedded domain records inside `SessionStarted.snapshot`, not individual
+`Envelope.event` frames. Completed results use `CompletedSignaturesRequest`,
+which includes the original signed proposal as well as signatures, so they can
+be verified without relying on an earlier live proposal event. The Dart
+`events` stream itself is not serialized; the client adapter supplies it when
+decoding the snapshot.
+
+`Ready` acknowledges transport readiness, not completion of application
+processing or consent to any proposal. The client adapter sends it after
+installing the event pump, before the high-level `Client.login` finishes
+restoration. Transport delivery on one session stream is ordered; asynchronous
+client handlers use their relevant operation/key locks. There is no global
+promise that every asynchronous application callback completes before the next
+event arrives, nor a transaction covering the application's database.
+
+RPC replies use other QUIC streams, so their arrival cannot be globally ordered
+against session events. In particular, a caller may observe signing progress
+while still waiting for its RPC result. Use operation state and identifiers,
+not an assumption that all related events follow the RPC future's completion.
 
 The server's paused-session ring buffer holds 100 recent events and can replace
-older entries. Client stream controllers may buffer before a listener attaches.
+older entries. It is used when that controller's subscription is paused; it is
+not a durable log or a universal 100-event limit on every queue. Stream
+controllers can also buffer before a listener attaches.
 `worker.events` is broadcast and does not retain an event history for listeners
 that subscribe later. Subscribe before `startSetup`.
 
@@ -187,6 +406,26 @@ a bounded queue for every consumer. Applications should keep handlers short
 and serialize their own asynchronous persistence where required; Dart's
 `listen` does not automatically await an asynchronous callback before the next
 event.
+
+## Changing or adding a network event
+
+A network event is a protocol change spanning both peers. Define the domain
+variant and its binary layout in `api/events.dart`, assign its enum value in
+`noosphere.proto`, regenerate bindings, and update both `encodeEvent` and
+`_decodeEvent`. Then define when the coordinator emits it, its recipients,
+client-side validation and state effects, and whether it needs a public client
+or worker projection. A new protobuf enum alone does not implement any of those
+behaviors, and existing clients have no generic opaque-event handling path.
+
+Decide explicitly whether its information belongs in persistence and reconnect
+snapshots. Test the domain round trip, protobuf/framing round trip, actual
+routing, invalid input, state effects and restoration behavior where relevant.
+Current examples are the [domain envelope tests](../packages/noosphere/test/api/types/metadata_envelope_test.dart),
+[protobuf tests](../packages/noosphere/test/protocol_test.dart), and
+[Iroh session tests](../packages/noosphere_server/test/iroh_client_api_test.dart).
+Apply the [preview version policy](../packages/noosphere/spec/VERSIONING.md);
+compatibility is not established merely by retaining the same outer envelope.
+For application-defined messages, see [generic data](generic-data.md).
 
 ## Room-manager streams
 

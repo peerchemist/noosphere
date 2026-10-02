@@ -104,6 +104,34 @@ configured limit, and applies read/write and operation timeouts. Network
 writes happen after domain dispatch releases its group lane, so a slow receiver
 does not retain that lane while its bytes are being written.
 
+## Event delivery on the session stream
+
+Each receiving participant has its own server-side `ClientSession` and
+`Stream<Event>`. `sendEventToAll`, `sendEventToOthers`, or an explicit session
+selection determines which streams receive a domain object. That decision is
+made by the coordinator's protocol code; Iroh does not provide the group's
+broadcast or recipient-selection semantics.
+
+After `Ready`, `IrohDispatcher` maps each queued/live object through
+`encodeEvent` into `Envelope.event`. The connection handler awaits each framed
+write on that session's server-to-client sending half. The client incrementally
+reads envelopes from the receiving half, selects a domain decoder using the
+protobuf event type, and passes a `Stream<Event>` into the participant client.
+[The complete event path](events.md#from-a-dart-event-to-iroh-bytes-and-back)
+explains the data representations and subsequent validation.
+
+The reverse direction of this same stream carries session controls. Participant
+contributions such as commitments and signature replies go through domain RPCs
+on separate streams; clients do not publish arbitrary `Envelope.event` messages
+back to the coordinator. There is no per-event request/response pair on the
+session stream.
+
+The byte stream preserves its own write order, but RPC responses and other
+participants' streams have independent delivery timing. A successful event
+write does not acknowledge that the peer processed, persisted or approved the
+event. Reconnection obtains a new session snapshot instead of continuing from
+a durable event offset.
+
 ## Actual default limits
 
 | Setting | Core API default | Flutter option default |

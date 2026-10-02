@@ -131,13 +131,13 @@ Await lifecycle calls for a setup before starting another start, stop, or
 coordinator switch. Overlapping lifecycle calls for the same setup fail with
 `setup_busy`; calls for different setups remain independent.
 
-The transport is versioned and carries primitives, byte arrays and deliberate
-public DTOs only. Native handles, `Client` objects, callbacks and database
+The internal worker channel carries typed envelopes, encoded fields and
+public DTOs. Native handles, `Client` objects, callbacks and database
 objects never cross the isolate boundary. Replies carry command and worker
 generation IDs; stale replies are ignored, payload size and outstanding-command
 counts are bounded, and pending commands fail if the isolate exits. A
-replacement reconnecting session emits `WorkerSessionReplacedEvent` followed
-by a fresh `WorkerSnapshotEvent`; mutating RPCs are never replayed.
+replacement reconnecting session emits a fresh `WorkerSnapshotEvent` followed
+by `WorkerSessionReplacedEvent`; mutating RPCs are never replayed.
 `updateSignerAddress` accepts only an address with the existing pinned
 coordinator ID.
 For an app-approved change of coordinator identity, use

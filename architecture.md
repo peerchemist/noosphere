@@ -98,7 +98,7 @@ process, and closing the app stops an embedded coordinator.
 | --- | --- | --- |
 | ROAST and enrollment network traffic | Four-byte big-endian length + protobuf `Envelope` | Typed RPCs, session control, and `Events` |
 | Domain values inside messages | Canonical `Writable` bytes | Signed proposals, keys, commitments, snapshots, and event bodies |
-| Flutter host/worker communication | Versioned Dart maps, byte arrays, and selected public DTOs | Local commands, replies, provider calls, and UI events |
+| Flutter host/worker communication | Typed Dart envelopes, encoded fields, and selected public DTOs | Local commands, replies, provider calls, and UI events |
 
 Room enrollment uses the same protobuf envelope and framing on its dedicated
 Iroh ALPN. Its typed begin/redeem RPCs carry canonical invite and proof bytes;
@@ -112,10 +112,26 @@ codec and meaning.
 
 ## Events and application data
 
-There are three primary event APIs: domain `Event` objects on the network,
-validated `ClientEvent` objects from a participant, and sanitized
-`NoosphereWorkerEvent` objects delivered to the Flutter host. They describe
-protocol activity. They are not a durable application event log.
+The coordinator advances participants through typed domain `Event` messages:
+proposals to review, contributions to verify, signing rounds to process and
+results to apply. The same shared model is consumed by the participant state
+machine whether the request API is connected directly or through Iroh.
+
+On Iroh, the server serializes each concrete event with its domain writer,
+places those bytes and an `EventType` discriminator inside protobuf `Events`,
+wraps that in `Envelope.event`, and writes a length-prefixed frame on the
+recipient's persistent session stream. The client reverses those steps and
+validates the reconstructed event before acting on it. Protobuf supplies the
+outer message structure; the domain codec defines the event's actual contents.
+
+The later `ClientEvent` and `NoosphereWorkerEvent` APIs expose local outcomes to
+the application. They are not the protobuf event payload and do not have a
+one-to-one correspondence with network events. An incoming round event can
+produce another protocol RPC without a UI notification; a local expiry can
+produce a UI notification without an incoming network event. None of these
+streams is a durable application event log. The
+[event chapter](architecture/events.md) traces this flow from domain creation
+through protobuf and Iroh to participant state and host notifications.
 
 Generic application content can already travel as the text of a
 `SignaturesRequestDetails.forMessage` request, including a small JSON document.
@@ -163,7 +179,7 @@ blind retries.
 | [Iroh transport](architecture/iroh-transport.md) | Endpoint identity, pinning, authentication, session streams, reconnects and limits |
 | [Participant client](architecture/client.md) | Login, DKG, signing, verification, synchronization and recovery shares |
 | [Coordinator server](architecture/server.md) | Dispatch, DKG and ROAST state machines, persistence and group routing |
-| [Events](architecture/events.md) | Every event family, transformations, delivery semantics and UI state |
+| [Events](architecture/events.md) | Event meaning, creation/routing, binary-to-protobuf-to-Iroh flow, worked signing example, validation and delivery semantics |
 | [Generic data](architecture/generic-data.md) | Signed JSON example, hashes, opaque policy bytes and custom-event extension design |
 | [Flutter and isolates](architecture/flutter-and-isolates.md) | Worker commands, host callbacks, public DTOs, initialization and shutdown |
 | [Rooms and transitions](architecture/rooms-and-transitions.md) | Enrollment proofs, canonical rosters, coordinator rotation and transition models |

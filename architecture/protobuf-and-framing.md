@@ -111,6 +111,58 @@ corresponding constructor. These explicit switches define the supported
 application protocol. A new enum value and new bytes require matching codecs
 and handlers; a byte field alone does not supply extensibility.
 
+For a concrete `SignaturesRequestEvent event`, the server's mapping is
+conceptually this code (the real `encodeEvent` handles every supported variant):
+
+```dart
+final message = protocol.Events(
+  type: protocol.EventType.SIG_REQ_EVENT,
+  data: event.toBytes(),
+);
+final envelope = protocol.Envelope(
+  wireVersion: noosphereIrohWireVersion,
+  event: message,
+);
+final frame = encodeEnvelope(envelope);
+// The connection handler awaits send.writeAll(frame).
+```
+
+`Events.type` chooses the payload codec. For `SIG_REQ_EVENT`, `data` is the
+concatenation written by `SignaturesRequestEvent.write`: signed proposal,
+creator identifier, then progress. Protobuf describes only the wrapper's enum
+and bytes; there is no generated protobuf schema for those inner event fields.
+Changing their binary order or meaning changes the protocol even if
+`noosphere.proto` itself is untouched. Conversely, regenerating protobuf cannot
+repair a mismatch between a domain writer and its reader.
+
+The receiving path has separate checks:
+
+| Stage | Check and result |
+| --- | --- |
+| Frame decoder | Enforces envelope size, gathers a complete length-prefixed body, parses protobuf and requires a recognized envelope payload |
+| Session adapter | Checks wire version and accepts event/error envelopes on the established session stream |
+| Event mapping | Selects the concrete reader from `Events.type`; decodes domain `data` with that reader |
+| Participant state machine | Checks identities, signed contents, expiry, round/request context and cryptographic contributions as appropriate to the event |
+| Host approval | Decides whether a valid proposal should be accepted for the application's purposes |
+
+Domain `fromBytes` readers enforce bounded whole-value decoding, including
+trailing-data checks. The empty `KEEPALIVE_EVENT` is a special case: the current
+client constructs `KeepaliveEvent()` directly and ignores its `data`. There is
+no general signature over the protobuf `Events` wrapper: signed proposals and
+other attestations bind their specified domain hashes, while Iroh authenticates
+the transport endpoints. For example, proposal progress is checked as a
+coordinator report, not as part of the requester's proposal signature.
+
+A framing, envelope or domain-decoding failure in `_pumpEvents` is reported
+as a stream error and closes that event stream. A protocol-validation failure
+inside `Client._handleEvent` is reported through `Client.events` and disconnects
+the client session. These paths do not retry the offending event; a reconnecting
+runtime establishes a new session and snapshot.
+
+The [event chapter](events.md#from-a-dart-event-to-iroh-bytes-and-back) traces the
+producer, recipient selection, both codecs and the receiving state transition,
+including a worked signing-proposal sequence.
+
 `SessionStarted.snapshot` contains a serialized `LoginCompleteResponse`:
 session ID/expiry, server start time, online peers, pending DKG/signing requests,
 pending rounds, completed signatures and encrypted recovery shares. Its live
@@ -143,9 +195,10 @@ the framing decoder.
 
 ## Versions and errors
 
-The current wire version, ROAST login version and worker message version are
-all 1, but they are separate concepts. Package versions and signed-message
-format versions are separate again.
+The current Iroh wire version and ROAST login protocol version are both 1,
+but they are separate concepts. Package versions and signed-message format
+versions are separate again. The internal worker uses same-build Dart message
+types and generation IDs; it has no independently negotiated wire version.
 
 The [version policy](../packages/noosphere/spec/VERSIONING.md) treats this as
 an R&D baseline: matching version numbers do not promise compatibility across
@@ -176,6 +229,7 @@ into temporary storage and compares the result. The script uses the local
 pinned Dart protoc plugin and retains `.pb.dart`, `.pbenum.dart` and
 `.pbjson.dart`. There are no generated gRPC service stubs.
 
-Worker messages are Dart maps/DTOs, and the server persistence snapshot is
-versioned JSON with binary components. Those local boundaries have their own
-decoders; both network ALPNs share protobuf framing.
+Worker messages are typed Dart envelopes carrying encoded fields and public
+DTOs, and the server persistence snapshot is versioned JSON with binary
+components. Those local boundaries have their own decoders; both network ALPNs
+share protobuf framing.
