@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:noosphere/common/serial.dart';
 import 'package:collection/collection.dart';
 import 'package:frosty/frosty.dart';
 
@@ -10,7 +11,7 @@ import '../hd_derivation.dart';
 ///
 /// Consumers should determine if they desire to make these signatures for the
 /// given details.
-class SingleSignatureDetails with cl.Writable {
+class SingleSignatureDetails with cl.Writable, NoosphereWritable {
   /// The message hash to be signed and the MAST tweak.
   final SignDetails signDetails;
 
@@ -22,10 +23,11 @@ class SingleSignatureDetails with cl.Writable {
   final List<int> hdDerivation;
 
   SingleSignatureDetails({
-    required this.signDetails,
+    required SignDetails signDetails,
     required this.groupKey,
     required List<int> hdDerivation,
-  }) : hdDerivation = List.unmodifiable(hdDerivation) {
+  }) : signDetails = _ImmutableSignDetails(signDetails),
+       hdDerivation = List.unmodifiable(hdDerivation) {
     RangeError.checkValueInInterval(
       hdDerivation.length,
       0,
@@ -49,12 +51,12 @@ class SingleSignatureDetails with cl.Writable {
       );
 
   /// Convenience constructor to construct from serialised [bytes].
-  SingleSignatureDetails.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SingleSignatureDetails.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SingleSignatureDetails.fromReader);
 
   /// Convenience constructor to construct from encoded [hex].
-  SingleSignatureDetails.fromHex(String hex)
-    : this.fromBytes(cl.hexToBytes(hex));
+  factory SingleSignatureDetails.fromHex(String hex) =>
+      SingleSignatureDetails.fromBytes(cl.hexToBytes(hex));
 
   @override
   void write(cl.Writer writer) {
@@ -80,4 +82,16 @@ class SingleSignatureDetails with cl.Writable {
 
   T derive<T extends HDDerivableInfo>(T info) =>
       deriveThresholdHdKey(info, hdDerivation);
+}
+
+// Frosty 5 exposes mutable message and MAST arrays. A signed Noosphere proposal
+// must own those bytes before hashing, validation, or nonce preparation.
+final class _ImmutableSignDetails extends SignDetails with NoosphereWritable {
+  _ImmutableSignDetails(SignDetails details)
+    : super(
+        message: Uint8List.fromList(details.message).asUnmodifiableView(),
+        mastHash: details.mastHash == null
+            ? null
+            : Uint8List.fromList(details.mastHash!).asUnmodifiableView(),
+      );
 }

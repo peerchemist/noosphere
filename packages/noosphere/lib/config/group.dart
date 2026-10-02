@@ -12,7 +12,7 @@ typedef ParticipantMap = SplayTreeMap<Identifier, cl.ECCompressedPublicKey>;
 /// Configuation for participants in a FROST singing group which can represent
 /// multiple FROST keys for a given set of participants whereby each participant
 /// has an [Identifier] and associated [cl.ECCompressedPublicKey].
-class GroupConfig with cl.Writable, MapWritable {
+class GroupConfig with cl.Writable, NoosphereWritable, MapWritable {
   /// A unique ID for the group that allows unique groups to be made with the
   /// same participants.
   final String id;
@@ -20,12 +20,12 @@ class GroupConfig with cl.Writable, MapWritable {
   /// A map from a participant's [Identifier] and their
   /// [cl.ECCompressedPublicKey] used for authentication and for sharing
   /// information confidentially.
-  final ParticipantMap participants;
+  final Map<Identifier, cl.ECCompressedPublicKey> participants;
 
   GroupConfig({
     required this.id,
     required Map<Identifier, cl.ECCompressedPublicKey> participants,
-  }) : participants = ParticipantMap.of(participants) {
+  }) : participants = Map.unmodifiable(ParticipantMap.of(participants)) {
     RangeError.checkValueInInterval(participants.length, 2, 0xffff);
   }
 
@@ -33,13 +33,7 @@ class GroupConfig with cl.Writable, MapWritable {
     final id = reader.readString();
     final n = reader.readUInt16();
 
-    return GroupConfig(
-      id: id,
-      participants: {
-        for (int i = 0; i < n; i++)
-          reader.readIdentifier(): reader.readPubKey(),
-      },
-    );
+    return GroupConfig(id: id, participants: _readParticipants(reader, n));
   }
 
   factory GroupConfig.fromMapReader(MapReader reader) {
@@ -48,7 +42,6 @@ class GroupConfig with cl.Writable, MapWritable {
     return GroupConfig(
       id: reader["id"].require(),
       participants: {
-        // TODO: If identifier is within 16bits, allow key to be integer
         for (final idString in keysNode.keysOf<String>())
           Identifier.fromHex(idString): cl.ECCompressedPublicKey.fromHex(
             keysNode[idString].require(),
@@ -62,7 +55,7 @@ class GroupConfig with cl.Writable, MapWritable {
 
   /// Convenience constructor to construct from serialised [bytes].
   factory GroupConfig.fromBytes(Uint8List bytes) =>
-      GroupConfig.fromReader(cl.BytesReader(bytes));
+      readNoosphere(bytes, GroupConfig.fromReader);
 
   /// Convenience constructor to construct from encoded [hex].
   factory GroupConfig.fromHex(String hex) =>
@@ -90,4 +83,19 @@ class GroupConfig with cl.Writable, MapWritable {
         entry.key.toString(): entry.value.hex,
     },
   };
+}
+
+Map<Identifier, cl.ECCompressedPublicKey> _readParticipants(
+  cl.BytesReader reader,
+  int count,
+) {
+  final participants = <Identifier, cl.ECCompressedPublicKey>{};
+  for (var i = 0; i < count; i++) {
+    final id = reader.readIdentifier();
+    if (participants.containsKey(id)) {
+      throw const FormatException('duplicate participant identifier');
+    }
+    participants[id] = reader.readPubKey();
+  }
+  return participants;
 }

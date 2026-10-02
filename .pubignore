@@ -7,6 +7,8 @@ build/
 linux/
 macos/
 integration_test/
+test_driver/
+tool/
 packages/
 pubspec_overrides.yaml
 example/.dart_tool/

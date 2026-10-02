@@ -34,7 +34,7 @@ final class UnsupportedGroupTransitionVersion implements FormatException {
 /// [dkgDetailsHash] is the `NewDkgDetails.sigHash` that the successor group is
 /// allowed to execute. The resulting successor key is deliberately absent: it
 /// does not exist until that exact DKG completes.
-final class GroupTransitionKeyPlan with cl.Writable {
+final class GroupTransitionKeyPlan with cl.Writable, NoosphereWritable {
   GroupTransitionKeyPlan({
     required this.keyId,
     required this.sourceGroupKey,
@@ -85,7 +85,7 @@ final class GroupTransitionKeyPlan with cl.Writable {
 /// codec defines accounts, assets, destinations, fee limits and retry bounds.
 /// Including the bytes rather than only their hash prevents the signed object
 /// from becoming detached from the policy participants reviewed.
-final class GroupTransitionMigrationPolicy with cl.Writable {
+final class GroupTransitionMigrationPolicy with cl.Writable, NoosphereWritable {
   GroupTransitionMigrationPolicy({
     required this.kind,
     required this.version,
@@ -130,7 +130,8 @@ final class GroupTransitionMigrationPolicy with cl.Writable {
 /// Participant keys and key plans are serialized in a canonical order. The
 /// source [GroupConfig] is embedded so retained identities are matched by
 /// public key rather than by FROST identifier.
-final class GroupTransitionProposal with cl.Writable, Signable {
+final class GroupTransitionProposal
+    with cl.Writable, NoosphereWritable, Signable {
   GroupTransitionProposal({
     this.version = noosphereGroupTransitionProposalVersion,
     required this.transitionId,
@@ -223,7 +224,7 @@ final class GroupTransitionProposal with cl.Writable, Signable {
   }
 
   factory GroupTransitionProposal.fromBytes(Uint8List bytes) {
-    final reader = cl.BytesReader(bytes);
+    final reader = NoosphereBytesReader(bytes);
     if (reader.readString() != noosphereGroupTransitionProposalDomain) {
       throw const FormatException('invalid group transition proposal domain');
     }

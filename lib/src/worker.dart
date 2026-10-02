@@ -80,6 +80,7 @@ final class NoosphereWorker {
     int maxMessageBytes = defaultWorkerMaxMessageBytes,
     Map<String, ServerIdentityStore?> identityStores = const {},
     Map<String, RoomPersistence> roomPersistences = const {},
+    Map<String, ClientStorageInterface> clientStorages = const {},
     Future<Object?> Function()? hostOperation,
     bool failStartup = false,
   }) async {
@@ -104,6 +105,10 @@ final class NoosphereWorker {
     }
     for (final entry in roomPersistences.entries) {
       worker._setups.putIfAbsent(entry.key, _HostSetup.new).roomPersistence =
+          entry.value;
+    }
+    for (final entry in clientStorages.entries) {
+      worker._setups.putIfAbsent(entry.key, _HostSetup.new).storage =
           entry.value;
     }
     return worker;
@@ -203,6 +208,7 @@ final class NoosphereWorker {
   final _events = StreamController<NoosphereWorkerEvent>.broadcast();
   final _pending = <int, Completer<Object?>>{};
   final _setups = <String, _HostSetup>{};
+  final _lifecycleSetups = <String>{};
   Isolate? _isolate;
   SendPort? _workerPort;
   StreamSubscription<Object?>? _messageSubscription;
@@ -276,19 +282,43 @@ final class NoosphereWorker {
     );
   }
 
+  /// Exercises durable client storage over the worker boundary in unit tests.
+  @visibleForTesting
+  Future<Object?> debugClientStorageForTesting(
+    String setupId, {
+    Uint8List? rejectRequestId,
+  }) {
+    if (!_testing) {
+      throw StateError('Only testing workers support this command.');
+    }
+    return _invoke(
+      'testClientStorage',
+      setupId: setupId,
+      payload: {'rejectRequestId': rejectRequestId},
+    );
+  }
+
+  /// Starts roles. Concurrent lifecycle calls for this setup fail with
+  /// `setup_busy`; await completion before starting, stopping or switching it.
   Future<NoosphereWorkerSnapshot> startSetup({
     required String setupId,
     EmbeddedServerOptions? server,
     ClientNodeOptions? client,
-  }) async {
+  }) => _withSetupLifecycle(setupId, () async {
     _validateSetupId(setupId);
     if (server == null && client == null) {
       throw ArgumentError('At least one worker role is required.');
     }
 
     final setup = _setups.putIfAbsent(setupId, _HostSetup.new);
-    if (client != null && setup.persistCoordinator != null) {
-      throw StateError('Coordinator switch is in progress.');
+    // Check live roles before replacing host providers. The isolate rejecting
+    // a duplicate start is too late: a live role may request storage meanwhile.
+    if (setup.hasProviders) {
+      final current = await snapshot(setupId);
+      if ((server != null && current.serverRunning) ||
+          (client != null && current.signerRunning)) {
+        throw StateError('Requested role is already running.');
+      }
     }
     final previousProviders = setup.providers;
     setup.bind(server: server, client: client);
@@ -308,12 +338,12 @@ final class NoosphereWorker {
       if (!setup.hasProviders) _setups.remove(setupId);
       rethrow;
     }
-  }
+  });
 
   Future<void> stopSetup(
     String setupId, {
     NoosphereWorkerRoles roles = NoosphereWorkerRoles.both,
-  }) async {
+  }) => _withSetupLifecycle(setupId, () async {
     await _invoke(
       'stopRoles',
       setupId: setupId,
@@ -323,7 +353,7 @@ final class NoosphereWorker {
     if (setup == null) return;
     setup.unbind(roles);
     if (!setup.hasProviders) _setups.remove(setupId);
-  }
+  });
 
   /// Locks only the local signer; a server role in the same setup keeps
   /// coordinating other participants.
@@ -360,7 +390,7 @@ final class NoosphereWorker {
     String setupId, {
     required EndpointAddr newCoordinator,
     required Future<void> Function(EndpointAddr) persist,
-  }) async {
+  }) => _withSetupLifecycle(setupId, () async {
     final setup = _setups[setupId];
     if (setup?.storage == null || setup!.persistCoordinator != null) {
       throw StateError('Signer is unavailable or a switch is in progress.');
@@ -375,6 +405,23 @@ final class NoosphereWorker {
           as NoosphereWorkerSnapshot;
     } finally {
       setup.persistCoordinator = null;
+    }
+  });
+
+  Future<T> _withSetupLifecycle<T>(
+    String setupId,
+    Future<T> Function() operation,
+  ) async {
+    if (!_lifecycleSetups.add(setupId)) {
+      throw const NoosphereWorkerException(
+        'setup_busy',
+        'A lifecycle operation is already running for this setup.',
+      );
+    }
+    try {
+      return await operation();
+    } finally {
+      _lifecycleSetups.remove(setupId);
     }
   }
 

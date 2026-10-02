@@ -123,14 +123,14 @@ Stream<Envelope> decodeEnvelopes(
     }
   }
 
-  if (headerLength != 0) {
-    throw TruncatedFrameException(
-      'stream ended after $headerLength of 4 header bytes',
-    );
-  }
   if (body != null) {
     throw TruncatedFrameException(
       'stream ended after $bodyLength of ${body.length} body bytes',
+    );
+  }
+  if (headerLength != 0) {
+    throw TruncatedFrameException(
+      'stream ended after $headerLength of 4 header bytes',
     );
   }
 }

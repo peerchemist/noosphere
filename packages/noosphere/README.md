@@ -23,6 +23,27 @@ Dart message classes with:
 
 Protocol behavior beyond the wire schema is documented in `spec/`.
 
+## Value ownership and decoding
+
+Domain `fromBytes` APIs own the supplied byte slice and require a complete
+value with no trailing bytes. They reject non-canonical length prefixes,
+invalid booleans and duplicate map identifiers. Use `fromReader` only when
+decoding a value embedded within a larger record, and use
+`NoosphereBytesReader` from `common.dart` to retain the bounded reader behavior.
+
+Noosphere serialized byte views, signing hashes and signing payloads are
+read-only. Copy bytes before editing them. `GroupConfig.participants` is a
+read-only map in identifier order. Native Frosty values still carry their own
+ownership and disposal contracts.
+
+Unknown signature metadata can be preserved as a standalone opaque value, but
+cannot be embedded in an accepted signing request. Supporting a new metadata
+type requires a bounded codec and semantic validation of the requested digests.
+
+To prepare this package for publication from the workspace, use the repository
+root's `tool/stage_noosphere_release.sh`. It stages current source outside the
+root `.pubignore` exclusion for `packages/` and does not publish anything.
+
 Signature requests accept an optional free-form explanation:
 
 ```dart

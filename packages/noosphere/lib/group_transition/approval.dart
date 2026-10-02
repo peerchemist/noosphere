@@ -10,7 +10,8 @@ const String noosphereGroupTransitionApprovalDomain =
     'noosphere/group-transition-approval/1';
 
 /// A participant identity-key approval of one exact transition proposal.
-final class GroupTransitionApproval with cl.Writable, Signable {
+final class GroupTransitionApproval
+    with cl.Writable, NoosphereWritable, Signable {
   GroupTransitionApproval({
     required Uint8List proposalHash,
     required this.participantPublicKey,
@@ -56,7 +57,7 @@ final class GroupTransitionApproval with cl.Writable, Signable {
   }
 
   factory GroupTransitionApproval.fromBytes(Uint8List bytes) {
-    final reader = cl.BytesReader(bytes);
+    final reader = NoosphereBytesReader(bytes);
     final approval = GroupTransitionApproval.fromReader(reader);
     if (!reader.atEnd) {
       throw const FormatException('trailing group transition approval data');

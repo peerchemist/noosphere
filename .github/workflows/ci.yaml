@@ -41,6 +41,9 @@ jobs:
         run: |
           xvfb-run -a flutter test integration_test/native_transport_test.dart -d linux
           xvfb-run -a flutter test integration_test/roast_2_of_2_test.dart -d linux
+          xvfb-run -a flutter test integration_test/message_signing_2_of_2_test.dart -d linux
+          xvfb-run -a flutter test integration_test/room_roast_2_of_3_test.dart -d linux
+          xvfb-run -a flutter test integration_test/coordinator_rotation_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_roast_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_lifecycle_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_room_persistence_test.dart -d linux
@@ -97,6 +100,9 @@ jobs:
         run: |
           flutter test integration_test/native_transport_test.dart -d macos
           flutter test integration_test/roast_2_of_2_test.dart -d macos
+          flutter test integration_test/message_signing_2_of_2_test.dart -d macos
+          flutter test integration_test/room_roast_2_of_3_test.dart -d macos
+          flutter test integration_test/coordinator_rotation_test.dart -d macos
           flutter test integration_test/worker_roast_test.dart -d macos
           flutter test integration_test/worker_lifecycle_test.dart -d macos
           flutter test integration_test/worker_room_persistence_test.dart -d macos

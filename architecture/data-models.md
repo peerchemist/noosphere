@@ -29,7 +29,8 @@ verification key. RPC IDs and signing-request IDs are unrelated despite their
 equal byte lengths.
 
 [`GroupConfig`](../packages/noosphere/lib/config/group.dart) contains an `id`
-string and a sorted `SplayTreeMap<Identifier, ECCompressedPublicKey>`. It allows
+string and a read-only `Map<Identifier, ECCompressedPublicKey>` sorted by
+identifier. It allows
 2–65,535 participants. Its fingerprint is `SHA256(group.toBytes())`, binding
 the group ID and identifier-to-key mapping in deterministic order. The ID
 allows distinct groups with identical rosters.
@@ -134,7 +135,7 @@ uses a one-byte discriminator:
 | 0 | `EmptySignatureMetadata` | No semantic validation of digests |
 | 1 | `TaprootTransactionSignatureMetadata` | Transaction, previous outputs and input details must match requested signature hashes |
 | 2 | `MessageSignatureMetadata` | Exactly one matching payload digest, no MAST tweak and no HD derivation |
-| Other | `UnknownSignatureMetadata` | Opaque bytes, without semantic validation |
+| Other | `UnknownSignatureMetadata` | Standalone preservation only; rejected in signing requests |
 
 Taproot metadata does not replace host checks of destinations, fees, network,
 derivation policy or the correct signing key. Unknown metadata is not a complete

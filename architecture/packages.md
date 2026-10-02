@@ -34,7 +34,7 @@ and transport APIs. It does not export every internal transport helper.
 | `package:noosphere/noosphere.dart` | Generated protobuf messages/enums, framing, rooms and transitions |
 | `package:noosphere/config.dart` | `GroupConfig`, map/YAML serialization utilities |
 | `package:noosphere/iroh.dart` | ALPN strings, wire version, relay policy |
-| `package:noosphere/common.dart` | Binary helpers, expiring maps, argument checks |
+| `package:noosphere/common.dart` | Binary helpers, bounded domain reader, expiring maps |
 | `package:noosphere/room.dart` | Invites, enrollment contract/transcript and snapshots |
 | `package:noosphere/group_transition.dart` | Transition proposal, policy, key plan and approval |
 

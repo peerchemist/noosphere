@@ -9,7 +9,7 @@ import 'signed.dart';
 
 /// A signed [DkgAck] and the [signer]. These are equal when the [signer] and
 /// group key are the same.
-class SignedDkgAck with cl.Writable {
+class SignedDkgAck with cl.Writable, NoosphereWritable {
   final Identifier signer;
   final Signed<DkgAck> signed;
 
@@ -19,8 +19,8 @@ class SignedDkgAck with cl.Writable {
         signer: reader.readIdentifier(),
         signed: Signed.fromReader(reader, () => DkgAck.fromReader(reader)),
       );
-  SignedDkgAck.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignedDkgAck.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignedDkgAck.fromReader);
 
   @override
   /// Equal when the [signer] and the [DkgAck.groupKey] are the same regardless

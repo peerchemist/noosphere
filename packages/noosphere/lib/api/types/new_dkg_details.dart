@@ -9,10 +9,10 @@ import 'signed.dart';
 
 /// Details of DKG requested by a participant. This is signed by the participant
 /// and sent to the other participants.
-class NewDkgDetails with cl.Writable, Signable {
-  static int minNameLength = 3;
-  static int maxNameLength = 40;
-  static int maxDescLength = 1000;
+class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
+  static const int minNameLength = 3;
+  static const int maxNameLength = 40;
+  static const int maxDescLength = 1000;
 
   /// A unique name for the DKG between 3-40 characters
   final String name;
@@ -37,7 +37,7 @@ class NewDkgDetails with cl.Writable, Signable {
       throw ArgumentError.value(name, "name");
     }
     if (description.length > maxDescLength) {
-      throw ArgumentError.value(name, "description");
+      throw ArgumentError.value(description, "description");
     }
     if (threshold < 2 || threshold > 0xffff) {
       throw ArgumentError.value(threshold, "threshold");
@@ -90,15 +90,17 @@ class NewDkgDetails with cl.Writable, Signable {
       );
 
   /// Convenience constructor to construct from serialised [bytes].
-  NewDkgDetails.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory NewDkgDetails.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, NewDkgDetails.fromReader);
 
   /// Decodes persisted historical details without requiring a live expiry.
   ///
   /// Callers must still reject expired details before starting or approving a
   /// DKG. This constructor is intended for audit records and recovery state.
-  NewDkgDetails.fromBytesAllowExpired(Uint8List bytes)
-    : this._fromReader(cl.BytesReader(bytes), allowNegativeExpiry: true);
+  factory NewDkgDetails.fromBytesAllowExpired(Uint8List bytes) => readNoosphere(
+    bytes,
+    (reader) => NewDkgDetails._fromReader(reader, allowNegativeExpiry: true),
+  );
 
   NewDkgDetails._fromReader(
     cl.BytesReader reader, {

@@ -63,9 +63,8 @@ The enrollment operations use the
 [enrollment client](../packages/noosphere_client/lib/src/iroh/room_enrollment_api.dart)
 and [enrollment handler](../packages/noosphere_server/lib/src/iroh/enrollment_connection_handler.dart)
 on the dedicated enrollment ALPN, before a ROAST session exists.
-The schema also retains older wrapper messages such as `SignaturesResponse`;
-the active envelope RPC uses `SubmitSignatureRepliesResponse` with typed
-outcomes instead of that older type-plus-data response.
+The envelope RPC uses `SubmitSignatureRepliesResponse` with typed outcomes.
+Unused legacy response wrappers have been removed from the schema.
 
 ## Canonical domain bytes inside protobuf
 

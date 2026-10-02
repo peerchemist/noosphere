@@ -1,4 +1,5 @@
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:noosphere/common/serial.dart';
 
 import 'dart:typed_data';
 
@@ -7,11 +8,14 @@ import 'signed.dart';
 
 /// Cryptographically secure onetime number of 16 bytes used for ids, challenges
 /// etc.
-class OnetimeNumber with cl.Writable, BytesMappable<OnetimeNumber> {
+class OnetimeNumber
+    with cl.Writable, NoosphereWritable, BytesMappable<OnetimeNumber> {
   final Uint8List n;
-  OnetimeNumber() : n = cl.generateRandomBytes(16);
-  OnetimeNumber.fromReader(cl.BytesReader reader) : n = reader.readSlice(16);
-  OnetimeNumber.fromBytes(this.n) {
+  OnetimeNumber() : n = cl.generateRandomBytes(16).asUnmodifiableView();
+  OnetimeNumber.fromReader(cl.BytesReader reader)
+    : n = reader.readSlice(16).asUnmodifiableView();
+  OnetimeNumber.fromBytes(Uint8List n)
+    : n = Uint8List.fromList(n).asUnmodifiableView() {
     if (n.length != 16) throw ArgumentError.value(n, "n", "not 16 bytes");
   }
   @override

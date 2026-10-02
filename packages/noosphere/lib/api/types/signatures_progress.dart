@@ -15,7 +15,7 @@ enum SignaturesProgressStage { collecting, signing, completed, failed }
 /// whose valid shares are in the most advanced active round. For requests with
 /// multiple signatures, the representative signature is the unfinished one
 /// with the highest threshold.
-final class SignaturesProgress with cl.Writable {
+final class SignaturesProgress with cl.Writable, NoosphereWritable {
   SignaturesProgress({
     required this.threshold,
     required Iterable<Identifier> contributingParticipants,
@@ -71,7 +71,7 @@ final class SignaturesProgress with cl.Writable {
   }
 
   factory SignaturesProgress.fromBytes(Uint8List bytes) =>
-      SignaturesProgress.fromReader(cl.BytesReader(bytes));
+      readNoosphere(bytes, SignaturesProgress.fromReader);
 
   @override
   void write(cl.Writer writer) {

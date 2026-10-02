@@ -161,15 +161,12 @@ explanation into a signed authorization.
 ## Why not use `UnknownSignatureMetadata` as an extension API?
 
 [`UnknownSignatureMetadata`](../packages/noosphere/lib/api/types/signature_metadata.dart)
-exists and writes a type byte plus opaque data; its validation method returns
-true. That alone does not establish a portable custom metadata protocol.
-
-The current fallback decoder takes a view of the reader's remaining bytes;
-it has no separate unknown-payload length and does not advance past a defined
-unknown payload. A complete request has expiry and explanation fields after
-metadata. Consequently, isolated unknown-metadata serialization tests do not
-establish safe round-trip behavior for a custom payload embedded in a signing
-request. Do not advertise that fallback as plug-and-play application messaging.
+preserves opaque bytes only when decoded as a complete standalone value. Its
+validation method returns false, and embedded decoding rejects unknown types.
+The format has no length for an unknown metadata body, so a reader cannot
+distinguish that body from the expiry and explanation following it in a
+signing request. Unknown metadata therefore cannot authorize signing or serve
+as an application messaging extension.
 
 A supported metadata extension needs an explicit bounded encoding, decoder,
 type assignment and semantic validation tying data to `requiredSigs`. It also

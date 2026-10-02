@@ -21,7 +21,7 @@ const int _emptyType = 0;
 const int _taprootTxType = 1;
 const int _messageSignatureType = 2;
 
-abstract interface class SignatureMetadata with cl.Writable {
+abstract interface class SignatureMetadata with cl.Writable, NoosphereWritable {
   int get type;
 
   /// May throw an exception other than [cl.OutOfData] if the data is invalid
@@ -30,16 +30,24 @@ abstract interface class SignatureMetadata with cl.Writable {
     _emptyType => EmptySignatureMetadata(),
     _taprootTxType => TaprootTransactionSignatureMetadata._fromReader(reader),
     _messageSignatureType => MessageSignatureMetadata.fromReader(reader),
-    int i => UnknownSignatureMetadata(
-      i,
-      reader.bytes.buffer.asUint8List(reader.offset),
-    ),
+    _ => throw const FormatException('unsupported embedded signature metadata'),
   };
 
   /// Convenience constructor to construct from serialised [bytes].
   /// May throw an exception other than [cl.OutOfData] if the data is invalid
-  static SignatureMetadata fromBytes(Uint8List bytes) =>
-      SignatureMetadata.fromReader(cl.BytesReader(bytes));
+  static SignatureMetadata fromBytes(Uint8List bytes) {
+    final reader = NoosphereBytesReader(bytes);
+    final type = reader.readUInt8();
+    if (type != _emptyType &&
+        type != _taprootTxType &&
+        type != _messageSignatureType) {
+      return UnknownSignatureMetadata(
+        type,
+        reader.readSlice(reader.bytes.lengthInBytes - reader.offset),
+      );
+    }
+    return readNoosphere(bytes, SignatureMetadata.fromReader);
+  }
 
   /// Convenience constructor to construct from encoded [hex].
   /// May throw an exception other than [cl.OutOfData] if the data is invalid
@@ -288,7 +296,10 @@ class UnknownSignatureMetadata extends SignatureMetadata {
   final int type;
   final Uint8List data;
 
-  UnknownSignatureMetadata(this.type, this.data);
+  UnknownSignatureMetadata(this.type, Uint8List data)
+    : data = Uint8List.fromList(data).asUnmodifiableView() {
+    RangeError.checkValueInInterval(type, 3, 0xff, 'type');
+  }
 
   @override
   void write(cl.Writer writer) {
@@ -297,5 +308,5 @@ class UnknownSignatureMetadata extends SignatureMetadata {
   }
 
   @override
-  bool verifyRequiredSigs(List<SingleSignatureDetails> requiredSigs) => true;
+  bool verifyRequiredSigs(List<SingleSignatureDetails> requiredSigs) => false;
 }

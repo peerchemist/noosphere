@@ -18,7 +18,7 @@ import 'types/signatures_progress.dart';
 import 'types/signed.dart';
 import 'types/signed_dkg_ack.dart';
 
-sealed class Event with cl.Writable {}
+sealed class Event with cl.Writable, NoosphereWritable {}
 
 /// Gives an event when a participant logs in or logs out.
 ///
@@ -32,8 +32,8 @@ class ParticipantStatusEvent extends Event {
 
   ParticipantStatusEvent.fromReader(cl.BytesReader reader)
     : this(id: reader.readIdentifier(), loggedIn: reader.readBool());
-  ParticipantStatusEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory ParticipantStatusEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, ParticipantStatusEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -83,8 +83,8 @@ class NewDkgEvent extends Event implements DetailsEvent {
           ),
         ),
       );
-  NewDkgEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory NewDkgEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, NewDkgEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -118,8 +118,8 @@ class DkgCommitmentEvent extends Event {
         participant: reader.readIdentifier(),
         commitment: DkgPublicCommitment.fromBytes(reader.readVarSlice()),
       );
-  DkgCommitmentEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory DkgCommitmentEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, DkgCommitmentEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -139,8 +139,8 @@ class DkgRejectEvent extends Event {
   DkgRejectEvent({required this.name, required this.participant});
   DkgRejectEvent.fromReader(cl.BytesReader reader)
     : this(name: reader.readString(), participant: reader.readIdentifier());
-  DkgRejectEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory DkgRejectEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, DkgRejectEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -169,8 +169,8 @@ class DkgRound2ShareEvent extends Event {
         sender: reader.readIdentifier(),
         secret: DkgEncryptedSecret(ECCiphertext.fromReader(reader)),
       );
-  DkgRound2ShareEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory DkgRound2ShareEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, DkgRound2ShareEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -184,7 +184,7 @@ class DkgRound2ShareEvent extends Event {
 /// Sent when a participant has provided one or more [SignedDkgAck]s.
 class DkgAckEvent extends Event {
   final Set<SignedDkgAck> acks;
-  DkgAckEvent(this.acks) {
+  DkgAckEvent(Set<SignedDkgAck> acks) : acks = Set.unmodifiable(acks) {
     checkNotEmpty(acks, "acks");
   }
   DkgAckEvent.fromReader(cl.BytesReader reader)
@@ -193,8 +193,8 @@ class DkgAckEvent extends Event {
             .readWritableVector((bytes) => SignedDkgAck.fromBytes(bytes))
             .toSet(),
       );
-  DkgAckEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory DkgAckEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, DkgAckEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -208,7 +208,8 @@ class DkgAckEvent extends Event {
 /// [ApiRequestInterface.sendDkgAcks].
 class DkgAckRequestEvent extends Event {
   final Set<DkgAckRequest> requests;
-  DkgAckRequestEvent(this.requests) {
+  DkgAckRequestEvent(Set<DkgAckRequest> requests)
+    : requests = Set.unmodifiable(requests) {
     checkNotEmpty(requests, "requests");
   }
   DkgAckRequestEvent.fromReader(cl.BytesReader reader)
@@ -217,8 +218,8 @@ class DkgAckRequestEvent extends Event {
             .readWritableVector((bytes) => DkgAckRequest.fromBytes(bytes))
             .toSet(),
       );
-  DkgAckRequestEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory DkgAckRequestEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, DkgAckRequestEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -250,8 +251,8 @@ class SignaturesRequestEvent extends Event implements DetailsEvent {
         creator: reader.readIdentifier(),
         progress: SignaturesProgress.fromReader(reader),
       );
-  SignaturesRequestEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignaturesRequestEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignaturesRequestEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -274,8 +275,8 @@ class SignaturesProgressEvent extends Event {
         progress: SignaturesProgress.fromReader(reader),
       );
 
-  SignaturesProgressEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignaturesProgressEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignaturesProgressEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -289,7 +290,10 @@ class SignatureNewRoundsEvent extends Event {
   final SignaturesRequestId reqId;
   final List<SignatureRoundStart> rounds;
 
-  SignatureNewRoundsEvent({required this.reqId, required this.rounds});
+  SignatureNewRoundsEvent({
+    required this.reqId,
+    required List<SignatureRoundStart> rounds,
+  }) : rounds = List.unmodifiable(rounds);
 
   SignatureNewRoundsEvent.fromReader(cl.BytesReader reader)
     : this(
@@ -298,8 +302,8 @@ class SignatureNewRoundsEvent extends Event {
           (b) => SignatureRoundStart.fromBytes(b),
         ),
       );
-  SignatureNewRoundsEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignatureNewRoundsEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignatureNewRoundsEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -313,15 +317,18 @@ class SignatureNewRoundsEvent extends Event {
 class SignaturesCompleteEvent extends Event {
   final SignaturesRequestId reqId;
   final List<cl.SchnorrSignature> signatures;
-  SignaturesCompleteEvent({required this.reqId, required this.signatures});
+  SignaturesCompleteEvent({
+    required this.reqId,
+    required List<cl.SchnorrSignature> signatures,
+  }) : signatures = List.unmodifiable(signatures);
 
   SignaturesCompleteEvent.fromReader(cl.BytesReader reader)
     : this(
         reqId: SignaturesRequestId.fromReader(reader),
         signatures: reader.readSignatureVector(),
       );
-  SignaturesCompleteEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignaturesCompleteEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignaturesCompleteEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -338,8 +345,8 @@ class SignaturesFailureEvent extends Event {
 
   SignaturesFailureEvent.fromReader(cl.BytesReader reader)
     : this(SignaturesRequestId.fromReader(reader));
-  SignaturesFailureEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignaturesFailureEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignaturesFailureEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -365,8 +372,8 @@ class SecretShareEvent extends Event {
         keyShare: EncryptedKeyShare(ECCiphertext.fromReader(reader)),
         groupKey: reader.readPubKey(),
       );
-  SecretShareEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SecretShareEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SecretShareEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -398,8 +405,8 @@ class ConstructedKeyEvent extends Event {
           () => KeyWasConstructed.fromReader(reader),
         ),
       );
-  ConstructedKeyEvent.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory ConstructedKeyEvent.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, ConstructedKeyEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {

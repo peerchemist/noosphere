@@ -3,6 +3,10 @@ description: Flutter lifecycle adapter for Noosphere ROAST clients and embedded 
 version: 0.1.0
 repository: https://github.com/peercoin/noosphere_roast_flutter
 
+platforms:
+  linux:
+  macos:
+
 environment:
   sdk: ^3.13.0
   flutter: '>=3.47.0'

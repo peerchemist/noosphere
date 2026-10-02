@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_server/noosphere_server.dart';
+import 'package:noosphere/domain.dart';
 
 /// Roles owned by a worker setup.
 enum NoosphereWorkerRoles { server, signer, both }
@@ -32,7 +32,7 @@ final class WorkerDkgStatus {
     required List<String> completedParticipants,
     required Uint8List proposalBytes,
   }) : completedParticipants = List.unmodifiable(completedParticipants),
-       proposalBytes = Uint8List.fromList(proposalBytes);
+       proposalBytes = Uint8List.fromList(proposalBytes).asUnmodifiableView();
 
   final String name;
   final String description;
@@ -88,8 +88,8 @@ final class WorkerSigningRequest {
     required this.expiry,
     required this.status,
     required this.progress,
-  }) : id = Uint8List.fromList(id),
-       proposalBytes = Uint8List.fromList(proposalBytes);
+  }) : id = Uint8List.fromList(id).asUnmodifiableView(),
+       proposalBytes = Uint8List.fromList(proposalBytes).asUnmodifiableView();
 
   final Uint8List id;
   final Uint8List proposalBytes;
@@ -192,9 +192,13 @@ final class WorkerSigningResultEvent extends NoosphereWorkerEvent {
     required Uint8List proposalBytes,
     required List<Uint8List> signatures,
     required this.creator,
-  }) : requestId = Uint8List.fromList(requestId),
-       proposalBytes = Uint8List.fromList(proposalBytes),
-       signatures = List.unmodifiable(signatures.map(Uint8List.fromList));
+  }) : requestId = Uint8List.fromList(requestId).asUnmodifiableView(),
+       proposalBytes = Uint8List.fromList(proposalBytes).asUnmodifiableView(),
+       signatures = List.unmodifiable(
+         signatures.map(
+           (bytes) => Uint8List.fromList(bytes).asUnmodifiableView(),
+         ),
+       );
 
   final Uint8List requestId;
   final Uint8List proposalBytes;

@@ -5,12 +5,13 @@ import 'package:noosphere/api/types/signature_round_start.dart';
 import 'package:noosphere/common/serial.dart';
 import 'package:frosty/frosty.dart';
 
-sealed class SignaturesResponse with cl.Writable {}
+sealed class SignaturesResponse with cl.Writable, NoosphereWritable {}
 
 /// Provides the [SigningCommitmentSet]s when new ROAST rounds are initiated.
 class SignatureNewRoundsResponse extends SignaturesResponse {
   final List<SignatureRoundStart> rounds;
-  SignatureNewRoundsResponse(this.rounds);
+  SignatureNewRoundsResponse(List<SignatureRoundStart> rounds)
+    : rounds = List.unmodifiable(rounds);
 
   SignatureNewRoundsResponse.fromReader(cl.BytesReader reader)
     : this(
@@ -20,8 +21,8 @@ class SignatureNewRoundsResponse extends SignaturesResponse {
       );
 
   /// Convenience constructor to construct from serialised [bytes].
-  SignatureNewRoundsResponse.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignatureNewRoundsResponse.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignatureNewRoundsResponse.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -32,14 +33,15 @@ class SignatureNewRoundsResponse extends SignaturesResponse {
 /// Provides all of the final signatures when ROAST is complete.
 class SignaturesCompleteResponse extends SignaturesResponse {
   final List<cl.SchnorrSignature> signatures;
-  SignaturesCompleteResponse(this.signatures);
+  SignaturesCompleteResponse(List<cl.SchnorrSignature> signatures)
+    : signatures = List.unmodifiable(signatures);
 
   SignaturesCompleteResponse.fromReader(cl.BytesReader reader)
     : this(reader.readSignatureVector());
 
   /// Convenience constructor to construct from serialised [bytes].
-  SignaturesCompleteResponse.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignaturesCompleteResponse.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignaturesCompleteResponse.fromReader);
 
   @override
   void write(cl.Writer writer) {

@@ -13,7 +13,7 @@ import 'single_signature_details.dart';
 
 /// 16-byte ID for a [SignaturesRequestDetails] that implements equality
 /// comparison
-class SignaturesRequestId with cl.Writable {
+class SignaturesRequestId with cl.Writable, NoosphereWritable {
   final Uint8List _hash;
   SignaturesRequestId._(this._hash) {
     assert(_hash.length == 16);
@@ -23,8 +23,8 @@ class SignaturesRequestId with cl.Writable {
     : this._(reader.readSlice(16));
 
   /// Convenience constructor to construct from serialised [bytes].
-  SignaturesRequestId.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignaturesRequestId.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignaturesRequestId.fromReader);
 
   @override
   bool operator ==(Object other) =>
@@ -41,7 +41,7 @@ class SignaturesRequestId with cl.Writable {
 }
 
 /// Details of requested required signatures
-class SignaturesRequestDetails with cl.Writable, Signable {
+class SignaturesRequestDetails with cl.Writable, NoosphereWritable, Signable {
   /// Maximum UTF-8 byte length of the request explanation.
   static const int maxMessageBytes = 1024;
 
@@ -168,19 +168,22 @@ class SignaturesRequestDetails with cl.Writable, Signable {
   }
 
   /// Convenience constructor to construct from serialised [bytes].
-  SignaturesRequestDetails.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignaturesRequestDetails.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignaturesRequestDetails.fromReader);
 
   /// Decodes a historical, completed request that may already be expired.
   ///
   /// Active and newly submitted requests must use [fromBytes], which retains
   /// the normal expiry validation.
-  SignaturesRequestDetails.fromBytesAllowExpired(Uint8List bytes)
-    : this.fromReaderAllowNegativeExpiry(cl.BytesReader(bytes));
+  factory SignaturesRequestDetails.fromBytesAllowExpired(Uint8List bytes) =>
+      readNoosphere(
+        bytes,
+        SignaturesRequestDetails.fromReaderAllowNegativeExpiry,
+      );
 
   /// Convenience constructor to construct from encoded [hex].
-  SignaturesRequestDetails.fromHex(String hex)
-    : this.fromBytes(cl.hexToBytes(hex));
+  factory SignaturesRequestDetails.fromHex(String hex) =>
+      SignaturesRequestDetails.fromBytes(cl.hexToBytes(hex));
 
   static final _hasher = cl.getTaggedHasher("SignaturesRequestDetails");
 

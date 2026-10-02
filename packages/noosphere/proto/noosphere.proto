@@ -6,23 +6,6 @@ message Bytes {
   bytes data = 1;
 }
 
-message RepeatedBytes {
-  repeated bytes data = 1;
-}
-
-enum SignaturesResponseType {
-  SIGNATURES_RESPONSE_EMPTY = 0;
-  SIGNATURES_RESPONSE_NEW_ROUND = 1;
-  SIGNATURES_RESPONSE_COMPLETE = 2;
-}
-
-message SignaturesResponse {
-  SignaturesResponseType type = 1;
-  bytes data = 2;
-}
-
-message Empty {}
-
 message LoginRequest {
   bytes group_fingerprint = 1;
   bytes participant_id = 2;

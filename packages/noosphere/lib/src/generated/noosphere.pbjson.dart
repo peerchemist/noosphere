@@ -14,22 +14,6 @@ import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
-@$core.Deprecated('Use signaturesResponseTypeDescriptor instead')
-const SignaturesResponseType$json = {
-  '1': 'SignaturesResponseType',
-  '2': [
-    {'1': 'SIGNATURES_RESPONSE_EMPTY', '2': 0},
-    {'1': 'SIGNATURES_RESPONSE_NEW_ROUND', '2': 1},
-    {'1': 'SIGNATURES_RESPONSE_COMPLETE', '2': 2},
-  ],
-};
-
-/// Descriptor for `SignaturesResponseType`. Decode as a `google.protobuf.EnumDescriptorProto`.
-final $typed_data.Uint8List signaturesResponseTypeDescriptor = $convert.base64Decode(
-    'ChZTaWduYXR1cmVzUmVzcG9uc2VUeXBlEh0KGVNJR05BVFVSRVNfUkVTUE9OU0VfRU1QVFkQAB'
-    'IhCh1TSUdOQVRVUkVTX1JFU1BPTlNFX05FV19ST1VORBABEiAKHFNJR05BVFVSRVNfUkVTUE9O'
-    'U0VfQ09NUExFVEUQAg==');
-
 @$core.Deprecated('Use eventTypeDescriptor instead')
 const EventType$json = {
   '1': 'EventType',
@@ -100,48 +84,6 @@ const Bytes$json = {
 /// Descriptor for `Bytes`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List bytesDescriptor =
     $convert.base64Decode('CgVCeXRlcxISCgRkYXRhGAEgASgMUgRkYXRh');
-
-@$core.Deprecated('Use repeatedBytesDescriptor instead')
-const RepeatedBytes$json = {
-  '1': 'RepeatedBytes',
-  '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 12, '10': 'data'},
-  ],
-};
-
-/// Descriptor for `RepeatedBytes`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List repeatedBytesDescriptor =
-    $convert.base64Decode('Cg1SZXBlYXRlZEJ5dGVzEhIKBGRhdGEYASADKAxSBGRhdGE=');
-
-@$core.Deprecated('Use signaturesResponseDescriptor instead')
-const SignaturesResponse$json = {
-  '1': 'SignaturesResponse',
-  '2': [
-    {
-      '1': 'type',
-      '3': 1,
-      '4': 1,
-      '5': 14,
-      '6': '.noosphere.SignaturesResponseType',
-      '10': 'type'
-    },
-    {'1': 'data', '3': 2, '4': 1, '5': 12, '10': 'data'},
-  ],
-};
-
-/// Descriptor for `SignaturesResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List signaturesResponseDescriptor = $convert.base64Decode(
-    'ChJTaWduYXR1cmVzUmVzcG9uc2USNQoEdHlwZRgBIAEoDjIhLm5vb3NwaGVyZS5TaWduYXR1cm'
-    'VzUmVzcG9uc2VUeXBlUgR0eXBlEhIKBGRhdGEYAiABKAxSBGRhdGE=');
-
-@$core.Deprecated('Use emptyDescriptor instead')
-const Empty$json = {
-  '1': 'Empty',
-};
-
-/// Descriptor for `Empty`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List emptyDescriptor =
-    $convert.base64Decode('CgVFbXB0eQ==');
 
 @$core.Deprecated('Use loginRequestDescriptor instead')
 const LoginRequest$json = {

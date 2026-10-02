@@ -17,7 +17,7 @@ abstract interface class RoomEnrollmentApi {
 }
 
 /// Canonical, domain-separated proof-of-possession payload.
-final class EnrollmentTranscript with cl.Writable, Signable {
+final class EnrollmentTranscript with cl.Writable, NoosphereWritable, Signable {
   EnrollmentTranscript({
     this.version = noosphereEnrollmentProtocolVersion,
     required this.roomId,
@@ -54,7 +54,7 @@ final class EnrollmentTranscript with cl.Writable, Signable {
   );
 
   factory EnrollmentTranscript.fromBytes(Uint8List bytes) {
-    final reader = cl.BytesReader(bytes);
+    final reader = NoosphereBytesReader(bytes);
     final domain = reader.readString();
     if (domain != noosphereEnrollmentProtocol) {
       throw const FormatException('invalid enrollment transcript domain');
@@ -104,11 +104,11 @@ final class EnrollmentTranscript with cl.Writable, Signable {
   }
 }
 
-final class EnrollmentChallenge with cl.Writable {
+final class EnrollmentChallenge with cl.Writable, NoosphereWritable {
   EnrollmentChallenge({required this.transcript, required this.expiresAt});
 
   factory EnrollmentChallenge.fromBytes(Uint8List bytes) {
-    final reader = cl.BytesReader(bytes);
+    final reader = NoosphereBytesReader(bytes);
     final challenge = EnrollmentChallenge(
       transcript: EnrollmentTranscript.fromBytes(reader.readVarSlice()),
       expiresAt: reader.readTime(),

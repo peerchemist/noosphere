@@ -135,7 +135,9 @@ produce a command error.
 
 A setup ID is 1–128 characters. One worker can own several setups; each has its
 own FIFO, signer node and server node. `startSetup` can add a missing role to
-an existing setup but rejects starting an already-running role again.
+an existing setup but rejects starting an already-running role again before
+changing host providers. Overlapping host lifecycle calls on one setup fail
+with `setup_busy`; callers must await start, stop or switch completion.
 Independent setups share the isolate event loop, so synchronous work can still
 delay other work in that worker.
 
@@ -188,9 +190,9 @@ Host requests include setup identity, and key requests additionally identify
 the participant and `KeyPurpose`. The host checks the participant against its
 bound setup. Ordinary public events never contain the returned key bytes.
 
-Room/server provider queues preserve ordering for the same instance across
-worker replacement; per-setup storage serialization also coordinates the
-client store. The [persistence chapter](state-and-persistence.md) explains
+Client, room and server provider queues preserve ordering for the same instance
+across worker replacement; per-setup storage serialization also coordinates
+operations within a setup. The [persistence chapter](state-and-persistence.md) explains
 their scopes and why provider timeouts are not transaction cancellation.
 
 ## Sessions, snapshots and address updates

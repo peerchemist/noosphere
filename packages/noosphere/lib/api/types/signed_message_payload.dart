@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:noosphere/common/serial.dart';
 
 /// The canonical, versioned text payload used for Noosphere message signing.
-class SignedMessagePayload with cl.Writable {
+class SignedMessagePayload with cl.Writable, NoosphereWritable {
   static const int currentVersion = 1;
   static const int maxTextBytes = 1024;
   static const String version1Tag = 'Noosphere/SignedMessage/v1';
@@ -57,7 +58,7 @@ class SignedMessagePayload with cl.Writable {
   }
 
   factory SignedMessagePayload.fromBytes(Uint8List bytes) {
-    final reader = cl.BytesReader(bytes);
+    final reader = NoosphereBytesReader(bytes);
     final payload = SignedMessagePayload.fromReader(reader);
     if (!reader.atEnd) {
       throw const FormatException('trailing signed-message payload bytes');

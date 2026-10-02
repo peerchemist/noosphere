@@ -7,7 +7,7 @@ import 'signed.dart';
 
 /// Wraps a [cl.ECCompressedPublicKey] in an object that can be signed to
 /// signify that a participant claims to have constructed the private key.
-class KeyWasConstructed with cl.Writable, Signable {
+class KeyWasConstructed with cl.Writable, NoosphereWritable, Signable {
   static final _hasher = cl.getTaggedHasher("KeyWasConstructed");
 
   final cl.ECCompressedPublicKey publicKey;
@@ -18,8 +18,8 @@ class KeyWasConstructed with cl.Writable, Signable {
   KeyWasConstructed(this.publicKey);
   KeyWasConstructed.fromReader(cl.BytesReader reader)
     : publicKey = reader.readPubKey();
-  KeyWasConstructed.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory KeyWasConstructed.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, KeyWasConstructed.fromReader);
 
   @override
   void write(cl.Writer writer) {

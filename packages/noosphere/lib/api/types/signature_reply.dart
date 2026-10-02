@@ -5,7 +5,7 @@ import 'package:noosphere/common/serial.dart';
 import 'package:frosty/frosty.dart';
 
 /// A ROAST reply for a single signature at the position [sigI] in a request.
-class SignatureReply with cl.Writable {
+class SignatureReply with cl.Writable, NoosphereWritable {
   final int sigI;
 
   /// The next commitment must always be provided.
@@ -30,8 +30,8 @@ class SignatureReply with cl.Writable {
       );
 
   /// Convenience constructor to construct from serialised [bytes].
-  SignatureReply.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory SignatureReply.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignatureReply.fromReader);
 
   @override
   void write(cl.Writer writer) {

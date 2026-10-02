@@ -30,7 +30,7 @@ final class UnsupportedRoomInviteVersion implements FormatException {
 /// [token] is the only bearer-secret component. Servers must persist
 /// [tokenHash], never [token]. Possession of it is still insufficient to join:
 /// redemption also requires a signature from [expectedParticipantPublicKey].
-final class RoomInvite with cl.Writable {
+final class RoomInvite with cl.Writable, NoosphereWritable {
   RoomInvite({
     this.version = noosphereEnrollmentProtocolVersion,
     required this.roomId,
@@ -57,7 +57,7 @@ final class RoomInvite with cl.Writable {
   }
 
   factory RoomInvite.fromBytes(Uint8List bytes) {
-    final reader = cl.BytesReader(bytes);
+    final reader = NoosphereBytesReader(bytes);
     final protocol = reader.readString();
     if (protocol != noosphereEnrollmentProtocol) {
       throw const FormatException('not a Noosphere room invite');

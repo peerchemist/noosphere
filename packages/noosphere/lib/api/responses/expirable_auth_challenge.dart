@@ -1,11 +1,14 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:noosphere/common/serial.dart';
 import 'package:noosphere/api/types/expirable.dart';
 import 'package:noosphere/api/types/expiry.dart';
 import 'package:noosphere/api/types/onetime_numbers.dart';
 
-class ExpirableAuthChallengeResponse with cl.Writable implements Expirable {
+class ExpirableAuthChallengeResponse
+    with cl.Writable, NoosphereWritable
+    implements Expirable {
   final AuthChallenge challenge;
   @override
   final Expiry expiry;
@@ -22,8 +25,8 @@ class ExpirableAuthChallengeResponse with cl.Writable implements Expirable {
       );
 
   /// Convenience constructor to construct from serialised [bytes].
-  ExpirableAuthChallengeResponse.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory ExpirableAuthChallengeResponse.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, ExpirableAuthChallengeResponse.fromReader);
 
   @override
   void write(cl.Writer writer) {

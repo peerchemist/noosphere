@@ -7,11 +7,12 @@ import 'package:frosty/frosty.dart';
 
 /// Request for ACKs for all participant [ids] for a single key given by the
 /// [groupPublicKey]. Equal when the [groupPublicKey] is the same.
-class DkgAckRequest with cl.Writable {
+class DkgAckRequest with cl.Writable, NoosphereWritable {
   final Set<Identifier> ids;
   final cl.ECCompressedPublicKey groupPublicKey;
 
-  DkgAckRequest({required this.ids, required this.groupPublicKey}) {
+  DkgAckRequest({required Set<Identifier> ids, required this.groupPublicKey})
+    : ids = Set.unmodifiable(ids) {
     checkNotEmpty(ids, "ids");
   }
   DkgAckRequest.fromReader(cl.BytesReader reader)
@@ -19,8 +20,8 @@ class DkgAckRequest with cl.Writable {
         ids: reader.readIdentifierVector().toSet(),
         groupPublicKey: reader.readPubKey(),
       );
-  DkgAckRequest.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory DkgAckRequest.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, DkgAckRequest.fromReader);
 
   @override
   /// Equality applies to [groupPublicKey] only.

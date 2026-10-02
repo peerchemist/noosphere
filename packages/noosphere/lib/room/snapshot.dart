@@ -19,7 +19,11 @@ final class RoomInviteSnapshot {
     required this.usedAt,
     required this.revokedAt,
     required this.status,
-  }) : tokenHash = Uint8List.fromList(tokenHash);
+  }) : tokenHash = Uint8List.fromList(tokenHash).asUnmodifiableView() {
+    if (tokenHash.length != 32) {
+      throw ArgumentError("tokenHash must contain 32 bytes");
+    }
+  }
 
   final String inviteId;
   final cl.ECCompressedPublicKey expectedParticipantPublicKey;
@@ -44,7 +48,7 @@ final class RoomParticipantSnapshot {
 }
 
 /// Sanitized room state. It never contains invite tokens or private keys.
-final class RoomSnapshot with cl.Writable {
+final class RoomSnapshot with cl.Writable, NoosphereWritable {
   RoomSnapshot({
     required this.roomId,
     required this.lifecycle,
@@ -54,12 +58,25 @@ final class RoomSnapshot with cl.Writable {
     required Iterable<RoomInviteSnapshot> invites,
     required Iterable<RoomParticipantSnapshot> participants,
     required this.groupConfig,
-  }) : coordinatorEndpointId = Uint8List.fromList(coordinatorEndpointId),
+  }) : coordinatorEndpointId = Uint8List.fromList(coordinatorEndpointId)
+           .asUnmodifiableView(),
        invites = List.unmodifiable(invites),
-       participants = List.unmodifiable(participants);
+       participants = List.unmodifiable(participants) {
+    if (coordinatorEndpointId.length != 32) {
+      throw ArgumentError("coordinatorEndpointId must contain 32 bytes");
+    }
+    RangeError.checkValueInInterval(expectedParticipants, 2, 0xffff);
+    RangeError.checkValueInInterval(threshold, 1, expectedParticipants);
+    RangeError.checkValueInInterval(this.invites.length, 0, 0xffff);
+    RangeError.checkValueInInterval(
+      this.participants.length,
+      0,
+      expectedParticipants,
+    );
+  }
 
   factory RoomSnapshot.fromBytes(Uint8List bytes) {
-    final reader = cl.BytesReader(bytes);
+    final reader = NoosphereBytesReader(bytes);
     if (reader.readString() != 'noosphere/room-snapshot/1') {
       throw const FormatException('unsupported room snapshot');
     }

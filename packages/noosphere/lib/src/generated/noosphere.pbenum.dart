@@ -14,32 +14,6 @@ import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 
-class SignaturesResponseType extends $pb.ProtobufEnum {
-  static const SignaturesResponseType SIGNATURES_RESPONSE_EMPTY =
-      SignaturesResponseType._(
-          0, _omitEnumNames ? '' : 'SIGNATURES_RESPONSE_EMPTY');
-  static const SignaturesResponseType SIGNATURES_RESPONSE_NEW_ROUND =
-      SignaturesResponseType._(
-          1, _omitEnumNames ? '' : 'SIGNATURES_RESPONSE_NEW_ROUND');
-  static const SignaturesResponseType SIGNATURES_RESPONSE_COMPLETE =
-      SignaturesResponseType._(
-          2, _omitEnumNames ? '' : 'SIGNATURES_RESPONSE_COMPLETE');
-
-  static const $core.List<SignaturesResponseType> values =
-      <SignaturesResponseType>[
-    SIGNATURES_RESPONSE_EMPTY,
-    SIGNATURES_RESPONSE_NEW_ROUND,
-    SIGNATURES_RESPONSE_COMPLETE,
-  ];
-
-  static final $core.List<SignaturesResponseType?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 2);
-  static SignaturesResponseType? valueOf($core.int value) =>
-      value < 0 || value >= _byValue.length ? null : _byValue[value];
-
-  const SignaturesResponseType._(super.value, super.name);
-}
-
 class EventType extends $pb.ProtobufEnum {
   static const EventType PARTICIPANT_STATUS_EVENT =
       EventType._(0, _omitEnumNames ? '' : 'PARTICIPANT_STATUS_EVENT');

@@ -119,6 +119,10 @@ for an existing setup can add the missing role; `stopSetup` can stop `server`,
 `signer`, or `both`. Share one worker between accounts derived from the same
 setup instead of creating an isolate per wallet.
 
+Await lifecycle calls for a setup before starting another start, stop, or
+coordinator switch. Overlapping lifecycle calls for the same setup fail with
+`setup_busy`; calls for different setups remain independent.
+
 The transport is versioned and carries primitives, byte arrays and deliberate
 public DTOs only. Native handles, `Client` objects, callbacks and database
 objects never cross the isolate boundary. Replies carry command and worker
@@ -232,6 +236,10 @@ Production client calls must provide both `ClientStorageInterface` and
 isolate and invokes them through correlated requests. Storage operations for a
 setup are serialized. `prepareSignaturesOperation` remains one proxy call, and
 the worker waits for durable completion before sending the network request.
+Client storage calls also remain ordered across worker replacement when the
+same host provider instance is reused, so a new load waits for an earlier
+timed-out write. Separate provider instances or processes need host-managed
+transaction ordering.
 
 Pass `roomPersistence` in `EmbeddedServerOptions` to enable durable room state
 for both direct nodes and workers. Workers retain this provider on the host
@@ -324,3 +332,20 @@ flutter drive --profile -d linux \
 Run the unexpected-exit and forced-shutdown tests in fresh processes; they
 deliberately make further native worker starts unsafe in those processes. The
 two process-relaunch phases must run in order and as separate commands.
+
+## Release preparation
+
+The shared package needs standalone staging because the root `.pubignore`
+excludes `packages/` from the facade archive and pub inherits that exclusion
+when run inside a subpackage:
+
+```sh
+release_dir=$(./tool/stage_noosphere_release.sh)
+cd "$release_dir"
+dart pub publish --dry-run
+```
+
+The helper copies current source to a temporary directory and removes only the
+staged manifest's workspace resolution. It does not publish. Validate the facade
+with `dart pub publish --dry-run` from the repository root. Release compatible
+shared, client and server versions before the facade.

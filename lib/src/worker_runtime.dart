@@ -208,6 +208,23 @@ final class _WorkerRuntime {
         case 'testHost':
           if (!testing) throw StateError('Test command is unavailable.');
           result = await _host.request('', 'testHost', const {});
+        case 'testClientStorage':
+          if (!testing) throw StateError('Test command is unavailable.');
+          final storage = _RemoteClientStorage(_host, setupId!);
+          final requestId = payload['rejectRequestId'];
+          if (requestId != null) {
+            await storage.addRejectedSigsRequest(
+              SignaturesRequestId.fromBytes(asBytes(requestId)),
+              FinalExpirable(Expiry(const Duration(hours: 1))),
+            );
+            result = null;
+          } else {
+            result = [
+              for (final id
+                  in (await storage.loadState()).rejectedRequests.keys)
+                id.toBytes(),
+            ];
+          }
         default:
           throw ArgumentError.value(operation, 'operation', 'unknown command');
       }

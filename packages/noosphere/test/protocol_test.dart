@@ -9,23 +9,6 @@ void main() {
       final cases = <(GeneratedMessage, GeneratedMessage Function(List<int>))>[
         (protocol.Bytes(data: [1, 2]), protocol.Bytes.fromBuffer),
         (
-          protocol.RepeatedBytes(
-            data: [
-              [1],
-              [2, 3],
-            ],
-          ),
-          protocol.RepeatedBytes.fromBuffer,
-        ),
-        (
-          protocol.SignaturesResponse(
-            type: protocol.SignaturesResponseType.SIGNATURES_RESPONSE_COMPLETE,
-            data: [4],
-          ),
-          protocol.SignaturesResponse.fromBuffer,
-        ),
-        (protocol.Empty(), protocol.Empty.fromBuffer),
-        (
           protocol.LoginRequest(
             groupFingerprint: [1],
             participantId: [2],

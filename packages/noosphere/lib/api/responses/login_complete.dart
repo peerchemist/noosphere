@@ -11,15 +11,15 @@ import 'package:noosphere/api/types/expiry.dart';
 import 'package:noosphere/api/types/onetime_numbers.dart';
 
 /// Provides details of completed signatures upon login
-class CompletedSignaturesRequest with cl.Writable {
+class CompletedSignaturesRequest with cl.Writable, NoosphereWritable {
   final Signed<SignaturesRequestDetails> details;
   final List<cl.SchnorrSignature> signatures;
   final Identifier creator;
   CompletedSignaturesRequest({
     required this.details,
-    required this.signatures,
+    required List<cl.SchnorrSignature> signatures,
     required this.creator,
-  });
+  }) : signatures = List.unmodifiable(signatures);
 
   CompletedSignaturesRequest.fromReader(cl.BytesReader reader)
     : this(
@@ -30,8 +30,8 @@ class CompletedSignaturesRequest with cl.Writable {
         signatures: reader.readSignatureVector(),
         creator: reader.readIdentifier(),
       );
-  CompletedSignaturesRequest.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory CompletedSignaturesRequest.fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, CompletedSignaturesRequest.fromReader);
 
   @override
   void write(cl.Writer writer) {
@@ -46,7 +46,9 @@ class CompletedSignaturesRequest with cl.Writable {
 ///
 /// [write()] and [toBytes()] does not include any streamed events and the
 /// stream must be provided when constructing from bytes.
-class LoginCompleteResponse with cl.Writable implements Expirable {
+class LoginCompleteResponse
+    with cl.Writable, NoosphereWritable
+    implements Expirable {
   /// The session id required to communicate with authenticated methods
   final SessionID id;
   @override
@@ -59,7 +61,10 @@ class LoginCompleteResponse with cl.Writable implements Expirable {
   final DateTime startTime;
 
   /// The participants who are currently online
-  final Set<Identifier> onlineParticipants;
+  final Set<Identifier> _onlineParticipants;
+
+  /// An owned copy for consumers that maintain a live participant set.
+  Set<Identifier> get onlineParticipants => Set.of(_onlineParticipants);
 
   /// Outstanding new DKG requests that require a commitment and all commitments
   /// that have been received by online participants.
@@ -90,14 +95,19 @@ class LoginCompleteResponse with cl.Writable implements Expirable {
     required this.id,
     required this.expiry,
     required this.startTime,
-    required this.onlineParticipants,
-    required this.newDkgs,
-    required this.sigRequests,
-    required this.sigRounds,
-    required this.completedSigs,
-    required this.secretShares,
+    required Set<Identifier> onlineParticipants,
+    required List<NewDkgEvent> newDkgs,
+    required List<SignaturesRequestEvent> sigRequests,
+    required List<SignatureNewRoundsEvent> sigRounds,
+    required List<CompletedSignaturesRequest> completedSigs,
+    required List<SecretShareEvent> secretShares,
     required this.events,
-  });
+  }) : _onlineParticipants = Set.unmodifiable(onlineParticipants),
+       newDkgs = List.unmodifiable(newDkgs),
+       sigRequests = List.unmodifiable(sigRequests),
+       sigRounds = List.unmodifiable(sigRounds),
+       completedSigs = List.unmodifiable(completedSigs),
+       secretShares = List.unmodifiable(secretShares);
 
   LoginCompleteResponse.fromReader(cl.BytesReader reader, Stream<Event> events)
     : this(
@@ -123,8 +133,13 @@ class LoginCompleteResponse with cl.Writable implements Expirable {
         events: events,
       );
 
-  LoginCompleteResponse.fromBytes(Uint8List bytes, Stream<Event> events)
-    : this.fromReader(cl.BytesReader(bytes), events);
+  factory LoginCompleteResponse.fromBytes(
+    Uint8List bytes,
+    Stream<Event> events,
+  ) => readNoosphere(
+    bytes,
+    (reader) => LoginCompleteResponse.fromReader(reader, events),
+  );
 
   @override
   void write(cl.Writer writer) {

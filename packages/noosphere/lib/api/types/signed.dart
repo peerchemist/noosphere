@@ -6,13 +6,15 @@ import 'package:noosphere/common/serial.dart';
 mixin Signable on cl.Writable {
   Uint8List get uncachedSigHash;
   Uint8List? _hashCache;
-  Uint8List get sigHash => _hashCache ??= uncachedSigHash;
+  Uint8List get sigHash =>
+      _hashCache ??= Uint8List.fromList(uncachedSigHash).asUnmodifiableView();
 }
 
 /// A 32-byte hash used directly for a signature
-class SignableHash with cl.Writable, Signable {
+class SignableHash with cl.Writable, NoosphereWritable, Signable {
   final Uint8List bytes;
-  SignableHash(this.bytes) {
+  SignableHash(Uint8List bytes)
+    : bytes = Uint8List.fromList(bytes).asUnmodifiableView() {
     RangeError.checkValueInInterval(bytes.length, 32, 32);
   }
   @override
@@ -23,7 +25,7 @@ class SignableHash with cl.Writable, Signable {
   }
 }
 
-class Signed<T extends Signable> with cl.Writable {
+class Signed<T extends Signable> with cl.Writable, NoosphereWritable {
   final T obj;
   final cl.SchnorrSignature signature;
 
@@ -36,8 +38,10 @@ class Signed<T extends Signable> with cl.Writable {
     Uint8List bytes,
     T Function(cl.BytesReader) readObj,
   ) {
-    final reader = cl.BytesReader(bytes);
-    return Signed.fromReader(reader, () => readObj(reader));
+    final reader = NoosphereBytesReader(bytes);
+    final signed = Signed.fromReader(reader, () => readObj(reader));
+    if (!reader.atEnd) throw const FormatException('trailing signed data');
+    return signed;
   }
 
   bool verify(cl.ECPublicKey publickey) =>

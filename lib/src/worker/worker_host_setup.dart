@@ -18,6 +18,7 @@ final _roomPersistenceQueues = Expando<SerialExecutor>(
 final _serverPersistenceQueues = Expando<SerialExecutor>(
   'Server persistence queues',
 );
+final _clientStorageQueues = Expando<SerialExecutor>('Client storage queues');
 
 final class _HostSetup {
   ServerIdentityStore? identityStore;
@@ -111,11 +112,6 @@ final class _HostSetup {
         });
       case 'identity.read':
         return loadOrCreateIdentity();
-      case 'identity.write':
-        final store = identityStore;
-        if (store == null) throw StateError('No identity store.');
-        await store.write(asBytes(payload['secret']));
-        return null;
       case 'rooms.loadAll':
       case 'rooms.write':
         final rooms = roomPersistence;
@@ -167,7 +163,17 @@ final class _HostSetup {
         );
         return key.data;
       default:
-        return _serializeStorage(() => _dispatchStorage(operation, payload));
+        // Capture the provider now: a timed-out request may remain queued
+        // after this setup is stopped or rebound. A replacement using the same
+        // provider must wait for the old durable write before loading nonces.
+        final store = storage;
+        if (store == null) throw StateError('Signer storage is unavailable.');
+        final queue = _clientStorageQueues[store] ??= SerialExecutor();
+        return queue.run(
+          () => _serializeStorage(
+            () => _dispatchStorage(store, operation, payload),
+          ),
+        );
     }
   }
 
@@ -186,11 +192,10 @@ final class _HostSetup {
   }
 
   Future<Object?> _dispatchStorage(
+    ClientStorageInterface store,
     String operation,
     Map<Object?, Object?> payload,
   ) async {
-    final store = storage;
-    if (store == null) throw StateError('Signer storage is unavailable.');
     final id = payload['id'] == null
         ? null
         : SignaturesRequestId.fromBytes(asBytes(payload['id']));

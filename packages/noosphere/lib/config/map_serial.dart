@@ -14,7 +14,7 @@ class MapReader {
   final List<Object> _path;
 
   MapReader._(this._value, this._path);
-  MapReader.fromYaml(String yaml) : this._(loadYaml(yaml) as Object, []);
+  MapReader.fromYaml(String yaml) : this._(loadYaml(yaml), []);
 
   String _joinedPath() => _path.join(".");
 

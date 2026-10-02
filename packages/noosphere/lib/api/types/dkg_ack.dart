@@ -16,7 +16,7 @@ import 'signed.dart';
 /// A participant should not initiate use of a key until it has received
 /// unanimous accepted acknowledgements. They can provide signature shares as
 /// appropriate if other participants have used the key.
-class DkgAck with cl.Writable, Signable {
+class DkgAck with cl.Writable, NoosphereWritable, Signable {
   static final _hasher = cl.getTaggedHasher("DkgAck");
   final cl.ECCompressedPublicKey groupKey;
   final bool accepted;

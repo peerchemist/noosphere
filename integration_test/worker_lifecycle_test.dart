@@ -53,9 +53,30 @@ void main() {
             address: directAddress,
           ),
         );
-        final first = await worker.startSetup(
+        final startingFirst = worker.startSetup(
           setupId: 'first',
           server: options(firstIdentity),
+        );
+        await expectLater(
+          worker.stopSetup('first'),
+          throwsA(
+            isA<NoosphereWorkerException>().having(
+              (error) => error.code,
+              'code',
+              'setup_busy',
+            ),
+          ),
+        );
+        final first = await startingFirst;
+        final wrongIdentity = MemoryIdentityStore();
+        await expectLater(
+          worker.startSetup(setupId: 'first', server: options(wrongIdentity)),
+          throwsStateError,
+        );
+        expect(wrongIdentity.writes, 0);
+        expect(
+          await worker.exportIrohServerIdentity('first'),
+          await firstIdentity.read(),
         );
         final second = await worker.startSetup(
           setupId: 'second',

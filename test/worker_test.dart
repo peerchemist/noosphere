@@ -220,8 +220,10 @@ void main() {
 
     expect(request.id, orderedEquals([1, 2, 3]));
     expect(request.proposalBytes, orderedEquals([1, 2, 3]));
+    expect(() => request.proposalBytes[0] = 9, throwsUnsupportedError);
+    expect(() => request.id[0] = 9, throwsUnsupportedError);
     final received = await Isolate.run(() => request);
-    request.id[0] = 8;
+    expect(() => received.id[0] = 8, throwsUnsupportedError);
     expect(received.id, orderedEquals([1, 2, 3]));
   });
 

@@ -1,5 +1,16 @@
 ## Unreleased
 
+- Bound domain decoding to the supplied byte slice; reject trailing data,
+  non-canonical length encodings, invalid booleans and duplicate map keys.
+- Correct serialized size measurement at variable-integer width boundaries.
+- Protect cached serializations, signing hashes, signing payloads and protocol
+  collections against mutation. `GroupConfig.participants` is now a read-only
+  `Map` in canonical identifier order.
+- Reject unknown metadata in signing requests; preserve it only as a standalone
+  opaque value.
+- Remove unused protobuf wrappers `RepeatedBytes`, `Empty`,
+  `SignaturesResponse` and `SignaturesResponseType`. Active envelope fields and
+  valid payload encodings are unchanged.
 - Add canonical group-transition proposals, bounded host migration policies,
   exact DKG plan bindings, and participant identity-key approvals.
 - Add versioned pubkey-bound room invites, canonical enrollment transcripts,

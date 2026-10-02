@@ -141,7 +141,13 @@ void main() {
           newCoordinator: newAddress,
           persist: (_) async {},
         ),
-        throwsStateError,
+        throwsA(
+          isA<NoosphereWorkerException>().having(
+            (error) => error.code,
+            'code',
+            'setup_busy',
+          ),
+        ),
       );
       durable.complete();
       expect((await switching).serverRunning, isTrue);

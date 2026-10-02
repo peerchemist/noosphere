@@ -51,14 +51,15 @@ final class _RemoteIdentityStore(this.host, this.setupId)
   final String setupId;
 
   @override
-  Future<Uint8List?> read() async {
+  Future<Uint8List> read() async {
     final result = await host.request(setupId, 'identity.read', const {});
-    return result == null ? null : asBytes(result);
+    return asBytes(result);
   }
 
   @override
-  Future<void> write(Uint8List secret) =>
-      host.request(setupId, 'identity.write', {'secret': secret}).then((_) {});
+  Future<void> write(Uint8List secret) => throw UnsupportedError(
+    'The host owns identity creation and restoration.',
+  );
 }
 
 final class _RemoteClientStorage(this.host, this.setupId)

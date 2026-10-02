@@ -146,15 +146,15 @@ on the host isolate. Client, room and server storage operations pass through
 the setup's shared FIFO. `prepareSignaturesOperation` remains one provider call
 across that boundary.
 
-Room and server providers also have `Expando<SerialExecutor>` queues keyed by
+Client, room and server providers also have `Expando<SerialExecutor>` queues keyed by
 the concrete provider instance. These survive setup/worker replacement within
 the host isolate. A replacement using the same provider waits behind a prior
 unfinished operation before loading records.
 
-Client storage has the per-setup queue, not this additional provider-wide
-cross-worker queue. Hosts sharing client records across workers, provider
-instances or processes must coordinate that access themselves. No in-memory
-queue replaces database locking or transactional isolation.
+Hosts using multiple provider instances or processes for the same records must
+coordinate that access themselves. No in-memory queue replaces database locking
+or transactional isolation. Queued client operations capture their provider
+before waiting, so stopping or rebinding a setup cannot redirect an old write.
 
 The host applies `hostOperationTimeout` to waiting for a call. A timeout does
 not cancel its underlying transaction. An old write can commit after an error

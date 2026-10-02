@@ -48,7 +48,7 @@ final class _NodeScreenState extends State<NodeScreen> {
   );
   final _identityStore = _MemoryIdentityStore();
   final _serverPersistence = InMemoryServerPersistence();
-  final _clientStorage = InMemoryClientStorage();
+  final _clientStores = <int, InMemoryClientStorage>{};
   final _keys = [
     ECPrivateKey(Uint8List(32)..last = 1),
     ECPrivateKey(Uint8List(32)..last = 2),
@@ -111,6 +111,10 @@ final class _NodeScreenState extends State<NodeScreen> {
 
     try {
       final worker = await NoosphereWorker.start();
+      if (!mounted) {
+        await worker.close();
+        return;
+      }
       _worker = worker;
       _workerLifecycle = NoosphereWorkerLifecycleObserver(worker)..attach();
       _events = worker.events.listen(
@@ -164,19 +168,24 @@ final class _NodeScreenState extends State<NodeScreen> {
       );
 
       if (_machine.runsSigner) {
+        final participantKey = _participantKey;
         _snapshot = await worker.startSetup(
           setupId: 'example',
           client: ClientNodeOptions(
             clientConfig: ClientConfig(group: _group, id: _participantId),
             bootstrapAddress: address,
             pinnedServerId: pinnedId,
-            storage: _clientStorage,
-            getPrivateKey: (_) async => _participantKey,
+            storage: _clientStores.putIfAbsent(
+              _machine.participant,
+              InMemoryClientStorage.new,
+            ),
+            getPrivateKey: (_) async => participantKey,
           ),
         );
       } else {
         _snapshot = await worker.snapshot('example');
       }
+      if (!mounted) return;
       setState(() {
         _busy = false;
         _status = _machine.runsSigner ? 'Connected' : 'Serving';
@@ -200,7 +209,7 @@ final class _NodeScreenState extends State<NodeScreen> {
       _logWorkerSnapshot(event.snapshot);
     } else if (event case WorkerSigningResultEvent()) {
       _log('ROAST worker event: ${event.runtimeType}');
-      final proposal = SignaturesRequestDetails.fromBytes(event.proposalBytes);
+      final proposal = event.decodeProposal();
       if (proposal.requiredSigs.length == 1 && event.signatures.length == 1) {
         final details = proposal.requiredSigs.single;
         final result = SchnorrSignature(event.signatures.single);
@@ -365,7 +374,7 @@ final class _NodeScreenState extends State<NodeScreen> {
               for (final machine in TestMachine.values)
                 DropdownMenuItem(value: machine, child: Text(machine.label)),
             ],
-            onChanged: _running
+            onChanged: _running || _busy
                 ? null
                 : (machine) =>
                       setState(() => _machine = machine ?? TestMachine.a),

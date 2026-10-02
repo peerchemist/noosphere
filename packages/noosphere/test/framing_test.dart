@@ -75,7 +75,13 @@ void main() {
       await expectLater(
         decodeEnvelopes(Stream.value(encoded.sublist(0, encoded.length - 1)))
             .toList(),
-        throwsA(isA<TruncatedFrameException>()),
+        throwsA(
+          isA<TruncatedFrameException>().having(
+            (error) => error.message,
+            'message',
+            contains('body bytes'),
+          ),
+        ),
       );
     });
 
