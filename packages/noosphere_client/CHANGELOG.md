@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Breaking: Remove YAML/map configuration APIs and dependencies. Client examples now read
+  binary `ClientConfig` values.
+
 - Move shared ROAST domain types, group configuration and utilities into the
   `noosphere` package while preserving the client package's public exports.
 - Add participant-key room enrollment and the dedicated Iroh enrollment ALPN

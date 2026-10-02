@@ -29,20 +29,17 @@ The slightly smaller server minimums allow time to pass between proposal
 construction and receipt. Client/server policy values can be overridden by the
 host; the two sides still validate their own boundaries.
 
-[`MapReader` and `MapWritable`](../packages/noosphere/lib/config/map_serial.dart)
-provide typed map/YAML access, useful failures and TTL conversion. YAML lifetime
-fields use milliseconds. This configuration format is not the network protobuf
-schema or the durable snapshot schema.
+YAML is parsed only by the standalone server's
+[`CLI configuration adapter`](../packages/noosphere_server/bin/src/config.dart).
+The shared domain and client libraries use typed constructors and binary codecs.
+YAML lifetime fields use milliseconds; this file format is independent of
+network protobuf messages and durable snapshots. The CLI builds ordinary domain
+and transport configuration values and owns the filesystem paths.
 
-Two current codec details matter when moving configuration between layers:
-
-- `ClientConfig`'s compact binary codec writes group, participant and maximum
-  DKG TTL, not every configurable TTL. Worker option encoding explicitly sends
-  all four TTLs rather than assuming this compact codec covers them.
-- `ServerConfig.map()` currently writes `max-signatutres-request` with that
-  spelling, while `fromMapReader` reads `max-signatures-request`. Set the
-  correctly spelled input field explicitly if configuring a nondefault maximum;
-  do not assume the map round trip preserves that particular override.
+`ClientConfig`'s compact binary codec writes group, participant and maximum
+DKG TTL, not every configurable TTL. The command-line client examples accept
+that binary format. Worker option encoding explicitly sends all four TTLs
+rather than assuming the compact codec covers them.
 
 [`IrohConfig`](../packages/noosphere_server/lib/src/config/iroh.dart) describes
 ALPN, relay policy, timeouts, resource limits and optional native library path.

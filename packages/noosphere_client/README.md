@@ -1,5 +1,9 @@
 # Noosphere Client for ROAST Threshold Signatures
 
+**Coordinated public preview.** Deploy matching tested package versions across
+all peers. Protocol v1 does not promise compatibility between preview builds;
+see the [version policy](../noosphere/spec/VERSIONING.md).
+
 This Dart library coordinates FROST key generation and ROAST threshold
 signatures with a Noosphere server over authenticated Iroh QUIC connections.
 The server identity is pinned independently from its address hints.
@@ -99,11 +103,17 @@ lifecycle: a separately pinned coordinator ID, optional address hints, Iroh
 discovery, event handling, fresh sessions after reconnect and graceful
 shutdown.
 
+Write the typed client configuration with
+`File('participant.bin').writeAsBytes(clientConfig.toBytes())`. This compact
+example format contains the group, participant ID and maximum DKG TTL; construct
+`ClientConfig` directly in applications that customize all lifetime settings.
+The examples and client library do not parse YAML.
+
 Run it with only the coordinator ID to exercise Iroh discovery:
 
 ```sh
 dart run example/reconnecting_client.dart \
-  --config participant.yaml \
+  --config participant.bin \
   --server-id <trusted-full-hex-endpoint-id> \
   --key-file participant-private-key.hex \
   --native-library /path/to/libirohdart_ffi.so

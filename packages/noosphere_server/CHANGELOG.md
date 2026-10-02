@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Breaking: Move YAML parsing to the standalone CLI adapter and remove map/YAML methods
+  from runtime configuration classes.
+
 - Remove the production dependency on `noosphere_client`; shared protocol and
   domain types now come directly from `noosphere`. Client-based end-to-end
   tests retain a dev-only dependency.

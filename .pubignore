@@ -16,3 +16,4 @@ example/.idea/
 example/build/
 example/pubspec_overrides.yaml
 *.iml
+architecture/release-review.md

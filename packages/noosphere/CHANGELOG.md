@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Mark 0.1.0 as a coordinated protocol preview and add fixed wire fixtures.
+- Document retained native-value ownership and pin Frosty 5.0.0.
+
+- Move YAML configuration parsing to the standalone server CLI. Remove shared
+  map/YAML conversion APIs and YAML dependencies from the domain and client.
+
 - Bound domain decoding to the supplied byte slice; reject trailing data,
   non-canonical length encodings, invalid booleans and duplicate map keys.
 - Correct serialized size measurement at variable-integer width boundaries.

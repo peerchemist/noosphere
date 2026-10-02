@@ -1,64 +1,93 @@
 import 'package:noosphere_server/noosphere_server.dart';
 import 'package:test/test.dart';
 
+import '../bin/src/config.dart';
 import 'data.dart';
 import 'helpers.dart';
 
-final String id1 =
-    "000000000000000000000000000000000000000000000000000000000000000a";
-final String id2 =
-    "000000000000000000000000000000000000000000000000000000000000000b";
-final String key1 =
-    "02774ae7f858a9411e5ef4246b70c65aac5649980be5c17891bbec17895da008cb";
-final String key2 =
-    "03a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7";
-
-void yamlTest<T extends MapWritable>(
-  T Function() getWritable,
-  T Function(String) fromYaml,
-  String Function(T) toHex,
-) => test("read/write yaml", () {
-  final writable = getWritable();
-  expect(fromYaml(writable.yaml).yaml, writable.yaml);
-  // Expect bytes to be the same after YAML conversion
-  expect(toHex(writable), toHex(fromYaml(writable.yaml)));
-});
-
-final irohConfig = IrohConfig(
-  server: serverConfig,
-  relay: IrohRelayConfig.custom(const ['https://relay.example']),
-  nativeLibraryPath: '/app/libirohdart_ffi.so',
-);
+String cliYaml({String extra = ''}) =>
+    '''
+secret-key-path: /data/identity.key
+server:
+  group:
+    id: ${groupConfig.id}
+    participant-keys:
+${groupConfig.participants.entries.map((e) => '      "${e.key}": "${e.value.hex}"').join('\n')}
+$extra
+''';
 
 void main() {
   setUpAll(loadFrosty);
 
-  group("ServerConfig", () {
-    writableTest(
-      () => serverConfig,
-      (reader) => ServerConfig.fromReader(reader),
-    );
-    yamlTest(
-      () => serverConfig,
-      (yaml) => ServerConfig.fromYaml(yaml),
-      (config) => config.toHex(),
-    );
+  group('ServerConfig', () {
+    writableTest(() => serverConfig, ServerConfig.fromReader);
   });
 
-  group('IrohConfig', () {
-    test('read/write yaml', () {
-      final decoded = IrohConfig.fromYaml(irohConfig.yaml);
-      expect(decoded.yaml, irohConfig.yaml);
-      expect(decoded.server.toHex(), irohConfig.server.toHex());
+  group('CLI configuration', () {
+    CliConfig parse(String source) =>
+        CliConfig.fromYaml(source, configPath: '/data/server.yaml');
+
+    test('loads group and filesystem paths with transport defaults', () {
+      final config = parse(cliYaml());
+      expect(config.server.server.group.toBytes(), groupConfig.toBytes());
+      expect(config.server.server.group.fingerprint, groupConfig.fingerprint);
+      expect(config.secretKeyPath, '/data/identity.key');
+      expect(config.stateDirectory, '/data/server.yaml.state');
+      expect(config.server.authTimeout, IrohConfig.defaultAuthTimeout);
+      expect(config.server.server.sessionTTL, ServerConfig.defaultSessionTTL);
+      expect(config.server.relay.policy, IrohRelayPolicy.defaultNetwork);
     });
 
-    test('rejects unknown relay policy', () {
-      expect(
-        () => IrohConfig.fromYaml(
-          irohConfig.yaml.replaceFirst('custom', 'surprise'),
+    test('loads explicit transport options and server lifetimes', () {
+      final config = parse(
+        cliYaml(
+          extra: '''
+  ms-lifetimes:
+    max-signatures-request: 50000
+  keep-alive-event-ms: 1200
+state-directory: /custom/state
+relay:
+  policy: custom
+  urls: [https://relay.example]
+timeouts-ms:
+  auth: 2345
+  rpc: 3456
+  shutdown: 4567
+limits:
+  max-envelope-bytes: 8192
+  max-connections: 16
+  max-streams-per-connection: 8
+native-library-path: /app/libirohdart_ffi.so
+''',
         ),
-        throwsA(isA<MapReaderException>()),
       );
+      expect(config.stateDirectory, '/custom/state');
+      expect(config.server.relay.urls, ['https://relay.example']);
+      expect(config.server.authTimeout.inMilliseconds, 2345);
+      expect(config.server.rpcTimeout.inMilliseconds, 3456);
+      expect(config.server.shutdownTimeout.inMilliseconds, 4567);
+      expect(config.server.maxEnvelopeLength, 8192);
+      expect(config.server.maxConnections, 16);
+      expect(config.server.maxStreamsPerConnection, 8);
+      expect(config.server.nativeLibraryPath, '/app/libirohdart_ffi.so');
+      expect(
+        config.server.server.maxSignaturesRequestTTL.inMilliseconds,
+        50000,
+      );
+      expect(config.server.server.keepAliveFreq!.inMilliseconds, 1200);
+    });
+
+    test('rejects malformed configuration with a format error', () {
+      for (final source in [
+        '',
+        'server: {}',
+        cliYaml(extra: 'relay:\n  policy: surprise'),
+        cliYaml(extra: 'relay:\n  policy: custom\n  urls: [5]'),
+        cliYaml().replaceFirst('secret-key-path:', 'unused:'),
+        cliYaml().replaceFirst('id: ${groupConfig.id}', 'id: 5'),
+      ]) {
+        expect(() => parse(source), throwsFormatException);
+      }
     });
   });
 }

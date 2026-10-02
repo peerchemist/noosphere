@@ -1,5 +1,16 @@
 ## 0.1.0
 
+- Preserve host providers when startup succeeds but its snapshot exceeds the
+  worker message limit; report `start_result_too_large` with a stop/retry path.
+- Serialize identity operations without caching failed restore futures.
+- Expose embedded server completion and report failed serving loops through
+  worker health events and snapshots.
+- Document the coordinated preview compatibility policy and native ownership
+  boundary; pin Frosty to the tested version.
+
+- Move YAML configuration parsing to the standalone server CLI. Remove shared
+  map/YAML conversion APIs and YAML dependencies from the domain and client.
+
 - Provide Linux and macOS direct-node and isolate-worker APIs for Noosphere
   participants and embedded coordinators.
 - Keep identity, client, room and coordinator persistence with host providers.

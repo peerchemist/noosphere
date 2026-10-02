@@ -12,10 +12,11 @@ resolution: workspace
 dependencies:
   meta: ^1.18.0
   coinlib: 6.0.1
-  frosty: '>=5.0.0 <6.0.0'
+  frosty: 5.0.0
   noosphere: ^0.1.0
   collection: ^1.17.1
   iroh_quic: 1.0.3
+  yaml: ^3.1.2
   args: ^2.6.0
 
 dev_dependencies:

@@ -2,4 +2,3 @@
 library;
 
 export 'config/group.dart';
-export 'config/map_serial.dart';

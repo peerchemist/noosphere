@@ -193,3 +193,12 @@ of those business transitions.
 When deciding whether an operation may resume, use durable records and actual
 external outcomes. A UI status, absence of an event, or a discarded `Client`
 object cannot establish that a signing mutation was never sent.
+
+Identity operations on one provider instance share a FIFO state object. Only a
+successfully loaded runtime identity is cached. Restore and export operations
+before a runtime claim read durable storage in that queue, including after a
+write that committed but reported failure. A rejected restore therefore does
+not poison export, intentional overwrite or a later load. Runtime claims are
+recorded synchronously when loading starts; subsequent restore attempts remain
+prohibited, including while that load is in flight. Separate provider instances
+still require storage-level coordination.

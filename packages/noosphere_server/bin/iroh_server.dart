@@ -6,6 +6,7 @@ import 'package:args/args.dart';
 import 'package:coinlib/coinlib.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 
+import 'src/config.dart';
 import 'src/identity_file.dart';
 import 'src/server_state_file.dart';
 
@@ -21,17 +22,16 @@ Future<void> main(List<String> arguments) async {
   final configPath = options.option('config')!;
 
   await loadFrosty();
-  final reader = MapReader.fromYaml(await File(configPath).readAsString());
-  final config = IrohConfig.fromMapReader(reader);
-  // Filesystem configuration belongs to this CLI host, not IrohConfig.
-  final identityPath = reader['secret-key-path'].require<String>();
-  final secretKey = await loadOrCreateIdentityFile(identityPath);
-  final stateDirectory =
-      reader['state-directory'].value<String>() ?? '$configPath.state';
+  final fileConfig = CliConfig.fromYaml(
+    await File(configPath).readAsString(),
+    configPath: configPath,
+  );
+  final config = fileConfig.server;
+  final secretKey = await loadOrCreateIdentityFile(fileConfig.secretKeyPath);
   final server = await IrohServer.start(
     config,
     secretKey: secretKey,
-    persistence: FileServerPersistence(Directory(stateDirectory)),
+    persistence: FileServerPersistence(Directory(fileConfig.stateDirectory)),
   );
 
   final termination = Completer<ProcessSignal>();

@@ -184,6 +184,10 @@ final class _WorkerRuntime {
           );
         case 'close':
           result = await _close();
+        case 'testStopServing':
+          if (!testing) throw StateError('Test command is unavailable.');
+          await _setup(setupId!)._serverNode!.server!.close();
+          result = null;
         case 'testPending':
           if (!testing) throw StateError('Test command is unavailable.');
           await Completer<void>().future;
@@ -228,7 +232,7 @@ final class _WorkerRuntime {
         default:
           throw ArgumentError.value(operation, 'operation', 'unknown command');
       }
-      _reply(id, result);
+      _reply(id, result, startedSetup: operation == 'startSetup');
       if (operation == 'close') {
         receivePort.close();
         if (!_done.isCompleted) _done.complete();
@@ -314,7 +318,7 @@ final class _WorkerRuntime {
     }
   }
 
-  void _reply(int id, Object? result) {
+  void _reply(int id, Object? result, {bool startedSetup = false}) {
     final message = <String, Object?>{
       'version': workerProtocolVersion,
       'generation': generation,
@@ -324,7 +328,14 @@ final class _WorkerRuntime {
       'result': result,
     };
     if (approximateMessageBytes(message) > maxMessageBytes) {
-      _replyError(id, 'message_too_large', 'Reply exceeds worker limit.');
+      _replyError(
+        id,
+        startedSetup ? 'start_result_too_large' : 'message_too_large',
+        startedSetup
+            ? 'Roles started, but the snapshot exceeds the worker limit. '
+                  'Providers remain bound; stop the setup before retrying.'
+            : 'Reply exceeds worker limit.',
+      );
     } else {
       hostPort.send(message);
     }

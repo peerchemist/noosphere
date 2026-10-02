@@ -206,10 +206,6 @@ void main() {
     );
   });
 
-  test('empty YAML reports a configuration error', () {
-    expect(() => GroupConfig.fromYaml(''), throwsA(isA<MapReaderException>()));
-  });
-
   test('login consumers can update their own participant set', () {
     final snapshot = LoginCompleteResponse(
       id: SessionID(),

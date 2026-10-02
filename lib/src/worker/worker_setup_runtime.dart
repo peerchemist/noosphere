@@ -53,6 +53,11 @@ final class _SetupRuntime {
         final node = await NoosphereNode.startInitialized(server: options);
         _serverNode = node;
         _serverAddress = node.server!.address;
+        unawaited(
+          node.serverDone!.then(
+            (termination) => _serverTerminated(node, termination),
+          ),
+        );
         // Iroh's reactive-stream cancellation registry is process-wide while
         // Dart library statics are isolate-local. Polling the cheap address
         // snapshot keeps workers on the published Iroh API and avoids sharing
@@ -257,6 +262,27 @@ final class _SetupRuntime {
     await node?.close();
   }
 
+  Future<void> _serverTerminated(
+    NoosphereNode node,
+    NoosphereServerTermination termination,
+  ) => _synchronized(() async {
+    if (!identical(_serverNode, node)) return;
+    Object? cleanupError;
+    try {
+      await _stopServer();
+    } catch (error) {
+      cleanupError = error;
+    }
+    _emitSnapshot();
+    _failure(
+      'serve',
+      termination.error ??
+          cleanupError ??
+          StateError('Server stopped unexpectedly.'),
+      false,
+    );
+  });
+
   void _refreshServerAddress(NoosphereNode node) {
     if (!identical(_serverNode, node)) return;
     try {
@@ -296,7 +322,7 @@ final class _SetupRuntime {
     return NoosphereWorkerSnapshot(
       setupId: setupId,
       generation: generation,
-      serverRunning: server != null,
+      serverRunning: _serverNode?.serverRunning == true,
       signerRunning: _clientNode != null,
       connected: _clientNode?.client?.isConnected == true,
       coordinator: server == null || serverAddress == null

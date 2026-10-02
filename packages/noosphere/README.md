@@ -1,5 +1,9 @@
 # Noosphere protocol
 
+**Coordinated public preview.** Deploy matching tested package versions across
+all peers. Protocol v1 does not promise compatibility between preview builds;
+see the [version policy](spec/VERSIONING.md).
+
 Canonical ROAST domain types, group configuration, protobuf messages and
 transport-independent framing for the Noosphere protocol. Client, server and
 Flutter implementations consume this package directly; transport adapter
@@ -33,8 +37,17 @@ decoding a value embedded within a larger record, and use
 
 Noosphere serialized byte views, signing hashes and signing payloads are
 read-only. Copy bytes before editing them. `GroupConfig.participants` is a
-read-only map in identifier order. Native Frosty values still carry their own
-ownership and disposal contracts.
+read-only map in identifier order. This is a shallow ownership guarantee: retained Frosty identifiers,
+commitments, shares and ciphertexts, and Coinlib transaction/signing metadata,
+keep their dependency ownership contracts. Do not mutate their cached bytes or
+call `dispose()` while a Noosphere object or runtime still uses them. A final
+field or read-only collection does not transfer or duplicate a native handle.
+
+Prefer the Flutter worker's public DTOs for UI state. To create an independent
+native value, copy its serialized bytes and decode with its type's constructor;
+manage that new value's lifetime separately. Never duplicate signing nonces for
+reuse. Coinlib 6.0.1, Frosty 5.0.0 and the Iroh adapters 1.0.3 are pinned to the
+versions exercised by the release tests.
 
 Unknown signature metadata can be preserved as a standalone opaque value, but
 cannot be embedded in an accepted signing request. Supporting a new metadata

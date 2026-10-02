@@ -16,7 +16,7 @@ Future<void> main(List<String> arguments) async {
     ..addOption(
       'config',
       abbr: 'c',
-      help: 'Path to the ClientConfig YAML file.',
+      help: 'Path to binary ClientConfig bytes (config.toBytes()).',
       mandatory: true,
     )
     ..addOption(
@@ -48,12 +48,12 @@ Future<void> main(List<String> arguments) async {
   final bootstrapAddress = encodedAddress == null
       ? EndpointAddr(serverId)
       : EndpointAddr.decode(base64Url.decode(encodedAddress));
-  final clientConfig = ns.ClientConfig.fromYaml(
-    await File(options.option('config')!).readAsString(),
+  await fr.loadFrosty();
+  final clientConfig = ns.ClientConfig.fromBytes(
+    await File(options.option('config')!).readAsBytes(),
   );
   final keyFile = File(options.option('key-file')!);
 
-  await fr.loadFrosty();
   final runtime = await ReconnectingIrohClient.connect(
     clientConfig: clientConfig,
     transportConfig: IrohClientTransportConfig(

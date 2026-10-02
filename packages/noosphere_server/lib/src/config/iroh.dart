@@ -1,5 +1,4 @@
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/config.dart';
 import 'package:noosphere/iroh.dart';
 import 'package:noosphere/noosphere.dart';
 
@@ -14,7 +13,7 @@ extension IrohServerRelayMode on IrohRelayConfig {
   };
 }
 
-final class IrohConfig with MapWritable {
+final class IrohConfig {
   static const defaultAuthTimeout = Duration(seconds: 10);
   static const defaultRpcTimeout = Duration(seconds: 30);
   static const defaultShutdownTimeout = Duration(seconds: 5);
@@ -54,50 +53,6 @@ final class IrohConfig with MapWritable {
     }
   }
 
-  factory IrohConfig.fromMapReader(MapReader reader) {
-    final relayReader = reader['relay'];
-    final policy = relayReader['policy'].value<String>() ?? 'default-network';
-    final relay = switch (policy) {
-      'default-network' => IrohRelayConfig.defaultNetwork(),
-      'disabled' => IrohRelayConfig.disabled(),
-      'staging' => IrohRelayConfig.staging(),
-      'custom' => IrohRelayConfig.custom(
-        relayReader['urls'].require<List<Object?>>().map((url) {
-          if (url is! String) {
-            throw MapReaderException('relay.urls must contain strings');
-          }
-          return url;
-        }).toList(),
-      ),
-      _ => throw MapReaderException('Unknown relay.policy: $policy'),
-    };
-
-    return IrohConfig(
-      server: ServerConfig.fromMapReader(reader['server']),
-      relay: relay,
-      alpn: reader['alpn'].value<String>() ?? noosphereIrohAlpn,
-      authTimeout:
-          reader['timeouts-ms']['auth'].duration() ?? defaultAuthTimeout,
-      rpcTimeout: reader['timeouts-ms']['rpc'].duration() ?? defaultRpcTimeout,
-      shutdownTimeout:
-          reader['timeouts-ms']['shutdown'].duration() ??
-          defaultShutdownTimeout,
-      maxEnvelopeLength:
-          reader['limits']['max-envelope-bytes'].value<int>() ??
-          defaultMaxEnvelopeLength,
-      maxConnections:
-          reader['limits']['max-connections'].value<int>() ??
-          defaultMaxConnections,
-      maxStreamsPerConnection:
-          reader['limits']['max-streams-per-connection'].value<int>() ??
-          defaultMaxStreamsPerConnection,
-      nativeLibraryPath: reader['native-library-path'].value<String>(),
-    );
-  }
-
-  factory IrohConfig.fromYaml(String yaml) =>
-      IrohConfig.fromMapReader(MapReader.fromYaml(yaml));
-
   final ServerConfig server;
   final IrohRelayConfig relay;
   final String alpn;
@@ -108,35 +63,4 @@ final class IrohConfig with MapWritable {
   final int maxConnections;
   final int maxStreamsPerConnection;
   final String? nativeLibraryPath;
-
-  @override
-  Map<Object, Object> map() {
-    final result = <Object, Object>{
-      'alpn': alpn,
-      'relay': {
-        'policy': switch (relay.policy) {
-          IrohRelayPolicy.defaultNetwork => 'default-network',
-          IrohRelayPolicy.disabled => 'disabled',
-          IrohRelayPolicy.staging => 'staging',
-          IrohRelayPolicy.custom => 'custom',
-        },
-        if (relay.urls.isNotEmpty) 'urls': relay.urls,
-      },
-      'timeouts-ms': {
-        'auth': authTimeout.inMilliseconds,
-        'rpc': rpcTimeout.inMilliseconds,
-        'shutdown': shutdownTimeout.inMilliseconds,
-      },
-      'limits': {
-        'max-envelope-bytes': maxEnvelopeLength,
-        'max-connections': maxConnections,
-        'max-streams-per-connection': maxStreamsPerConnection,
-      },
-      'server': server.map(),
-    };
-    if (nativeLibraryPath case final libraryPath?) {
-      result['native-library-path'] = libraryPath;
-    }
-    return result;
-  }
 }

@@ -228,3 +228,24 @@ attempts bounded close on terminal `detached`. `inactive` does nothing because
 desktop focus loss should not stop a signer. Applications should still await
 explicit shutdown during logout/exit; lifecycle callbacks are not a substitute
 for durable state.
+
+## Startup result and server health
+
+A `start_result_too_large` exception from `startSetup` means the requested roles
+started successfully but their snapshot exceeded the configured message limit.
+The host retains their identity, key and persistence providers. Stop the setup
+before retrying with a larger worker message limit; do not treat this error as
+an uncommitted start. Oversized ordinary snapshots still report
+`message_too_large`.
+
+`NoosphereNode.serverDone` reports serving-loop completion independently of
+`close()`, and `serverRunning` becomes false when serving ends or close begins.
+The completion result carries an optional error rather than completing with an
+unobserved asynchronous exception. `close()` still reports a serving failure
+after attempting cleanup.
+
+Workers observe that completion, clean up the stopped server role and emit a
+snapshot plus a `WorkerFailureEvent` with operation `serve`. The host keeps the
+role's providers reserved until `stopSetup` acknowledges cleanup. Call
+`stopSetup` for that role before restarting it; a false health flag alone does
+not permit replacing providers while old cleanup may still be using them.

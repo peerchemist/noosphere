@@ -5,14 +5,12 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:frosty/frosty.dart';
 import 'package:noosphere/common/serial.dart';
 
-import 'map_serial.dart';
-
 typedef ParticipantMap = SplayTreeMap<Identifier, cl.ECCompressedPublicKey>;
 
-/// Configuation for participants in a FROST singing group which can represent
+/// Configuration for participants in a FROST signing group which can represent
 /// multiple FROST keys for a given set of participants whereby each participant
 /// has an [Identifier] and associated [cl.ECCompressedPublicKey].
-class GroupConfig with cl.Writable, NoosphereWritable, MapWritable {
+class GroupConfig with cl.Writable, NoosphereWritable {
   /// A unique ID for the group that allows unique groups to be made with the
   /// same participants.
   final String id;
@@ -36,23 +34,6 @@ class GroupConfig with cl.Writable, NoosphereWritable, MapWritable {
     return GroupConfig(id: id, participants: _readParticipants(reader, n));
   }
 
-  factory GroupConfig.fromMapReader(MapReader reader) {
-    final keysNode = reader["participant-keys"];
-
-    return GroupConfig(
-      id: reader["id"].require(),
-      participants: {
-        for (final idString in keysNode.keysOf<String>())
-          Identifier.fromHex(idString): cl.ECCompressedPublicKey.fromHex(
-            keysNode[idString].require(),
-          ),
-      },
-    );
-  }
-
-  factory GroupConfig.fromYaml(String yaml) =>
-      GroupConfig.fromMapReader(MapReader.fromYaml(yaml));
-
   /// Convenience constructor to construct from serialised [bytes].
   factory GroupConfig.fromBytes(Uint8List bytes) =>
       readNoosphere(bytes, GroupConfig.fromReader);
@@ -61,7 +42,7 @@ class GroupConfig with cl.Writable, NoosphereWritable, MapWritable {
   factory GroupConfig.fromHex(String hex) =>
       GroupConfig.fromBytes(cl.hexToBytes(hex));
 
-  /// A fingerprint made from the [id] and [participants] that is unqiue for
+  /// A fingerprint made from the [id] and [participants] that is unique for
   /// each group and can be used to check for group equality.
   Uint8List get fingerprint => cl.sha256Hash(toBytes());
 
@@ -74,15 +55,6 @@ class GroupConfig with cl.Writable, NoosphereWritable, MapWritable {
       writer.writePubKey(entry.value);
     }
   }
-
-  @override
-  Map<Object, Object> map() => {
-    "id": id,
-    "participant-keys": {
-      for (final entry in participants.entries)
-        entry.key.toString(): entry.value.hex,
-    },
-  };
 }
 
 Map<Identifier, cl.ECCompressedPublicKey> _readParticipants(

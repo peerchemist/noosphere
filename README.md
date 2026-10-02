@@ -1,5 +1,9 @@
 # Noosphere
 
+**Coordinated public preview.** Deploy matching tested package versions across
+all peers. Protocol v1 does not promise compatibility between preview builds;
+see the [version policy](packages/noosphere/spec/VERSIONING.md).
+
 Reference implementation of the Noosphere protocol. This repository is a Dart
 workspace containing the canonical protocol schema, participant and
 coordinator implementations, and the Flutter facade used by end-user apps.

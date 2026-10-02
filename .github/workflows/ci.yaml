@@ -46,6 +46,7 @@ jobs:
           xvfb-run -a flutter test integration_test/coordinator_rotation_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_roast_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_lifecycle_test.dart -d linux
+          xvfb-run -a flutter test integration_test/worker_failure_recovery_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_room_persistence_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_pending_key_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_unexpected_exit_test.dart -d linux
@@ -105,6 +106,7 @@ jobs:
           flutter test integration_test/coordinator_rotation_test.dart -d macos
           flutter test integration_test/worker_roast_test.dart -d macos
           flutter test integration_test/worker_lifecycle_test.dart -d macos
+          flutter test integration_test/worker_failure_recovery_test.dart -d macos
           flutter test integration_test/worker_room_persistence_test.dart -d macos
           flutter test integration_test/worker_pending_key_test.dart -d macos
           flutter test integration_test/worker_unexpected_exit_test.dart -d macos

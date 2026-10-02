@@ -60,13 +60,14 @@ final class NoosphereWorker {
   @visibleForTesting
   static Future<NoosphereWorker> startNativeForTesting({
     Duration startupTimeout = const Duration(seconds: 30),
+    int maxMessageBytes = defaultWorkerMaxMessageBytes,
     Duration shutdownTimeout = const Duration(seconds: 2),
   }) => _start(
     startupTimeout: startupTimeout,
     hostOperationTimeout: const Duration(seconds: 5),
     shutdownTimeout: shutdownTimeout,
     maxOutstandingCommands: 64,
-    maxMessageBytes: defaultWorkerMaxMessageBytes,
+    maxMessageBytes: maxMessageBytes,
     skipInitialization: false,
     testing: true,
   );
@@ -298,8 +299,23 @@ final class NoosphereWorker {
     );
   }
 
+  /// Ends the serving loop without stopping its setup, to exercise health
+  /// reporting independently of the normal lifecycle command.
+  @visibleForTesting
+  Future<void> debugStopServingForTesting(String setupId) {
+    if (!_testing) {
+      throw StateError('Only testing workers support this command.');
+    }
+    return _invoke('testStopServing', setupId: setupId).then((_) {});
+  }
+
   /// Starts roles. Concurrent lifecycle calls for this setup fail with
   /// `setup_busy`; await completion before starting, stopping or switching it.
+  /// A `start_result_too_large` error means the roles DID start, but their
+  /// snapshot could not be delivered. Providers remain bound. Use [stopSetup]
+  /// before retrying with a worker configured for larger messages. A role whose
+  /// serving loop failed also remains bound until [stopSetup] acknowledges its
+  /// cleanup, even when a snapshot reports `serverRunning: false`.
   Future<NoosphereWorkerSnapshot> startSetup({
     required String setupId,
     EmbeddedServerOptions? server,
@@ -311,14 +327,14 @@ final class NoosphereWorker {
     }
 
     final setup = _setups.putIfAbsent(setupId, _HostSetup.new);
-    // Check live roles before replacing host providers. The isolate rejecting
-    // a duplicate start is too late: a live role may request storage meanwhile.
-    if (setup.hasProviders) {
-      final current = await snapshot(setupId);
-      if ((server != null && current.serverRunning) ||
-          (client != null && current.signerRunning)) {
-        throw StateError('Requested role is already running.');
-      }
+    // A bound role owns its providers until stopSetup acknowledges cleanup.
+    // Serving health alone cannot release that ownership: a failed serve loop
+    // may still be flushing persistence, and a snapshot may be too large.
+    if ((server != null && setup.identityStore != null) ||
+        (client != null && setup.storage != null)) {
+      throw StateError(
+        'Requested role is already bound; stop it before restarting.',
+      );
     }
     final previousProviders = setup.providers;
     setup.bind(server: server, client: client);
@@ -333,7 +349,13 @@ final class NoosphereWorker {
         },
       );
       return result! as NoosphereWorkerSnapshot;
-    } catch (_) {
+    } catch (error) {
+      // Startup committed successfully. Keep the providers serving those roles
+      // even when the full result cannot cross the isolate boundary.
+      if (error is NoosphereWorkerException &&
+          error.code == 'start_result_too_large') {
+        rethrow;
+      }
       setup.providers = previousProviders;
       if (!setup.hasProviders) _setups.remove(setupId);
       rethrow;

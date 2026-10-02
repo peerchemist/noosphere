@@ -17,7 +17,7 @@ void main(List<String> args) async {
     ..addOption(
       'config',
       abbr: 'c',
-      help: 'Path to the ClientConfig YAML file.',
+      help: 'Path to binary ClientConfig bytes (config.toBytes()).',
       mandatory: true,
     )
     ..addOption(
@@ -40,7 +40,7 @@ void main(List<String> args) async {
     );
   final argResults = argParser.parse(args);
   final configFile = argResults.option('config')!;
-  final configString = File(configFile).readAsStringSync();
+  final configBytes = await File(configFile).readAsBytes();
   final nativeLibrary = argResults.option('native-library');
   final key = cl.ECPrivateKey.fromHex(argResults.option('key')!);
 
@@ -56,7 +56,7 @@ void main(List<String> args) async {
   );
 
   final client = await ns.Client.login(
-    config: ns.ClientConfig.fromYaml(configString),
+    config: ns.ClientConfig.fromBytes(configBytes),
     api: api,
     store: InMemoryClientStorage(),
     getPrivateKey: (_) async => key,

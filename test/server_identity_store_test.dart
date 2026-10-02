@@ -97,6 +97,65 @@ void main() {
     expect(store.writes, 0);
   });
 
+  test('rejected restore does not poison export or deliberate retry', () async {
+    final original = Uint8List(32)..last = 71;
+    final replacement = Uint8List(32)..last = 72;
+    final store = _MemoryIdentityStore(original);
+    await expectLater(
+      restoreStoredIrohServerIdentity(store, replacement),
+      throwsStateError,
+    );
+    expect(await exportStoredIrohServerIdentity(store), original);
+    await restoreStoredIrohServerIdentity(store, replacement, overwrite: true);
+    expect((await loadOrCreateServerIdentity(store)).toBytes(), replacement);
+  });
+
+  test('load reconciles after a failed restore write that committed', () async {
+    final replacement = Uint8List(32)..last = 73;
+    final store = _FailingWriteStore();
+    await expectLater(
+      restoreStoredIrohServerIdentity(store, replacement),
+      throwsStateError,
+    );
+    expect(await exportStoredIrohServerIdentity(store), replacement);
+    expect((await loadOrCreateServerIdentity(store)).toBytes(), replacement);
+    expect(store.writes, 1);
+  });
+
+  test(
+    'load can retry a failed persistence operation without changing key',
+    () async {
+      final store = _FailingWriteStore();
+      await expectLater(loadOrCreateServerIdentity(store), throwsStateError);
+      final committed = await store.read();
+      expect((await loadOrCreateServerIdentity(store)).toBytes(), committed);
+      expect(store.writes, 1);
+      expect(
+        () => restoreStoredIrohServerIdentity(store, Uint8List(32)),
+        throwsStateError,
+      );
+    },
+  );
+
+  test('queued restore recovers after a rejected predecessor', () async {
+    final original = Uint8List(32)..last = 74;
+    final replacement = Uint8List(32)..last = 75;
+    final store = _MemoryIdentityStore(original);
+    final rejected = expectLater(
+      restoreStoredIrohServerIdentity(store, replacement),
+      throwsStateError,
+    );
+    final restoring = restoreStoredIrohServerIdentity(
+      store,
+      replacement,
+      overwrite: true,
+    );
+    final loading = loadOrCreateServerIdentity(store);
+    await rejected;
+    await restoring;
+    expect((await loading).toBytes(), replacement);
+  });
+
   test('restore replaces a different identity with overwrite', () async {
     final replacement = Uint8List(32)..last = 42;
     final store = _MemoryIdentityStore(Uint8List(32)..last = 41);
@@ -191,5 +250,19 @@ final class _BlockingIdentityStore(this._readBarrier)
   Future<void> write(Uint8List secret) async {
     writes++;
     _bytes = Uint8List.fromList(secret);
+  }
+}
+
+final class _FailingWriteStore implements ServerIdentityStore {
+  Uint8List? bytes;
+  int writes = 0;
+  @override
+  Future<Uint8List?> read() async =>
+      bytes == null ? null : Uint8List.fromList(bytes!);
+  @override
+  Future<void> write(Uint8List secret) async {
+    bytes = Uint8List.fromList(secret);
+    writes++;
+    throw StateError('Commit succeeded but acknowledgement failed');
   }
 }

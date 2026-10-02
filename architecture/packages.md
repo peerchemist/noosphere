@@ -32,7 +32,7 @@ and transport APIs. It does not export every internal transport helper.
 | --- | --- |
 | `package:noosphere/domain.dart` | Domain events, request contract, responses, signing types, Frosty, rooms and transitions |
 | `package:noosphere/noosphere.dart` | Generated protobuf messages/enums, framing, rooms and transitions |
-| `package:noosphere/config.dart` | `GroupConfig`, map/YAML serialization utilities |
+| `package:noosphere/config.dart` | `GroupConfig` and its binary codec |
 | `package:noosphere/iroh.dart` | ALPN strings, wire version, relay policy |
 | `package:noosphere/common.dart` | Binary helpers, bounded domain reader, expiring maps |
 | `package:noosphere/room.dart` | Invites, enrollment contract/transcript and snapshots |

@@ -38,8 +38,38 @@ allows distinct groups with identical rosters.
 A group does not have one global threshold or one FROST key. The same roster
 can generate several keys with different thresholds. The threshold belongs to
 a DKG proposal and its resulting key information. Treat configuration and
-signed values as immutable: not every older model deeply freezes its fields,
-and `Signable` caches its hash.
+signed values as immutable. Noosphere protects its own serialized views and
+collection containers; it does not promise deep immutability of dependency
+objects. `Signable` caches its hash, so mutation of a retained dependency value
+can invalidate the relationship between fields, bytes and signatures.
+
+## Dependency ownership
+
+The following boundary was checked against Frosty 5.0.0 and Coinlib 6.0.1.
+Constructors generally retain the objects listed here; freezing a container
+neither clones its elements nor transfers their native handles.
+
+| Retained dependency values | Where retained | Ownership contract |
+| --- | --- | --- |
+| Frosty `Identifier` | Group rosters, room participants, ACKs, events, login snapshots and signing progress | Borrowed native handle with a mutable cached `toBytes()` result. Never edit those bytes or dispose the identifier while retained; mutation also changes equality/order/hash behavior. |
+| Frosty `DkgPublicCommitment` | New-DKG commitment pairs and commitment events | Borrowed native handle. The surrounding list is frozen, but elements and their cached byte representations retain Frosty's contract. |
+| Frosty `SigningCommitmentSet`, `SigningCommitment`, `SignatureShare` | Signature rounds and replies, including nested login snapshots/events | Commitment-set maps are read-only containers. Their identifiers, commitments and shares remain borrowed native handles; the set's own Coinlib serialization cache is also outside Noosphere's protection. |
+| Frosty `ECCiphertext` | `DkgEncryptedSecret`, `EncryptedKeyShare` and their events | Retained Dart wrapper with dependency-owned ciphertext buffers and serialization cache. Do not mutate its encoded bytes or the buffer supplied to its decoder. Decrypting creates a separate secret object with its own lifetime. |
+| Frosty `SignDetails` | `SingleSignatureDetails` | Exception to borrowing: Noosphere copies message/MAST arrays and protects the copied object's serialization. The original `SignDetails` remains caller-owned. |
+| Coinlib public keys and Schnorr signatures | Groups, ACKs, room/transition records, signing details/results and signed objects | The concrete Coinlib types copy constructor inputs and return copies of key/signature data. Retaining these concrete values does not expose those buffers. Custom subclasses are not covered by that guarantee. |
+| Coinlib transaction, Taproot signing details and previous outputs | `TaprootTransactionSignatureMetadata` | Borrowed dependency graph. Noosphere freezes the outer details list, not transaction serialization/hash caches or every nested value. Treat the entire graph as immutable while the proposal exists. |
+| Frosty key info, DKG round secrets and signing nonces | Re-exported low-level APIs, direct client state and storage contracts | Runtime-owned native/secret values rather than UI snapshots. Do not dispose values still used by a runtime, share them across isolates, or duplicate nonces for signing reuse. |
+
+Copy a native value's bytes before decoding an independently owned instance.
+Dispose only values whose complete lifetime the caller owns. The worker's public
+DTOs contain primitive data and owned read-only byte/list copies; use them for UI
+state. Decoding a DTO into a domain object creates a new dependency ownership
+boundary and does not make that domain graph deeply immutable.
+
+Keep native dependency versions pinned until their ownership behavior and
+platform integration tests have been checked. The audited dependency wrappers
+expose mutable caches and disposal directly, so a blanket immutable-domain
+claim would be incorrect.
 
 ## Signatures over protocol objects
 

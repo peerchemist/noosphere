@@ -12,9 +12,24 @@ import 'node_testing.dart';
 import 'server_identity_store.dart';
 import 'server_options.dart';
 
+/// Completion of an embedded server's serving loop.
+///
+/// [error] is null after normal completion. [NoosphereNode.serverDone] returns
+/// this value without an unhandled error if an application does not observe it.
+final class NoosphereServerTermination {
+  const NoosphereServerTermination({this.error, this.stackTrace});
+  final Object? error;
+  final StackTrace? stackTrace;
+}
+
 /// A running Flutter-owned combination of server and client roles.
 final class NoosphereNode {
-  NoosphereNode._(this._serverRole, this._clientRole, this._identityStore);
+  NoosphereNode._(this._serverRole, this._clientRole, this._identityStore) {
+    if (_serverRole != null) {
+      _serverRunning = true;
+      _serverDone = _observeServer();
+    }
+  }
 
   static Future<NoosphereNode> start({
     EmbeddedServerOptions? server,
@@ -98,6 +113,26 @@ final class NoosphereNode {
   final NoosphereClientRole? _clientRole;
   final ServerIdentityStore? _identityStore;
   Future<void>? _closing;
+  bool _serverRunning = false;
+  Future<NoosphereServerTermination>? _serverDone;
+
+  /// Whether the embedded server is still serving and has not begun closing.
+  bool get serverRunning => _serverRunning && _closing == null;
+
+  /// Completes as soon as the serving loop ends, including before [close].
+  /// Null for client-only nodes. Inspect the result's error for failure.
+  Future<NoosphereServerTermination>? get serverDone => _serverDone;
+
+  Future<NoosphereServerTermination> _observeServer() async {
+    try {
+      await _serverRole!.waitForServe();
+      return const NoosphereServerTermination();
+    } catch (error, stackTrace) {
+      return NoosphereServerTermination(error: error, stackTrace: stackTrace);
+    } finally {
+      _serverRunning = false;
+    }
+  }
 
   IrohServer? get server => _serverRole?.server;
   ReconnectingIrohClient? get client => _clientRole?.client;
@@ -140,7 +175,9 @@ final class NoosphereNode {
 
     await run(_clientRole?.close);
     await run(_serverRole?.close);
-    await run(_serverRole?.waitForServe);
+    final termination = await _serverDone;
+    firstError ??= termination?.error;
+    firstStackTrace ??= termination?.stackTrace;
 
     if (firstError case final error?) {
       Error.throwWithStackTrace(error, firstStackTrace!);

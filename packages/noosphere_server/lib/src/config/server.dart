@@ -5,7 +5,7 @@ import 'package:noosphere/common.dart';
 import 'package:noosphere/config.dart';
 import 'package:noosphere/domain.dart';
 
-class ServerConfig with cl.Writable, MapWritable {
+class ServerConfig with cl.Writable {
   static const defaultChallengeTTL = Duration(seconds: 20);
   static const defaultSessionTTL = Duration(minutes: 1);
   static const defaultMinDkgRequestTTL = Duration(minutes: 29);
@@ -62,31 +62,6 @@ class ServerConfig with cl.Writable, MapWritable {
         keepAliveFreq: reader.readBool() ? reader.readDuration() : null,
       );
 
-  ServerConfig.fromMapReader(MapReader reader)
-    : this(
-        group: GroupConfig.fromMapReader(reader["group"]),
-        challengeTTL: reader.getTTL("challenge") ?? defaultChallengeTTL,
-        sessionTTL: reader.getTTL("session") ?? defaultSessionTTL,
-        minDkgRequestTTL:
-            reader.getTTL("min-dkg-request") ?? defaultMinDkgRequestTTL,
-        maxDkgRequestTTL:
-            reader.getTTL("max-dkg-request") ?? defaultMaxDkgRequestTTL,
-        minSignaturesRequestTTL:
-            reader.getTTL("min-signatures-request") ??
-            defaultMinSignaturesRequestTTL,
-        maxSignaturesRequestTTL:
-            reader.getTTL("max-signatures-request") ??
-            defaultMaxSignaturesRequestTTL,
-        minCompletedSignaturesTTL:
-            reader.getTTL("min-completed-signatures") ??
-            defaultMinCompletedSignaturesTTL,
-        ackCacheTTL: reader.getTTL("ack-cache") ?? defaultAckCacheTTL,
-        keepAliveFreq: reader["keep-alive-event-ms"].duration(),
-      );
-
-  ServerConfig.fromYaml(String yaml)
-    : this.fromMapReader(MapReader.fromYaml(yaml));
-
   @override
   void write(cl.Writer writer) {
     group.write(writer);
@@ -106,21 +81,4 @@ class ServerConfig with cl.Writable, MapWritable {
       writer.writeDuration(keepAliveFreq!);
     }
   }
-
-  @override
-  Map<Object, Object> map() => {
-    "ms-lifetimes": {
-      "challenge": challengeTTL.inMilliseconds,
-      "session": sessionTTL.inMilliseconds,
-      "min-dkg-request": minDkgRequestTTL.inMilliseconds,
-      "max-dkg-request": maxDkgRequestTTL.inMilliseconds,
-      "min-signatures-request": minSignaturesRequestTTL.inMilliseconds,
-      "max-signatutres-request": maxSignaturesRequestTTL.inMilliseconds,
-      "min-completed-signatures": minCompletedSignaturesTTL.inMilliseconds,
-      "ack-cache": ackCacheTTL.inMilliseconds,
-    },
-    if (keepAliveFreq != null)
-      "keep-alive-event-ms": keepAliveFreq!.inMilliseconds,
-    "group": group.map(),
-  };
 }

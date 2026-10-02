@@ -5,7 +5,6 @@ import 'package:frosty/frosty.dart';
 import 'package:noosphere/api/types/expiry.dart';
 import 'package:noosphere/common/serial.dart';
 import 'package:noosphere/config/group.dart';
-import 'package:noosphere/config/map_serial.dart';
 
 /// The reason the private key is being requested
 enum KeyPurpose {
@@ -20,7 +19,7 @@ enum KeyPurpose {
   roomEnrollment,
 }
 
-class ClientConfig with cl.Writable, MapWritable {
+class ClientConfig with cl.Writable {
   static const defaultMinDkgRequestTTL = Duration(minutes: 30);
   static const defaultMaxDkgRequestTTL = Duration(days: 7);
   static const defaultMinSignaturesTTL = Duration(seconds: 30);
@@ -60,23 +59,6 @@ class ClientConfig with cl.Writable, MapWritable {
   /// Convenience constructor to construct from encoded [hex].
   ClientConfig.fromHex(String hex) : this.fromBytes(cl.hexToBytes(hex));
 
-  ClientConfig.fromMapReader(MapReader reader)
-    : this(
-        id: Identifier.fromHex(reader["id"].require()),
-        group: GroupConfig.fromMapReader(reader["group"]),
-        minDkgRequestTTL:
-            reader.getTTL("min-dkg-request") ?? defaultMinDkgRequestTTL,
-        maxDkgRequestTTL:
-            reader.getTTL("max-dkg-request") ?? defaultMaxDkgRequestTTL,
-        minSignaturesTTL:
-            reader.getTTL("min-signatures") ?? defaultMinSignaturesTTL,
-        maxSignaturesTTL:
-            reader.getTTL("max-signatures") ?? defaultMaxSignaturesTTL,
-      );
-
-  ClientConfig.fromYaml(String yaml)
-    : this.fromMapReader(MapReader.fromYaml(yaml));
-
   @override
   void write(cl.Writer writer) {
     group.write(writer);
@@ -99,16 +81,4 @@ class ClientConfig with cl.Writable, MapWritable {
   Set<Identifier> get otherIds => others.keys.toSet();
   Set<Identifier> get allIds => group.participants.keys.toSet();
   int get groupN => group.participants.length;
-
-  @override
-  Map<Object, Object> map() => {
-    "id": id.toString(),
-    "ms-lifetimes": {
-      "min-dkg-request": minDkgRequestTTL.inMilliseconds,
-      "max-dkg-request": maxDkgRequestTTL.inMilliseconds,
-      "min-signatures": minSignaturesTTL.inMilliseconds,
-      "max-signatures": maxSignaturesTTL.inMilliseconds,
-    },
-    "group": group.map(),
-  };
 }

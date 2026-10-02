@@ -21,14 +21,17 @@ void main() {
     final configFile = File('${temporary.path}/server.yaml');
     final nativeLibrary = Platform.environment['IROH_NATIVE_LIBRARY'];
     final secretPath = '${temporary.path}/identity/secret.key';
-    final config = IrohConfig(
-      server: serverConfig,
-      relay: IrohRelayConfig.disabled(),
-      nativeLibraryPath: nativeLibrary,
-    );
-    await configFile.writeAsString(
-      'secret-key-path: $secretPath\n${config.yaml}',
-    );
+    await configFile.writeAsString('''
+secret-key-path: ${jsonEncode(secretPath)}
+relay:
+  policy: disabled
+${nativeLibrary == null ? '' : 'native-library-path: ${jsonEncode(nativeLibrary)}'}
+server:
+  group:
+    id: ${jsonEncode(groupConfig.id)}
+    participant-keys:
+${groupConfig.participants.entries.map((e) => '      "${e.key}": "${e.value.hex}"').join('\n')}
+''');
 
     final firstId = await _startAndStop(configFile.path);
     final secondId = await _startAndStop(configFile.path);

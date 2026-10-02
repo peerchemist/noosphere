@@ -33,6 +33,45 @@ void main() {
     expect(events, ['start server', 'close server', 'join serve']);
   });
 
+  test(
+    'serve failure updates health before close and is safe to observe',
+    () async {
+      final events = <String>[];
+      final role = _ServerRole(events);
+      final node = await NoosphereNode.startForTesting(
+        server: true,
+        client: false,
+        backend: _Backend(events, serverRole: role),
+      );
+      expect(node.serverRunning, isTrue);
+      final failure = StateError('serve failed');
+      role.done.completeError(failure);
+      final termination = await node.serverDone!;
+      expect(termination.error, same(failure));
+      expect(node.serverRunning, isFalse);
+      expect(events, ['start server']);
+      await expectLater(node.close(), throwsA(same(failure)));
+      expect(events, ['start server', 'close server']);
+    },
+  );
+
+  test(
+    'normal serve completion is observable independently of close',
+    () async {
+      final events = <String>[];
+      final role = _ServerRole(events);
+      final node = await NoosphereNode.startForTesting(
+        server: true,
+        client: false,
+        backend: _Backend(events, serverRole: role),
+      );
+      role.done.complete();
+      expect((await node.serverDone!).error, isNull);
+      expect(node.serverRunning, isFalse);
+      await node.close();
+    },
+  );
+
   test('client-only starts and closes', () async {
     final events = <String>[];
     final node = await NoosphereNode.startForTesting(
@@ -162,16 +201,21 @@ void main() {
   });
 }
 
-final class _Backend(this.events, {this.clientFailure, this.clientCloseBarrier})
-    implements NoosphereNodeBackend {
+final class _Backend(
+  this.events, {
+  this.clientFailure,
+  this.clientCloseBarrier,
+  this.serverRole,
+}) implements NoosphereNodeBackend {
   final List<String> events;
   final Object? clientFailure;
+  final _ServerRole? serverRole;
   final Completer<void>? clientCloseBarrier;
 
   @override
   Future<NoosphereServerRole> startServer() async {
     events.add('start server');
-    return _ServerRole(events);
+    return serverRole ?? _ServerRole(events);
   }
 
   @override
@@ -184,15 +228,22 @@ final class _Backend(this.events, {this.clientFailure, this.clientCloseBarrier})
 
 final class _ServerRole(this.events) implements NoosphereServerRole {
   final List<String> events;
+  final done = Completer<void>();
 
   @override
   Never get server => throw UnsupportedError('fake server');
 
   @override
-  Future<void> close() async => events.add('close server');
+  Future<void> close() async {
+    events.add('close server');
+    if (!done.isCompleted) done.complete();
+  }
 
   @override
-  Future<void> waitForServe() async => events.add('join serve');
+  Future<void> waitForServe() async {
+    await done.future;
+    events.add('join serve');
+  }
 }
 
 final class _ClientRole(this.events, this.closeBarrier)

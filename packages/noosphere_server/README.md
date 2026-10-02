@@ -1,5 +1,9 @@
 # Noosphere Server for ROAST Threshold Signatures
 
+**Coordinated public preview.** Deploy matching tested package versions across
+all peers. Protocol v1 does not promise compatibility between preview builds;
+see the [version policy](../noosphere/spec/VERSIONING.md).
+
 This package coordinates FROST distributed key generation and ROAST threshold
 signatures over authenticated Iroh QUIC connections.
 
@@ -7,6 +11,10 @@ The `noosphere_server.dart` entry point exports server configuration, the
 coordinator API, Iroh server lifecycle, room management and host persistence
 contracts. Connection contexts, dispatchers, connection handlers and wire
 conversion helpers under `lib/src/iroh/` are internal implementation details.
+
+YAML parsing belongs only to the standalone CLI in `bin/src/config.dart`.
+Embedded callers construct `GroupConfig`, `ServerConfig` and `IrohConfig`
+directly. The shared and client libraries have no YAML conversion API.
 
 ## Run the server
 
