@@ -104,9 +104,15 @@ void main() {
               address: address,
               storage: stores[index],
             ),
+            localCoordinator: index == 0 ? serverNode.server : null,
           ),
         );
       }
+      expect(clientNodes.first.client!.isLocal, isTrue);
+      expect(
+        clientNodes.skip(1).every((node) => !node.client!.isLocal),
+        isTrue,
+      );
       final clients = clientNodes.map((node) => node.client!.current).toList();
       final events = clients
           .map((client) => client.events.asBroadcastStream())

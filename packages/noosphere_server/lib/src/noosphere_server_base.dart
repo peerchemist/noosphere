@@ -7,6 +7,7 @@ export "config/iroh.dart" show IrohConfig;
 export "config/server.dart";
 export "iroh/server.dart";
 export "server/api_handler.dart";
+export 'server/local_coordinator_api.dart' show LocalCoordinatorApi;
 export 'room/manager.dart';
 export 'room/persistence.dart';
 export 'server/persistence.dart';

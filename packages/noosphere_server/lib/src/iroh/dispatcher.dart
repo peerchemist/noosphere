@@ -69,6 +69,9 @@ final class IrohDispatcher {
   int pendingFor(List<int> groupFingerprint) =>
       _lanes[_GroupKey(groupFingerprint)]?.queue.pending ?? 0;
 
+  bool hasGroup(List<int> groupFingerprint) =>
+      !_closed && _lanes.containsKey(_GroupKey(groupFingerprint));
+
   Future<ExpirableAuthChallengeResponse> beginAuthentication({
     required List<int> groupFingerprint,
     required Identifier participantId,
@@ -294,11 +297,16 @@ final class IrohDispatcher {
   Future<void> scheduleGroup({
     required List<int> groupFingerprint,
     required FutureOr<void> Function(ServerApiHandler handler) mutation,
+  }) => invokeGroup(groupFingerprint: groupFingerprint, operation: mutation);
+
+  Future<T> invokeGroup<T>({
+    required List<int> groupFingerprint,
+    required FutureOr<T> Function(ServerApiHandler handler) operation,
   }) {
     if (_closed) return Future.error(StateError('dispatcher is closed'));
     final lane = _lanes[_GroupKey(groupFingerprint)];
     if (lane == null) return Future.error(const UnknownIrohGroupException());
-    return lane.queue.run(() => mutation(lane.handler));
+    return lane.queue.run(() => operation(lane.handler));
   }
 
   Future<void> close() async {

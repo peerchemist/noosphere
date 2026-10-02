@@ -127,6 +127,13 @@ for an existing setup can add the missing role; `stopSetup` can stop `server`,
 `signer`, or `both`. Share one worker between accounts derived from the same
 setup instead of creating an isolate per wallet.
 
+When one setup hosts the coordinator and signer for the same group, startup
+matches the pinned coordinator ID and group fingerprint against the running
+server. The signer then uses the server's serialized in-process API rather than
+binding a second Iroh endpoint and connecting back to itself over QUIC. The
+server keeps its Iroh endpoint for remote participants. `snapshot.connected`
+has the same meaning for local and remote signer sessions.
+
 Await lifecycle calls for a setup before starting another start, stop, or
 coordinator switch. Overlapping lifecycle calls for the same setup fail with
 `setup_busy`; calls for different setups remain independent.
@@ -185,10 +192,26 @@ final replacements = node.client?.sessions;
 await node.close();
 ```
 
+The combined call selects the in-process path automatically when the client pin
+and group match the server it just started. To attach a signer after creating
+and freezing a room, pass the already-running server explicitly:
+
+```dart
+final signerNode = await NoosphereNode.start(
+  client: roomClientOptions,
+  localCoordinator: coordinatorNode.server,
+);
+assert(signerNode.client!.isLocal);
+```
+
+If the coordinator ID or group fingerprint does not match, startup uses the
+ordinary Iroh transport. Detection never relies on IP addresses or discovery.
+
 The client always requires an independently trusted pinned Iroh ID. Its
 `bootstrapAddress` may contain only that ID and rely on Iroh discovery, or add
 direct/relay hints. Direct API consumers must replace cached `Client` objects
-from `ReconnectingIrohClient.sessions`.
+from `NoosphereClientConnection.sessions`; local sessions normally remain
+valid for the lifetime of their embedded server.
 
 Flutter clients default to two concurrent RPC streams. The long-lived session
 event stream is separate. Embedded servers accept four simultaneous streams per

@@ -33,6 +33,7 @@ export 'package:noosphere_server/noosphere_server.dart'
         IrohConfig,
         IrohServer;
 
+export 'src/client_connection.dart';
 export 'src/client_options.dart';
 export 'src/initialization.dart';
 export 'src/iroh_node.dart';

@@ -2,6 +2,7 @@ import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
 import 'package:noosphere_client/iroh_transport.dart';
 import 'package:noosphere_client/noosphere_client.dart';
 
+import '../client_connection.dart';
 import '../client_options.dart';
 import '../iroh_node.dart';
 import '../server_options.dart';
@@ -23,6 +24,10 @@ abstract interface class WorkerClientConnection {
   void updateTransportConfig(IrohClientTransportConfig config);
 }
 
+abstract interface class LocalCoordinatorWorkerNode {
+  Future<WorkerNode?> tryStartLocalClient(ClientNodeOptions options);
+}
+
 typedef WorkerNodeFactory = Future<WorkerNode> Function({
   EmbeddedServerOptions? server,
   ClientNodeOptions? client,
@@ -35,7 +40,8 @@ Future<WorkerNode> startWorkerNode({
   await NoosphereNode.startInitialized(server: server, client: client),
 );
 
-final class _NativeWorkerNode(this.node) implements WorkerNode {
+final class _NativeWorkerNode(this.node)
+    implements WorkerNode, LocalCoordinatorWorkerNode {
   final NoosphereNode node;
   @override
   EndpointAddr? get serverAddress => node.serverAddress;
@@ -51,11 +57,29 @@ final class _NativeWorkerNode(this.node) implements WorkerNode {
   Future<void> close() => node.close();
   @override
   Future<void> stopServingForTesting() => node.server!.close();
+
+  @override
+  Future<WorkerNode?> tryStartLocalClient(ClientNodeOptions options) async {
+    final server = node.server;
+    if (server == null ||
+        !server.canServeLocally(
+          coordinatorId: options.pinnedServerId,
+          groupFingerprint: options.clientConfig.group.fingerprint,
+        )) {
+      return null;
+    }
+    return _NativeWorkerNode(
+      await NoosphereNode.startInitialized(
+        client: options,
+        localCoordinator: server,
+      ),
+    );
+  }
 }
 
 final class _NativeClientConnection(this.client)
     implements WorkerClientConnection {
-  final ReconnectingIrohClient client;
+  final NoosphereClientConnection client;
   @override
   Client get current => client.current;
   @override

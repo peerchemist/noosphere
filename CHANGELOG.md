@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Flutter integration
+
+- Route a co-located signer directly through its active room coordinator when
+  the pinned endpoint ID and group fingerprint match. Keep Iroh for remote
+  participants and avoid a second local endpoint and QUIC loopback connection.
+
 ### Protocol
 
 - Split signature metadata codecs behind one supported-type registry while

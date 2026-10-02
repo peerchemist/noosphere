@@ -123,6 +123,19 @@ examples can import `package:noosphere_server/testing.dart` and pass
 `InMemoryRoomPersistence()` explicitly. It is not exported by
 `noosphere_server.dart`; production hosts implement durable persistence.
 
+## In-process participants
+
+An embedded coordinator can serve a participant in the same process without a
+second Iroh endpoint or a loopback QUIC connection. `IrohServer.openLocalApi`
+opens a local session only for a group already hosted by that server. Calls use
+the same per-group dispatcher queue as remote Iroh participants, and retain the
+ordinary challenge authentication, session lifecycle, persistence, and event
+ordering.
+
+The Flutter facade selects this path when the client's pinned coordinator ID
+equals the active server ID and its group fingerprint identifies an active
+base or frozen-room handler. Iroh remains active for every remote participant.
+
 ## Protocol and migration
 
 The shared domain types, protocol schema, generated message classes and framing

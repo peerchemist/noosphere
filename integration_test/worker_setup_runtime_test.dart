@@ -120,6 +120,42 @@ void main() {
       await runtime.close();
     },
   );
+  test('co-located signer uses the running local coordinator node', () async {
+    final client = _Client();
+    final localClientNode = _Node(connection: _Connection(client));
+    final serverNode = _LocalServerNode(localClientNode);
+    var factoryCalls = 0;
+    final runtime = WorkerSetupRuntime(
+      setupId: 'test',
+      generation: 1,
+      host: _Host(),
+      emit: (_) {},
+      nodeFactory: ({server, client}) async {
+        factoryCalls++;
+        if (server != null) return serverNode;
+        throw StateError('remote client factory must not be used');
+      },
+    );
+    final publicKey = PublicKey.fromHex('58${'66' * 31}');
+    final config = ClientNodeOptions(
+      clientConfig: ClientConfig(
+        group: options.serverConfig.group,
+        id: options.serverConfig.group.participants.keys.first,
+      ),
+      bootstrapAddress: EndpointAddr(publicKey),
+      pinnedServerId: publicKey,
+      storage: InMemoryClientStorage(),
+      getPrivateKey: (_) async => ECPrivateKey(Uint8List(32)..last = 1),
+    );
+
+    await runtime.start(server: options, client: config);
+
+    expect(factoryCalls, 1);
+    expect(serverNode.localStarts, 1);
+    expect(runtime.hasRoles, isTrue);
+    await runtime.close();
+    await client.controller.close();
+  });
   test('failed role cleanup keeps the node reachable for retry', () async {
     final node = _Node()..failClose = true;
     final runtime = WorkerSetupRuntime(
@@ -238,6 +274,37 @@ final class _Node({this.connection}) implements WorkerNode {
   Future<void> close() async {
     closes++;
     if (failClose) throw StateError('close failed');
+    if (!done.isCompleted) done.complete(const NoosphereServerTermination());
+  }
+
+  @override
+  Future<void> stopServingForTesting() => close();
+}
+
+final class _LocalServerNode implements WorkerNode, LocalCoordinatorWorkerNode {
+  _LocalServerNode(this.localClientNode);
+
+  final WorkerNode localClientNode;
+  final done = Completer<NoosphereServerTermination>();
+  int localStarts = 0;
+
+  @override
+  EndpointAddr? get serverAddress => null;
+  @override
+  bool get serverRunning => !done.isCompleted;
+  @override
+  Future<NoosphereServerTermination>? get serverDone => done.future;
+  @override
+  WorkerClientConnection? get client => null;
+
+  @override
+  Future<WorkerNode?> tryStartLocalClient(ClientNodeOptions options) async {
+    localStarts++;
+    return localClientNode;
+  }
+
+  @override
+  Future<void> close() async {
     if (!done.isCompleted) done.complete(const NoosphereServerTermination());
   }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:iroh_quic/iroh_quic.dart';
@@ -9,6 +10,7 @@ import 'package:noosphere/room.dart';
 import '../config/iroh.dart';
 import '../config/server.dart';
 import '../server/api_handler.dart';
+import '../server/local_coordinator_api.dart';
 import '../server/persistence.dart';
 import '../room/manager.dart';
 import 'connection_handler.dart';
@@ -104,10 +106,29 @@ final class IrohServer {
   Future<void>? _closing;
   Future<void>? _serving;
   final Set<Future<void>> _connections = {};
+  final Set<LocalCoordinatorApi> _localApis = {};
 
   EndpointId get id => endpoint.id;
   EndpointAddr get address => endpoint.addr;
   bool get isClosed => endpoint.isClosed;
+
+  bool canServeLocally({
+    required EndpointId coordinatorId,
+    required List<int> groupFingerprint,
+  }) =>
+      !isClosed && coordinatorId == id && dispatcher.hasGroup(groupFingerprint);
+
+  LocalCoordinatorApi openLocalApi(List<int> groupFingerprint) {
+    if (isClosed) throw StateError('Iroh server is closed');
+    late final LocalCoordinatorApi api;
+    api = LocalCoordinatorApi.attach(
+      dispatcher: dispatcher,
+      groupFingerprint: Uint8List.fromList(groupFingerprint),
+      onClose: (closed) => _localApis.remove(closed),
+    );
+    _localApis.add(api);
+    return api;
+  }
 
   Future<Connection?> accept() => endpoint.accept();
 
@@ -218,6 +239,15 @@ final class IrohServer {
       ),
     );
     try {
+      await Future.wait(
+        _localApis.toList().map((api) => api.close()),
+        eagerError: false,
+      ).timeout(
+        config.shutdownTimeout,
+        onTimeout: () => throw TimeoutException(
+          'local coordinator clients did not close within ${config.shutdownTimeout}',
+        ),
+      );
       await Future.wait(_connections.toList(), eagerError: false).timeout(
         config.shutdownTimeout,
         onTimeout: () => throw TimeoutException(

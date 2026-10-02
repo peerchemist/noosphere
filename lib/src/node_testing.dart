@@ -1,5 +1,6 @@
-import 'package:noosphere_client/iroh_transport.dart';
 import 'package:noosphere_server/noosphere_server.dart';
+
+import 'client_connection.dart';
 
 /// Internal seam used by lifecycle unit tests. This library is not exported by
 /// `package:noosphere_flutter/noosphere_flutter.dart`.
@@ -18,7 +19,7 @@ abstract interface class NoosphereServerRole {
 }
 
 abstract interface class NoosphereClientRole {
-  ReconnectingIrohClient? get client;
+  NoosphereClientConnection? get client;
 
   Future<void> close();
 }

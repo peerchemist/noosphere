@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:iroh_flutter/iroh_flutter.dart' show SecretKey;
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 import 'package:noosphere_flutter/testing.dart';
 
@@ -28,31 +29,42 @@ void main() {
       },
     );
     final stores = [InMemoryClientStorage(), InMemoryClientStorage()];
-    final serverNode = await NoosphereNode.start(
+    final identity = SecretKey.generate();
+    final identityStore = MemoryIdentityStore();
+    await identityStore.write(identity.toBytes());
+    final localAddress = EndpointAddr(identity.publicKey);
+    final localNode = await NoosphereNode.start(
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
-        identityStore: MemoryIdentityStore(),
+        identityStore: identityStore,
         serverPersistence: InMemoryServerPersistence(),
         relay: IrohRelayConfig.disabled(),
       ),
+      client: nativeTestClientOptions(
+        group: group,
+        participant: participantIds.first,
+        key: participantKeys.first,
+        address: localAddress,
+        storage: stores.first,
+      ),
     );
-    final address = await reachableTestAddress(serverNode.server!);
-    final clientNodes = <NoosphereNode>[];
+    final address = await reachableTestAddress(localNode.server!);
+    final clientNodes = <NoosphereNode>[localNode];
 
     try {
-      for (var i = 0; i < participantIds.length; i++) {
-        clientNodes.add(
-          await NoosphereNode.start(
-            client: nativeTestClientOptions(
-              group: group,
-              participant: participantIds[i],
-              key: participantKeys[i],
-              address: address,
-              storage: stores[i],
-            ),
+      expect(localNode.client!.isLocal, isTrue);
+      clientNodes.add(
+        await NoosphereNode.start(
+          client: nativeTestClientOptions(
+            group: group,
+            participant: participantIds[1],
+            key: participantKeys[1],
+            address: address,
+            storage: stores[1],
           ),
-        );
-      }
+        ),
+      );
+      expect(clientNodes.last.client!.isLocal, isFalse);
       final clients = clientNodes.map((node) => node.client!.current).toList();
       final events = clients
           .map((client) => client.events.asBroadcastStream())
@@ -125,7 +137,6 @@ void main() {
       for (final node in clientNodes.reversed) {
         await node.close();
       }
-      await serverNode.close();
     }
   }, timeout: const Timeout(Duration(minutes: 5)));
 }

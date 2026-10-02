@@ -2,6 +2,7 @@
 library;
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_server/noosphere_server.dart';
@@ -63,5 +64,38 @@ void main() {
 
     expect(await accepted, isNull);
     expect(server.isClosed, isTrue);
+  });
+
+  test('local routing requires the active identity and hosted group', () async {
+    final server = await IrohServer.start(
+      config(),
+      secretKey: SecretKey.generate(),
+      persistence: newServerPersistence(),
+    );
+    expect(
+      server.canServeLocally(
+        coordinatorId: server.id,
+        groupFingerprint: groupConfig.fingerprint,
+      ),
+      isTrue,
+    );
+    expect(
+      server.canServeLocally(
+        coordinatorId: SecretKey.generate().publicKey,
+        groupFingerprint: groupConfig.fingerprint,
+      ),
+      isFalse,
+    );
+    expect(
+      server.canServeLocally(
+        coordinatorId: server.id,
+        groupFingerprint: Uint8List(32),
+      ),
+      isFalse,
+    );
+
+    final api = server.openLocalApi(groupConfig.fingerprint);
+    await server.close();
+    expect(api.isClosed, isTrue);
   });
 }

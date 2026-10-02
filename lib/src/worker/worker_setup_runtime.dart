@@ -94,7 +94,12 @@ final class WorkerSetupRuntime {
     bool replacement = false,
   }) async {
     _participant = options.clientConfig.id.toString();
-    final node = await nodeFactory(client: options);
+    final localServer = _serverNode;
+    WorkerNode? localNode;
+    if (localServer case final LocalCoordinatorWorkerNode local) {
+      localNode = await local.tryStartLocalClient(options);
+    }
+    final node = localNode ?? await nodeFactory(client: options);
     _clientNode = node;
     _clientOptions = options;
     await _attachClient(node.client!.current, replacement: replacement);

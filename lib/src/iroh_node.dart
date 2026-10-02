@@ -4,8 +4,10 @@ import 'dart:typed_data';
 import 'package:iroh_flutter/iroh_flutter.dart';
 import 'package:meta/meta.dart';
 import 'package:noosphere_client/iroh_transport.dart';
+import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 
+import 'client_connection.dart';
 import 'client_options.dart';
 import 'initialization.dart';
 import 'node_testing.dart';
@@ -31,16 +33,28 @@ final class NoosphereNode {
     }
   }
 
+  /// Starts the requested roles.
+  ///
+  /// When [client] targets [localCoordinator], and that server currently hosts
+  /// the client's group, the participant uses an in-process session instead of
+  /// opening a second Iroh endpoint and a loopback QUIC connection. A node that
+  /// starts both [server] and [client] performs the same detection automatically.
   static Future<NoosphereNode> start({
     EmbeddedServerOptions? server,
     ClientNodeOptions? client,
+    IrohServer? localCoordinator,
   }) async {
     _validateRoles(server, client);
+    if (server != null && localCoordinator != null) {
+      throw ArgumentError(
+        'Provide server options or an existing local coordinator, not both.',
+      );
+    }
     await NoosphereFlutter.initialize();
     return _start(
       startServer: server != null,
       startClient: client != null,
-      backend: _NativeBackend(server, client),
+      backend: _NativeBackend(server, client, localCoordinator),
       identityStore: server?.identityStore,
     );
   }
@@ -52,12 +66,13 @@ final class NoosphereNode {
   static Future<NoosphereNode> startInitialized({
     EmbeddedServerOptions? server,
     ClientNodeOptions? client,
+    IrohServer? localCoordinator,
   }) {
     _validateRoles(server, client);
     return _start(
       startServer: server != null,
       startClient: client != null,
-      backend: _NativeBackend(server, client),
+      backend: _NativeBackend(server, client, localCoordinator),
       identityStore: server?.identityStore,
     );
   }
@@ -135,7 +150,7 @@ final class NoosphereNode {
   }
 
   IrohServer? get server => _serverRole?.server;
-  ReconnectingIrohClient? get client => _clientRole?.client;
+  NoosphereClientConnection? get client => _clientRole?.client;
   EndpointId? get serverId => server?.id;
   EndpointAddr? get serverAddress => server?.address;
 
@@ -194,10 +209,17 @@ Future<void> _ignoreCleanupErrors(Future<void> Function()? operation) async {
   }
 }
 
-final class _NativeBackend(
-  final EmbeddedServerOptions? serverOptions,
-  final ClientNodeOptions? clientOptions,
-) implements NoosphereNodeBackend {
+final class _NativeBackend implements NoosphereNodeBackend {
+  _NativeBackend(
+    this.serverOptions,
+    this.clientOptions, [
+    IrohServer? localCoordinator,
+  ]) : _localCoordinator = localCoordinator;
+
+  final EmbeddedServerOptions? serverOptions;
+  final ClientNodeOptions? clientOptions;
+  IrohServer? _localCoordinator;
+
   @override
   Future<NoosphereServerRole> startServer() async {
     final options = serverOptions!;
@@ -226,12 +248,23 @@ final class _NativeBackend(
       handler: options.handler,
       rooms: rooms,
     );
+    _localCoordinator = server;
     return _NativeServerRole.start(server);
   }
 
   @override
   Future<NoosphereClientRole> startClient() async {
     final options = clientOptions!;
+    final local = _localCoordinator;
+    if (local != null &&
+        local.canServeLocally(
+          coordinatorId: options.pinnedServerId,
+          groupFingerprint: options.clientConfig.group.fingerprint,
+        )) {
+      return _NativeClientRole(
+        await _LocalClientConnection.connect(local, options),
+      );
+    }
     final client = await ReconnectingIrohClient.connect(
       clientConfig: options.clientConfig,
       transportConfig: options.toTransportConfig(),
@@ -239,7 +272,7 @@ final class _NativeBackend(
       getPrivateKey: options.getPrivateKey,
       reconnectConfig: options.reconnect,
     );
-    return _NativeClientRole(client);
+    return _NativeClientRole(_IrohClientConnection(client));
   }
 }
 
@@ -277,8 +310,130 @@ final class _NativeServerRole implements NoosphereServerRole {
   }
 }
 
-final class _NativeClientRole(@override final ReconnectingIrohClient client)
+final class _NativeClientRole(@override final NoosphereClientConnection client)
     implements NoosphereClientRole {
   @override
   Future<void> close() => client.close();
+}
+
+final class _IrohClientConnection implements NoosphereClientConnection {
+  _IrohClientConnection(this._client);
+
+  final ReconnectingIrohClient _client;
+
+  @override
+  Client get current => _client.current;
+
+  @override
+  Stream<Client> get sessions => _client.sessions;
+
+  @override
+  bool get isConnected => _client.isConnected;
+
+  @override
+  bool get isLocal => false;
+
+  @override
+  IrohClientTransportConfig get transportConfig => _client.transportConfig;
+
+  @override
+  void updateTransportConfig(IrohClientTransportConfig config) =>
+      _client.updateTransportConfig(config);
+
+  @override
+  Future<void> close() => _client.close();
+}
+
+final class _LocalClientConnection implements NoosphereClientConnection {
+  _LocalClientConnection._(
+    this._server,
+    this._api,
+    this._client,
+    this._transportConfig,
+  );
+
+  static Future<_LocalClientConnection> connect(
+    IrohServer server,
+    ClientNodeOptions options,
+  ) async {
+    final api = server.openLocalApi(options.clientConfig.group.fingerprint);
+    var connected = true;
+    _LocalClientConnection? connection;
+    try {
+      final client = await Client.login(
+        config: options.clientConfig,
+        api: api,
+        store: options.storage,
+        getPrivateKey: options.getPrivateKey,
+        onDisconnect: () {
+          connected = false;
+          connection?._connected = false;
+        },
+      );
+      final result = _LocalClientConnection._(
+        server,
+        api,
+        client,
+        options.toTransportConfig(),
+      ).._connected = connected;
+      connection = result;
+      return result;
+    } catch (_) {
+      await api.close();
+      rethrow;
+    }
+  }
+
+  final IrohServer _server;
+  final LocalCoordinatorApi _api;
+  final Client _client;
+  IrohClientTransportConfig _transportConfig;
+  bool _connected = true;
+  bool _closed = false;
+  Future<void>? _closing;
+
+  @override
+  Client get current {
+    if (!isConnected) throw StateError('no active local client session');
+    return _client;
+  }
+
+  @override
+  Stream<Client> get sessions => const Stream.empty();
+
+  @override
+  bool get isConnected => _connected && !_closed && !_server.isClosed;
+
+  @override
+  bool get isLocal => true;
+
+  @override
+  IrohClientTransportConfig get transportConfig => _transportConfig;
+
+  @override
+  void updateTransportConfig(IrohClientTransportConfig config) {
+    if (_closed) throw StateError('local client connection is closed');
+    if (config.pinnedServerId != _server.id) {
+      throw ArgumentError.value(
+        config.pinnedServerId,
+        'config.pinnedServerId',
+        'cannot retarget a local coordinator connection',
+      );
+    }
+    _transportConfig = config;
+  }
+
+  @override
+  Future<void> close() => _closing ??= _close();
+
+  Future<void> _close() async {
+    if (_closed) return;
+    _closed = true;
+    _connected = false;
+    try {
+      await _client.logout();
+    } finally {
+      await _api.close();
+    }
+  }
 }
