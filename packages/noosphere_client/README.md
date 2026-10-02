@@ -4,9 +4,16 @@
 all peers. Protocol v1 does not promise compatibility between preview builds;
 see the [version policy](../noosphere/spec/VERSIONING.md).
 
-This Dart library coordinates FROST key generation and ROAST threshold
-signatures with a Noosphere server over authenticated Iroh QUIC connections.
-The server identity is pinned independently from its address hints.
+This package is an Iroh-native fork of the original `noosphere_client`
+package. It retains the participant APIs for FROST key generation and ROAST
+threshold signatures, while replacing the original gRPC transport with
+authenticated Iroh QUIC connections.
+
+The fork contains no gRPC client, generated gRPC stubs, or gRPC configuration.
+It connects through an Iroh endpoint, pins the server identity independently
+from its address hints, and supports direct connectivity with relay fallback.
+Applications migrating from the original package must use the Iroh transport
+and bootstrap model described below.
 
 Import `package:noosphere_client/noosphere_client.dart` for participant APIs,
 domain types and storage interfaces. Import
@@ -95,7 +102,7 @@ set, and replace the subscription when a reconnect produces a fresh `Client`.
 
 Canonical domain types, group configuration, messages and framing live in the
 sibling `noosphere` workspace package. This package implements the participant
-role and its Iroh transport.
+role and its Iroh transport; gRPC is not supported by this fork.
 
 See `example/example.dart` for a minimal command-line login and DKG example.
 `example/reconnecting_client.dart` demonstrates the recommended application

@@ -4,8 +4,16 @@
 all peers. Protocol v1 does not promise compatibility between preview builds;
 see the [version policy](../noosphere/spec/VERSIONING.md).
 
-This package coordinates FROST distributed key generation and ROAST threshold
-signatures over authenticated Iroh QUIC connections.
+This package is an Iroh-native fork of the original `noosphere_server`
+package. It retains the coordinator role for FROST distributed key generation
+and ROAST threshold signatures, while replacing the original gRPC transport
+with authenticated Iroh QUIC connections.
+
+The fork contains no gRPC server, generated gRPC stubs, or gRPC configuration.
+Instead, it owns the Iroh endpoint lifecycle, uses a persistent Iroh identity,
+and serves the protocol over dedicated ALPNs with direct connectivity and relay
+fallback. Applications migrating from the original package must use the Iroh
+configuration and bootstrap model described below.
 
 The `noosphere_server.dart` entry point exports server configuration, the
 coordinator API, Iroh server lifecycle, room management and host persistence
