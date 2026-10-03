@@ -356,7 +356,7 @@ as the worker enters synchronous Frosty work. For a foreground profile, run:
 
 ```sh
 flutter drive --profile -d linux \
-  --driver=test_driver/integration_test.dart \
+  --driver=tool/integration_test_driver.dart \
   --target=integration_test/worker_roast_test.dart
 ```
 
