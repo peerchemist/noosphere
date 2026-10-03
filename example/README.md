@@ -6,8 +6,7 @@ Noosphere nodes.
 The example intentionally uses in-memory client storage and an in-memory server
 identity store, and displays that limitation prominently. Enter an Iroh ID
 obtained through an independent trusted channel for client roles. Iroh
-discovery resolves that Iroh ID to direct or relay addresses. Both-role mode
-retains a dedicated client endpoint.
+discovery resolves that Iroh ID to direct or relay addresses.
 
 The app prints verbose connection and protocol diagnostics to the terminal,
 but never private keys.
