@@ -4,6 +4,8 @@
 
 ### Flutter integration
 
+- Replace embedded-server identity persistence with an application initializer
+  and deterministic BIP-85 derivation from a 64-byte BIP-39 wallet seed.
 - Route a co-located signer directly through its active room coordinator when
   the pinned endpoint ID and group fingerprint match. Keep Iroh for remote
   participants and avoid a second local endpoint and QUIC loopback connection.

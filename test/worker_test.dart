@@ -132,43 +132,6 @@ void main() {
     }
   });
 
-  test('identity export rejects an unknown setup', () async {
-    final worker = await NoosphereWorker.startForTesting();
-    addTearDown(worker.close);
-
-    await expectLater(
-      worker.exportIrohServerIdentity('missing'),
-      throwsA(isA<StateError>()),
-    );
-  });
-
-  test('server setup exports its identity defensively', () async {
-    final bytes = Uint8List(32)..last = 71;
-    final store = _MemoryIdentityStore(bytes);
-    final worker = await NoosphereWorker.startForTesting(
-      identityStores: {'server-export-test': store},
-    );
-    addTearDown(worker.close);
-
-    final first = await worker.exportIrohServerIdentity('server-export-test');
-    first.last = 99;
-    final second = await worker.exportIrohServerIdentity('server-export-test');
-
-    expect(second, orderedEquals(bytes));
-  });
-
-  test('identity export rejects a client-only setup', () async {
-    final worker = await NoosphereWorker.startForTesting(
-      identityStores: {'client-only': null},
-    );
-    addTearDown(worker.close);
-
-    await expectLater(
-      worker.exportIrohServerIdentity('client-only'),
-      throwsA(isA<StateError>()),
-    );
-  });
-
   test(
     'partial startup failure is sanitized and leaves ports reusable',
     () async {
@@ -275,17 +238,4 @@ void main() {
       throwsArgumentError,
     );
   });
-}
-
-final class _MemoryIdentityStore(Uint8List initial)
-    implements ServerIdentityStore {
-  final Uint8List _bytes = Uint8List.fromList(initial);
-
-  @override
-  Future<Uint8List?> read() async => Uint8List.fromList(_bytes);
-
-  @override
-  Future<void> write(Uint8List secret) async {
-    _bytes.setAll(0, secret);
-  }
 }

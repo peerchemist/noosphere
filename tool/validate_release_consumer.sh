@@ -95,7 +95,7 @@ void main() {
         setupId: 'consumer',
         server: EmbeddedServerOptions(
           serverConfig: ServerConfig(group: group),
-          identityStore: _Identity(),
+          getIrohSecretKey: SecretKey.generate,
           serverPersistence: InMemoryServerPersistence(),
           relay: IrohRelayConfig.disabled(),
         ),
@@ -106,16 +106,6 @@ void main() {
     }
     expect(worker.isClosed, isTrue);
   });
-}
-
-final class _Identity implements ServerIdentityStore {
-  Uint8List? bytes;
-  @override
-  Future<Uint8List?> read() async => bytes;
-  @override
-  Future<void> write(Uint8List value) async {
-    bytes = Uint8List.fromList(value);
-  }
 }
 DART
 cd "$consumer_dir/app"

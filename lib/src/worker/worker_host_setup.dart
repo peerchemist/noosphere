@@ -6,13 +6,11 @@ import 'package:noosphere_server/noosphere_server.dart'
     show RoomPersistence, ServerPersistence, ServerStateSnapshot;
 
 import '../client_options.dart';
-import '../server_identity_store.dart';
 import '../server_options.dart';
 import '../worker_models.dart';
 import '../worker_protocol.dart';
 
 typedef HostProviders = ({
-  ServerIdentityStore? identityStore,
   ServerPersistence? serverPersistence,
   ClientStorageInterface? storage,
   RoomPersistence? roomPersistence,
@@ -32,10 +30,7 @@ final _serverPersistenceQueues = Expando<SerialExecutor>(
 final _clientStorageQueues = Expando<SerialExecutor>('Client storage queues');
 
 final class HostSetup {
-  ServerIdentityStore? identityStore;
   ServerPersistence? serverPersistence;
-  Future<Uint8List>? _identity;
-  ServerIdentityStore? _identityProvider;
   ClientStorageInterface? storage;
   RoomPersistence? roomPersistence;
   GetPrivateKey? getPrivateKey;
@@ -44,14 +39,12 @@ final class HostSetup {
   final _storageSerial = SerialExecutor();
 
   bool get hasProviders =>
-      identityStore != null ||
       serverPersistence != null ||
       storage != null ||
       roomPersistence != null ||
       getPrivateKey != null;
 
   HostProviders get providers => (
-    identityStore: identityStore,
     serverPersistence: serverPersistence,
     storage: storage,
     roomPersistence: roomPersistence,
@@ -60,12 +53,7 @@ final class HostSetup {
   );
 
   set providers(HostProviders value) {
-    identityStore = value.identityStore;
     serverPersistence = value.serverPersistence;
-    if (!identical(_identityProvider, identityStore)) {
-      _identity = null;
-      _identityProvider = null;
-    }
     storage = value.storage;
     roomPersistence = value.roomPersistence;
     getPrivateKey = value.getPrivateKey;
@@ -77,11 +65,6 @@ final class HostSetup {
     required ClientNodeOptions? client,
   }) {
     if (server != null) {
-      if (!identical(identityStore, server.identityStore)) {
-        _identity = null;
-        _identityProvider = null;
-      }
-      identityStore = server.identityStore;
       serverPersistence = server.serverPersistence;
       roomPersistence = server.roomPersistence;
     }
@@ -99,11 +82,8 @@ final class HostSetup {
       participant = null;
     }
     if (roles != NoosphereWorkerRoles.signer) {
-      identityStore = null;
       serverPersistence = null;
       roomPersistence = null;
-      _identity = null;
-      _identityProvider = null;
     }
   }
 
@@ -121,8 +101,6 @@ final class HostSetup {
           await persist();
           return null;
         });
-      case ProviderOperation.readIdentity:
-        return loadOrCreateIdentity();
       case ProviderOperation.loadRooms:
       case ProviderOperation.writeRoom:
         final rooms = roomPersistence;
@@ -190,17 +168,6 @@ final class HostSetup {
 
   Future<T> _serializeStorage<T>(Future<T> Function() operation) =>
       _storageSerial.run(operation);
-
-  Future<Uint8List> loadOrCreateIdentity() {
-    final store = identityStore;
-    if (store == null) throw StateError('No identity store.');
-    if (!identical(_identityProvider, store)) {
-      _identityProvider = store;
-      _identity = null;
-    }
-    return _identity ??= loadOrCreateServerIdentity(store)
-        .then((key) => Uint8List.fromList(key.toBytes()));
-  }
 
   Future<Object?> _dispatchStorage(
     ClientStorageInterface store,

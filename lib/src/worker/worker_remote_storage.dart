@@ -49,27 +49,6 @@ final class _RemoteServerPersistence(this.host, this.setupId)
       .then((_) {});
 }
 
-final class _RemoteIdentityStore(this.host, this.setupId)
-    implements ServerIdentityStore {
-  final WorkerHost host;
-  final String setupId;
-
-  @override
-  Future<Uint8List> read() async {
-    final result = await host.request(
-      setupId,
-      ProviderOperation.readIdentity,
-      const {},
-    );
-    return asBytes(result);
-  }
-
-  @override
-  Future<void> write(Uint8List secret) => throw UnsupportedError(
-    'The host owns identity creation and restoration.',
-  );
-}
-
 final class _RemoteClientStorage(this.host, this.setupId)
     implements ClientStorageInterface {
   final WorkerHost host;

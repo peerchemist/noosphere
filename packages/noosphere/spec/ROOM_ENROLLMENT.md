@@ -65,10 +65,10 @@ timestamps, accepted public keys, frozen identifiers, canonical `GroupConfig`,
 and its derivable fingerprint. Plaintext invite tokens are never stored.
 
 Existing direct-`GroupConfig` servers require no migration. To enable rooms,
-add a `RoomPersistence` implementation while retaining the same
-`ServerIdentityStore`. At open time, records whose coordinator ID differs from
-the active identity are rejected. Used/revoked invites and frozen rosters are
-therefore not reset by restart.
+add a `RoomPersistence` implementation while deriving the same Iroh identity
+from the wallet mnemonic and derivation index at each startup. At open time,
+records whose coordinator ID differs from the active identity are rejected.
+Used/revoked invites and frozen rosters are therefore not reset by restart.
 
 Flutter worker commands and DTOs for room management are intentionally deferred
 to a separate integration change. The core, Iroh transport, and persistence

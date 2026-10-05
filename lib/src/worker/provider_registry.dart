@@ -1,9 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:iroh_flutter/iroh_flutter.dart' show EndpointAddr;
 
 import '../client_options.dart';
-import '../server_identity_store.dart';
 import '../server_options.dart';
 import '../worker_models.dart';
 import '../worker_protocol.dart';
@@ -68,7 +65,7 @@ final class HostProviderRegistry {
     // A bound role owns its providers until stopSetup acknowledges cleanup.
     // Serving health alone cannot release that ownership: a failed serve loop
     // may still be flushing persistence, and a snapshot may be too large.
-    if ((server != null && setup.identityStore != null) ||
+    if ((server != null && setup.serverPersistence != null) ||
         (client != null && setup.storage != null)) {
       throw StateError(
         'Requested role is already bound; stop it before restarting.',
@@ -88,7 +85,7 @@ final class HostProviderRegistry {
         WorkerOperation.startSetup,
         setupId: setupId,
         payload: {
-          'server': server == null ? null : encodeServerOptions(server),
+          'server': server == null ? null : await encodeServerOptions(server),
           'client': client == null ? null : encodeClientOptions(client),
         },
       );
@@ -193,21 +190,6 @@ final class HostProviderRegistry {
     } finally {
       _lifecycleSetups.remove(setupId);
     }
-  }
-
-  Future<Uint8List> exportIrohServerIdentity(String setupId) async {
-    final setup = _setups[setupId];
-    if (setup == null) {
-      throw StateError('Cannot export identity for unknown setup "$setupId".');
-    }
-    final store = setup.identityStore;
-    if (store == null) {
-      throw StateError(
-        'Cannot export an Iroh server identity from setup "$setupId" '
-        'because it has no embedded server role.',
-      );
-    }
-    return exportStoredIrohServerIdentity(store);
   }
 }
 

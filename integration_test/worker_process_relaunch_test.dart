@@ -12,10 +12,9 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'forced exit leaves durable identity for a new process',
+    'forced exit leaves a reproducible identity for a new process',
     (_) async {
       await NoosphereFlutter.initialize();
-      await _identityFile.deleteIfPresent();
       await _publicIdFile.deleteIfPresent();
 
       final worker = await NoosphereWorker.startNativeForTesting(
@@ -25,7 +24,7 @@ void main() {
         setupId: 'durable',
         server: EmbeddedServerOptions(
           serverConfig: ServerConfig(group: _group()),
-          identityStore: _FileIdentityStore(_identityFile),
+          getIrohSecretKey: _deriveIdentity,
           serverPersistence: InMemoryServerPersistence(),
           relay: IrohRelayConfig.disabled(),
         ),
@@ -55,10 +54,9 @@ void main() {
   );
 
   testWidgets(
-    'new process recovers durable identity without in-memory sessions',
+    'new process re-derives identity without in-memory sessions',
     (_) async {
       await NoosphereFlutter.initialize();
-      expect(await _identityFile.exists(), isTrue);
       expect(await _publicIdFile.exists(), isTrue);
       final expectedId = await _publicIdFile.readAsString();
 
@@ -68,7 +66,7 @@ void main() {
           setupId: 'durable',
           server: EmbeddedServerOptions(
             serverConfig: ServerConfig(group: _group()),
-            identityStore: _FileIdentityStore(_identityFile),
+            getIrohSecretKey: _deriveIdentity,
             serverPersistence: InMemoryServerPersistence(),
             relay: IrohRelayConfig.disabled(),
           ),
@@ -78,7 +76,6 @@ void main() {
         expect(snapshot.signingRequests, isEmpty);
       } finally {
         await worker.close();
-        await _identityFile.deleteIfPresent();
         await _publicIdFile.deleteIfPresent();
       }
     },
@@ -99,25 +96,13 @@ GroupConfig _group() {
   );
 }
 
-final _identityFile = File(
-  '${Directory.systemTemp.path}/noosphere-worker-process-relaunch.identity',
-);
 final _publicIdFile = File(
   '${Directory.systemTemp.path}/noosphere-worker-process-relaunch.id',
 );
 
-final class _FileIdentityStore(this.file) implements ServerIdentityStore {
-  final File file;
-
-  @override
-  Future<Uint8List?> read() async =>
-      await file.exists() ? Uint8List.fromList(await file.readAsBytes()) : null;
-
-  @override
-  Future<void> write(Uint8List secret) async {
-    await file.writeAsBytes(Uint8List.fromList(secret), flush: true);
-  }
-}
+SecretKey _deriveIdentity() => deriveIrohSecretKeyFromBip39Seed(
+  Uint8List.fromList(List<int>.generate(64, (index) => index)),
+);
 
 extension on File {
   Future<void> deleteIfPresent() async {

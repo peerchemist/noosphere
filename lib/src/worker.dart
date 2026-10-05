@@ -7,7 +7,6 @@ import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_server/noosphere_server.dart' show RoomPersistence;
 
 import 'client_options.dart';
-import 'server_identity_store.dart';
 import 'server_options.dart';
 import 'worker/command_channel.dart';
 import 'worker_models.dart';
@@ -63,7 +62,6 @@ final class NoosphereWorker {
     Duration shutdownTimeout = const Duration(seconds: 2),
     int maxOutstandingCommands = 64,
     int maxMessageBytes = defaultWorkerMaxMessageBytes,
-    Map<String, ServerIdentityStore?> identityStores = const {},
     Map<String, RoomPersistence> roomPersistences = const {},
     Map<String, ClientStorageInterface> clientStorages = const {},
     Future<Object?> Function()? hostOperation,
@@ -80,14 +78,6 @@ final class NoosphereWorker {
       testHostOperation: hostOperation,
       failStartup: failStartup,
     );
-    for (final entry in identityStores.entries) {
-      final setup = worker._channel.registry.setup(entry.key);
-      final store = entry.value;
-      if (store != null) {
-        setup.identityStore = store;
-        await setup.loadOrCreateIdentity();
-      }
-    }
     for (final entry in roomPersistences.entries) {
       worker._channel.registry.setup(entry.key).roomPersistence = entry.value;
     }
@@ -285,18 +275,6 @@ final class NoosphereWorker {
     final result = await _invoke(WorkerOperation.snapshot, setupId: setupId);
     return result! as NoosphereWorkerSnapshot;
   }
-
-  /// Exports an embedded server setup's raw 32-byte Iroh secret key.
-  ///
-  /// The result is a secret key, not the public endpoint ID. Encrypt the
-  /// backup and never log it. A fresh defensive copy is returned, but Dart
-  /// managed memory cannot guarantee reliable zeroization. Restore it with
-  /// [restoreStoredIrohServerIdentity] before starting the replacement setup.
-  ///
-  /// The secret remains on the host isolate. Throws [StateError] if [setupId]
-  /// is unknown or does not currently have an embedded server role.
-  Future<Uint8List> exportIrohServerIdentity(String setupId) =>
-      _channel.registry.exportIrohServerIdentity(setupId);
 
   Future<void> requestDkg(String setupId, NewDkgDetails proposal) => _invoke(
     WorkerOperation.requestDkg,

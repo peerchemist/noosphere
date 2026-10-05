@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noosphere_flutter/src/iroh_node.dart';
 import 'package:noosphere_flutter/src/lifecycle.dart';
 import 'package:noosphere_flutter/src/node_testing.dart';
-import 'package:noosphere_flutter/src/server_identity_store.dart';
 
 void main() {
   test('rejects an empty role set', () {
@@ -83,38 +81,6 @@ void main() {
     expect(events, ['start client']);
     await node.close();
     expect(events, ['start client', 'close client']);
-  });
-
-  test('client-only node rejects server identity export', () async {
-    final node = await NoosphereNode.startForTesting(
-      server: false,
-      client: true,
-      backend: _Backend(<String>[]),
-    );
-    addTearDown(node.close);
-
-    await expectLater(
-      node.exportIrohServerIdentity(),
-      throwsA(isA<StateError>()),
-    );
-  });
-
-  test('server node exports its identity defensively', () async {
-    final bytes = Uint8List(32)..last = 17;
-    final store = _MemoryIdentityStore(bytes);
-    final node = await NoosphereNode.startForTesting(
-      server: true,
-      client: false,
-      backend: _Backend(<String>[]),
-      identityStore: store,
-    );
-    addTearDown(node.close);
-
-    final first = await node.exportIrohServerIdentity();
-    first.last = 99;
-    final second = await node.exportIrohServerIdentity();
-
-    expect(second, orderedEquals(bytes));
   });
 
   test('both starts server first and closes client first', () async {
@@ -258,18 +224,5 @@ final class _ClientRole(this.events, this.closeBarrier)
   Future<void> close() async {
     events.add('close client');
     await closeBarrier?.future;
-  }
-}
-
-final class _MemoryIdentityStore(Uint8List initial)
-    implements ServerIdentityStore {
-  final Uint8List _bytes = Uint8List.fromList(initial);
-
-  @override
-  Future<Uint8List?> read() async => Uint8List.fromList(_bytes);
-
-  @override
-  Future<void> write(Uint8List secret) async {
-    _bytes.setAll(0, secret);
   }
 }

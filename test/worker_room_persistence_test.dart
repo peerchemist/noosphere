@@ -130,9 +130,7 @@ void main() {
   });
 
   test('missing room provider fails explicitly', () async {
-    final worker = await NoosphereWorker.startForTesting(
-      identityStores: {'setup': null},
-    );
+    final worker = await NoosphereWorker.startForTesting();
     addTearDown(worker.close);
     await expectLater(
       worker.debugLoadRoomsForTesting('setup'),

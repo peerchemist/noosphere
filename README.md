@@ -84,6 +84,10 @@ not supported in this release.
 ```dart
 await NoosphereFlutter.initialize();
 
+// Obtained by the application while the wallet is unlocked. Never persist it
+// separately from the mnemonic.
+final bip39Seed = await walletSeedProvider();
+
 final worker = await NoosphereWorker.start();
 final subscription = worker.events.listen((event) {
   // Subscribe before startSetup: every client session begins with a snapshot.
@@ -93,7 +97,7 @@ final snapshot = await worker.startSetup(
   setupId: 'primary-wallet',
   server: EmbeddedServerOptions(
     serverConfig: serverConfig,
-    identityStore: identityStore,
+    getIrohSecretKey: () => deriveIrohSecretKeyFromBip39Seed(bip39Seed),
     serverPersistence: durableServerPersistence,
   ),
   client: ClientNodeOptions(
@@ -225,42 +229,40 @@ attempt a bounded close on terminal `detached`. They do nothing on `inactive`,
 because a desktop window may merely have lost focus. Explicitly await node or
 worker shutdown during logout/application shutdown whenever possible.
 
-## Persistence and key custody
+## Persistence and deterministic identity custody
 
-Implement `ServerIdentityStore` with the OS keychain or keystore. It stores
-exactly 32 bytes losslessly. Identity ownership and concurrent creation are
-coordinated by the explicit provider instance shared by the host lifecycle.
-Node startup supplies the identity to `IrohServer.start`.
-`IrohConfig` has no storage path and no placeholder path is needed. File-backed
-identity management belongs to the standalone CLI host.
+The Flutter library does not store, generate, export or restore embedded-server
+identity secrets. `EmbeddedServerOptions.getIrohSecretKey` obtains the identity
+once during startup and supplies it directly to `IrohServer.start`.
 
-Back up an embedded server identity explicitly and send the returned bytes
-directly to encrypted storage. The value is the 32-byte secret key, not the
-public Iroh endpoint ID: never log it, and do not treat plain base64 as
-encryption. Dart-managed memory cannot guarantee reliable zeroization.
+An application can deterministically recreate that identity from the same
+BIP-39 mnemonic used for its Peercoin wallet. Convert the mnemonic and optional
+passphrase to the standard 64-byte BIP-39 seed, then call
+`deriveIrohSecretKeyFromBip39Seed`. The helper uses BIP-85's 32-byte raw-entropy
+application at `m/83696968'/128169'/32'/index'`; index zero is the default.
+Use another stable index when one mnemonic intentionally owns multiple Iroh
+identities.
 
 ```dart
-final backup = await node.exportIrohServerIdentity();
-await encryptedBackupVault.write('main-coordinator', backup);
-
-// In a replacement process, restore before starting the node or worker setup.
-final restored = await encryptedBackupVault.read('main-coordinator');
-await restoreStoredIrohServerIdentity(identityStore, restored);
+await NoosphereFlutter.initialize();
+final bip39Seed = await walletSeedProvider();
 
 final replacement = await NoosphereNode.start(
   server: EmbeddedServerOptions(
     serverConfig: serverConfig,
-    identityStore: identityStore,
+    getIrohSecretKey: () => deriveIrohSecretKeyFromBip39Seed(
+      bip39Seed,
+      index: 0,
+    ),
     serverPersistence: durableServerPersistence,
   ),
 );
 ```
 
-For a running worker server setup, use
-`await worker.exportIrohServerIdentity('main-coordinator')` and protect the
-result in the same way. Restore its store before calling `startSetup`. The
-standalone headless server already persists the same identity in its
-`secret-key-path`; backing up that protected file is sufficient.
+The mnemonic, passphrase and BIP-39 seed remain application-owned and should be
+released from memory as soon as practical. Dart-managed memory cannot guarantee
+reliable zeroization. The standalone headless server remains a separate host
+and may use its configured `secret-key-path`.
 
 Production client calls must provide both `ClientStorageInterface` and
 `GetPrivateKey`. The worker keeps these application-owned providers on the host
@@ -281,8 +283,8 @@ host provider instance so the replacement waits for any previous write; hosts
 with multiple provider instances/processes must enforce ordering themselves.
 
 The host implements the domain-specific `ClientStorageInterface`,
-`RoomPersistence`, `ServerPersistence` and `ServerIdentityStore` using its own
-storage backend. `ServerPersistence` stores coordinator DKG/ROAST snapshots. See
+`RoomPersistence` and `ServerPersistence` using its own storage backend.
+`ServerPersistence` stores coordinator DKG/ROAST snapshots. See
 [architecture.md](architecture.md) for storage ownership and recovery boundaries.
 
 A provider timeout reports an unknown outcome and is never blindly retried.

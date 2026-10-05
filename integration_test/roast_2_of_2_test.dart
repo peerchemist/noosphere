@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:iroh_flutter/iroh_flutter.dart' show SecretKey;
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 import 'package:noosphere_flutter/testing.dart';
 
@@ -30,13 +29,11 @@ void main() {
     );
     final stores = [InMemoryClientStorage(), InMemoryClientStorage()];
     final identity = SecretKey.generate();
-    final identityStore = MemoryIdentityStore();
-    await identityStore.write(identity.toBytes());
     final localAddress = EndpointAddr(identity.publicKey);
     final localNode = await NoosphereNode.start(
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
-        identityStore: identityStore,
+        getIrohSecretKey: () => identity,
         serverPersistence: InMemoryServerPersistence(),
         relay: IrohRelayConfig.disabled(),
       ),

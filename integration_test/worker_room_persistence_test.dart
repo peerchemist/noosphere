@@ -5,8 +5,6 @@ import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 import 'package:noosphere_flutter/testing.dart';
 
-import 'test_support.dart';
-
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -18,8 +16,7 @@ void main() {
         ECPrivateKey(Uint8List(32)..last = 31),
         ECPrivateKey(Uint8List(32)..last = 32),
       ];
-      final identity = MemoryIdentityStore();
-      final secret = await loadOrCreateServerIdentity(identity);
+      final secret = SecretKey.generate();
       final storage = InMemoryRoomPersistence();
       final rooms = await RoomManager.open(
         coordinatorEndpointId: secret.publicKey.asBytes(),
@@ -53,7 +50,7 @@ void main() {
             },
           ),
         ),
-        identityStore: identity,
+        getIrohSecretKey: () => secret,
         serverPersistence: InMemoryServerPersistence(),
         roomPersistence: storage,
         relay: IrohRelayConfig.disabled(),

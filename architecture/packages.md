@@ -13,7 +13,7 @@ the repository's directory name is not part of the package API.
 | `noosphere` | [`packages/noosphere`](../packages/noosphere) | Domain types, shared configuration, binary codecs, protobuf, framing, room and transition models |
 | `noosphere_client` | [`packages/noosphere_client`](../packages/noosphere_client) | Participant state machines, client storage contract, Iroh client, reconnects and enrollment client |
 | `noosphere_server` | [`packages/noosphere_server`](../packages/noosphere_server) | Coordinator state machines, server storage contract, Iroh server, rooms and CLI host |
-| `noosphere_flutter` | [`lib`](../lib) | Native initialization, direct node, isolate worker, identity provider and Flutter lifecycle |
+| `noosphere_flutter` | [`lib`](../lib) | Native initialization, direct node, isolate worker, deterministic identity derivation and Flutter lifecycle |
 | Example application | [`example`](../example) | Demonstration UI and explicitly temporary storage |
 
 Both participant and coordinator depend on the shared package. The server's
@@ -108,8 +108,8 @@ injectable node factory; `worker/dto_mapper.dart` owns public projections and
 `worker_protocol.dart` re-exports typed internal envelopes, configuration and
 storage codecs, size accounting and a FIFO executor from `worker/`.
 `worker_models.dart` defines public sendable DTOs. `iroh_node.dart` composes the
-roles; `initialization.dart`, `server_identity_store.dart`, and `lifecycle.dart`
-handle platform integration. The example separates session ownership from
+roles; `initialization.dart`, `iroh_identity.dart`, and `lifecycle.dart` handle
+platform integration. The example separates session ownership from
 screen state, proposal widgets and diagnostics.
 
 ## Native and supporting code

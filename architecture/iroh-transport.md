@@ -12,7 +12,9 @@ database, consensus system, generic event broker or signing coordinator.
 [`IrohServer.start`](../packages/noosphere_server/lib/src/iroh/server.dart)
 requires a host-supplied `SecretKey` and `ServerPersistence`. It initializes
 Iroh and calls `Endpoint.bind` with that key, ALPNs and relay mode. Loading or
-creating the persistent identity happens in the host before this call.
+deriving the identity happens in the application before this call. The Flutter
+facade can derive it deterministically from a BIP-39 seed through BIP-85; it
+does not persist an identity secret.
 
 An `EndpointAddr` contains an endpoint ID plus optional relay URLs and IP
 addresses. The ID is authoritative; the other fields are connection hints.

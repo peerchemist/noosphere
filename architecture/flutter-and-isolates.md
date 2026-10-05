@@ -15,8 +15,8 @@ when present, and then starts the reconnecting client. The host supplies the
 client's bootstrap address and trusted pin; combining roles does not bypass
 authentication or automatically invent that trust relationship.
 
-Server startup loads/creates the host identity, optionally opens `RoomManager`,
-starts `IrohServer`, and starts its serving future. Client startup calls
+Server startup invokes the application's identity initializer, optionally opens
+`RoomManager`, starts `IrohServer`, and starts its serving future. Client startup calls
 `ReconnectingIrohClient.connect` with storage and key providers. Partial startup
 failure cleans up already-started roles while preserving the original error.
 
@@ -36,7 +36,7 @@ flowchart TB
     subgraph Host["Flutter host isolate"]
         UI["UI and application state"]
         Facade["NoosphereWorker facade"]
-        Providers["Storage, identity and key providers"]
+        Providers["Storage and key providers"]
         UI --> Facade
         Facade --> Providers
     end
@@ -61,10 +61,12 @@ callbacks and secure key access policy. A callback/database/native handle does
 not cross the boundary. Serializable inputs and results do.
 
 This separation does **not** keep every secret byte exclusively on the host.
-Private keys requested through the bridge and secret-bearing stored FROST
-records/nonces are serialized into the worker when required. Public events
-strip those secrets. The isolate is a scheduling and ownership boundary, not
-a hardware keystore or OS memory isolation boundary.
+The Iroh identity initializer runs once on the host and only its derived
+32-byte secret is copied into the worker startup configuration. Private keys
+requested through the bridge and secret-bearing stored FROST records/nonces are
+also serialized into the worker when required. Public events strip those
+secrets. The isolate is a scheduling and ownership boundary, not a hardware
+keystore or OS memory isolation boundary.
 
 ## Startup and initialization
 
@@ -148,7 +150,6 @@ delay other work in that worker.
 | `requestDkg`, `requestSignatures` | Submit the supplied proposal; caller authorizes local initiation |
 | `acceptDkg`, `rejectDkg` | Act on the matching current DKG proposal bytes |
 | `acceptSignatures`, `rejectSignatures` | Act on the matching current signing proposal bytes |
-| `exportIrohServerIdentity` | Export the host-owned stored server identity secret |
 | `close` | Close every setup and the isolate bridge |
 
 Switching is a serialized, non-atomic operation on one local signer. The
@@ -231,7 +232,7 @@ for durable state.
 
 A `start_result_too_large` exception from `startSetup` means the requested roles
 started successfully but their snapshot exceeded the configured message limit.
-The host retains their identity, key and persistence providers. Stop the setup
+The host retains their key and persistence providers. Stop the setup
 before retrying with a larger worker message limit; do not treat this error as
 an uncommitted start. Oversized ordinary snapshots still report
 `message_too_large`.

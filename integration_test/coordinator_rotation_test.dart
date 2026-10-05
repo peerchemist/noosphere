@@ -19,7 +19,7 @@ void main() {
       final oldServer = await NoosphereNode.start(
         server: EmbeddedServerOptions(
           serverConfig: ServerConfig(group: f.group),
-          identityStore: MemoryIdentityStore(),
+          getIrohSecretKey: freshTestIrohSecretKey(),
           serverPersistence: MemoryServerPersistence(),
           relay: IrohRelayConfig.disabled(),
         ),
@@ -28,7 +28,7 @@ void main() {
       final newServer = await NoosphereNode.start(
         server: EmbeddedServerOptions(
           serverConfig: ServerConfig(group: f.group),
-          identityStore: MemoryIdentityStore(),
+          getIrohSecretKey: freshTestIrohSecretKey(),
           serverPersistence: MemoryServerPersistence(),
           relay: IrohRelayConfig.disabled(),
         ),
@@ -59,7 +59,7 @@ void main() {
           server: i == 0
               ? EmbeddedServerOptions(
                   serverConfig: ServerConfig(group: f.group),
-                  identityStore: MemoryIdentityStore(),
+                  getIrohSecretKey: freshTestIrohSecretKey(),
                   serverPersistence: MemoryServerPersistence(),
                   relay: IrohRelayConfig.disabled(),
                 )

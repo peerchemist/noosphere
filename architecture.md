@@ -152,11 +152,11 @@ steps from capabilities available today.
 | Owner | Responsibility |
 | --- | --- |
 | Library runtime | Protocol validation, live sessions, operation state, caches, expiry, and required storage ordering |
-| Host persistence | Atomic durable client, coordinator, room, and identity records; encryption and concurrency across processes |
+| Host persistence | Atomic durable client, coordinator and room records; encryption and concurrency across processes |
 | Host application | UI projections, consent, accounts, transaction construction, external submission, history, and reconciliation |
 
 The principal interfaces are `ClientStorageInterface`, `ServerPersistence`,
-`RoomPersistence`, and `ServerIdentityStore`. In-memory implementations are
+and `RoomPersistence`. In-memory implementations are
 available through separate testing entry points. Production entry points do
 not silently choose them.
 

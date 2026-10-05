@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -23,7 +24,7 @@ final class DemoSessionController extends ChangeNotifier
     WidgetsBinding.instance.addObserver(this);
   }
   final Future<DemoWorker> Function() startWorker;
-  final _identityStore = MemoryIdentityStore();
+  SecretKey? _irohSecretKey;
   final _serverPersistence = InMemoryServerPersistence();
   final _clientStores = <int, InMemoryClientStorage>{};
   final _keys = [
@@ -140,7 +141,8 @@ final class DemoSessionController extends ChangeNotifier
           setupId: 'example',
           server: EmbeddedServerOptions(
             serverConfig: ServerConfig(group: _group),
-            identityStore: _identityStore,
+            getIrohSecretKey: () =>
+                _irohSecretKey ??= _generateIrohSecretKey(),
             serverPersistence: _serverPersistence,
           ),
         );
@@ -393,5 +395,16 @@ final class DemoSessionController extends ChangeNotifier
   Future<void> acceptSignatures(WorkerSigningRequest proposal) => _perform(
     'Accepting signature…',
     (worker) => worker.acceptSignatures('example', proposal),
+  );
+}
+
+SecretKey _generateIrohSecretKey() {
+  final random = Random.secure();
+  return SecretKey.fromBytes(
+    List<int>.generate(
+      SecretKey.lengthBytes,
+      (_) => random.nextInt(256),
+      growable: false,
+    ),
   );
 }

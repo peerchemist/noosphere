@@ -27,7 +27,6 @@ enum WorkerOperation {
 
 enum ProviderOperation {
   persistCoordinator,
-  readIdentity,
   loadRooms,
   writeRoom,
   loadServer,

@@ -33,7 +33,7 @@ void main() {
     final serverNode = await NoosphereNode.start(
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
-        identityStore: MemoryIdentityStore(),
+        getIrohSecretKey: freshTestIrohSecretKey(),
         serverPersistence: InMemoryServerPersistence(),
         relay: IrohRelayConfig.disabled(),
       ),

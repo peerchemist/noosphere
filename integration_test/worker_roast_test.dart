@@ -96,7 +96,7 @@ Future<void> _runScenario({
       setupId: 'signer-0',
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
-        identityStore: MemoryIdentityStore(),
+        getIrohSecretKey: freshTestIrohSecretKey(),
         serverPersistence: MemoryServerPersistence(),
         relay: IrohRelayConfig.disabled(),
       ),
@@ -106,14 +106,6 @@ Future<void> _runScenario({
         const Duration(seconds: 15),
       );
     }
-    final identityBackup = await worker.exportIrohServerIdentity('signer-0');
-    expect(identityBackup, hasLength(32));
-    final originalLastByte = identityBackup.last;
-    identityBackup.last ^= 0xff;
-    expect(
-      (await worker.exportIrohServerIdentity('signer-0')).last,
-      originalLastByte,
-    );
     final coordinator = serverSnapshot.coordinator!;
     final address = EndpointAddr(
       PublicKey.fromZ32(coordinator.id),
@@ -130,12 +122,6 @@ Future<void> _runScenario({
           storage: stores[i],
         ),
       );
-      if (i != 0) {
-        await expectLater(
-          worker.exportIrohServerIdentity('signer-$i'),
-          throwsA(isA<StateError>()),
-        );
-      }
     }
 
     final dkgName = 'worker-$threshold-of-$participants';

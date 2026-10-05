@@ -104,9 +104,9 @@ worker events, retains a public snapshot for display, requests/approves DKG and
 signing, and displays public participant/group information.
 
 The example supplies `InMemoryClientStorage`, `InMemoryServerPersistence` and
-an example identity store. Those illustrate the host boundary but are not a
-durable wallet implementation. Its UI state is in the application, not injected
-into the Noosphere core. The server Taproot example demonstrates a fuller
+an in-memory Iroh identity initializer. Those illustrate the host boundary but
+are not a durable wallet implementation. Its UI state is in the application,
+not injected into the Noosphere core. The server Taproot example demonstrates a fuller
 transaction signing flow; client examples demonstrate direct/reconnecting
 transport consumption.
 
@@ -124,7 +124,7 @@ transport consumption.
 | [`iroh_client_api_test.dart`](../packages/noosphere_server/test/iroh_client_api_test.dart) | Real adapter RPCs, snapshots/events, reconnects and resource limits |
 | [`room_manager_test.dart`](../packages/noosphere_server/test/room_manager_test.dart) | Invite possession, replay, capacity, frozen rosters and ambiguous writes |
 | [`server_recovery_test.dart`](../packages/noosphere_server/test/server_recovery_test.dart), [`server_process_restart_test.dart`](../packages/noosphere_server/test/server_process_restart_test.dart) | Persisted protocol state and process restart |
-| [`test`](../test) | Flutter initialization/node lifecycle, identity custody, worker correlation, limits and provider ordering |
+| [`test`](../test) | Flutter initialization/node lifecycle, deterministic identity derivation, worker correlation, limits and provider ordering |
 | [`integration_test`](../integration_test) | Native transport, actual DKG/signatures, worker lifecycle, room signing, coordinator rotation and process relaunch |
 
 `integration_test/worker_roast_test.dart` includes a larger signing batch and

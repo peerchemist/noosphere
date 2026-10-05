@@ -26,7 +26,7 @@ void main() {
     );
     options = EmbeddedServerOptions(
       serverConfig: ServerConfig(group: group),
-      identityStore: _Identity(),
+      getIrohSecretKey: () => SecretKey.fromBytes(Uint8List(32)),
       serverPersistence: InMemoryServerPersistence(),
     );
   });
@@ -50,7 +50,10 @@ void main() {
         registry.phase('test', NoosphereWorkerRoles.server),
         HostRolePhase.cleanupRequired,
       );
-      expect(registry.setup('test').identityStore, same(options.identityStore));
+      expect(
+        registry.setup('test').serverPersistence,
+        same(options.serverPersistence),
+      );
       await expectLater(
         registry.startSetup(setupId: 'test', server: options),
         throwsStateError,
@@ -82,7 +85,10 @@ void main() {
         registry.phase('test', NoosphereWorkerRoles.server),
         HostRolePhase.cleanupRequired,
       );
-      expect(registry.setup('test').identityStore, same(options.identityStore));
+      expect(
+        registry.setup('test').serverPersistence,
+        same(options.serverPersistence),
+      );
     },
   );
   test(
@@ -240,13 +246,6 @@ NoosphereWorkerSnapshot _snapshot() => NoosphereWorkerSnapshot(
   signingRequests: [],
   keys: [],
 );
-
-final class _Identity implements ServerIdentityStore {
-  @override
-  Future<Uint8List?> read() async => Uint8List(32);
-  @override
-  Future<void> write(Uint8List secret) async {}
-}
 
 final class _Host implements WorkerHost {
   @override

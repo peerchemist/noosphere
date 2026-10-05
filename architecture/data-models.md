@@ -15,7 +15,7 @@ cryptographic structure.
 | Participant identity key | secp256k1 private key; 33-byte compressed public key | Login, proposal signatures, DKG attestations and encrypted shares |
 | FROST `Identifier` | 32-byte serialized value | Participant's position in one group's roster |
 | Iroh endpoint ID | 32-byte public identity, displayed as hex or z32 | Transport identity and coordinator pin |
-| Iroh server secret | 32 bytes | Restores the coordinator's endpoint identity |
+| Iroh server secret | 32 bytes | Deterministically recreates the coordinator's endpoint identity |
 | FROST group key | Compressed secp256k1 public key | Verifies threshold signatures for a generated key |
 | FROST private share | Part of `ParticipantKeyInfo` | Participant's threshold-signing secret |
 | `SessionID` | Random 16-byte `OnetimeNumber` | One authenticated logical session |

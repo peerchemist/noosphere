@@ -10,7 +10,7 @@ export 'package:coinlib/coinlib.dart'
         SchnorrSignature,
         Taproot;
 export 'package:iroh_flutter/iroh_flutter.dart'
-    show EndpointAddr, EndpointId, PublicKey, RelayUrl;
+    show EndpointAddr, EndpointId, PublicKey, RelayUrl, SecretKey;
 export 'package:noosphere_client/iroh_transport.dart'
     show
         IrohClientTransportConfig,
@@ -36,9 +36,9 @@ export 'package:noosphere_server/noosphere_server.dart'
 export 'src/client_connection.dart';
 export 'src/client_options.dart';
 export 'src/initialization.dart';
+export 'src/iroh_identity.dart';
 export 'src/iroh_node.dart';
 export 'src/lifecycle.dart';
-export 'src/server_identity_store.dart';
 export 'src/server_options.dart';
 export 'src/worker.dart';
 export 'src/worker_models.dart';

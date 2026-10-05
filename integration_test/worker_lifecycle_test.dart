@@ -28,13 +28,13 @@ void main() {
           ),
         },
       );
-      final firstIdentity = MemoryIdentityStore();
-      final secondIdentity = MemoryIdentityStore();
-      final directIdentity = MemoryIdentityStore();
-      EmbeddedServerOptions options(MemoryIdentityStore store) =>
+      final firstIdentity = SecretKey.generate();
+      final secondIdentity = SecretKey.generate();
+      final directIdentity = SecretKey.generate();
+      EmbeddedServerOptions options(SecretKey secretKey) =>
           EmbeddedServerOptions(
             serverConfig: ServerConfig(group: group),
-            identityStore: store,
+            getIrohSecretKey: () => secretKey,
             serverPersistence: MemoryServerPersistence(),
             relay: IrohRelayConfig.disabled(),
           );
@@ -68,15 +68,10 @@ void main() {
           ),
         );
         final first = await startingFirst;
-        final wrongIdentity = MemoryIdentityStore();
+        final wrongIdentity = SecretKey.generate();
         await expectLater(
           worker.startSetup(setupId: 'first', server: options(wrongIdentity)),
           throwsStateError,
-        );
-        expect(wrongIdentity.writes, 0);
-        expect(
-          await worker.exportIrohServerIdentity('first'),
-          await firstIdentity.read(),
         );
         final second = await worker.startSetup(
           setupId: 'second',
@@ -146,8 +141,6 @@ void main() {
           server: options(firstIdentity),
         );
         expect(restarted.coordinator!.id, firstId);
-        expect(firstIdentity.writes, 1);
-        expect(secondIdentity.writes, 1);
         expect(direct.serverId, isNotNull);
 
         await worker.close();
@@ -157,7 +150,6 @@ void main() {
           server: options(firstIdentity),
         );
         expect(thirdStart.coordinator!.id, firstId);
-        expect(firstIdentity.writes, 1);
       } finally {
         await worker?.close();
         await direct.close();

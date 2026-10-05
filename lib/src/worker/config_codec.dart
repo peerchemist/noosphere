@@ -6,10 +6,11 @@ import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 
 import '../client_options.dart';
-import '../server_identity_store.dart';
 import '../server_options.dart';
 
-Map<String, Object?> encodeServerOptions(EmbeddedServerOptions options) {
+Future<Map<String, Object?>> encodeServerOptions(
+  EmbeddedServerOptions options,
+) async {
   if (options.handler != null) {
     throw ArgumentError.value(
       options.handler,
@@ -17,8 +18,10 @@ Map<String, Object?> encodeServerOptions(EmbeddedServerOptions options) {
       'custom server handlers cannot cross the worker boundary',
     );
   }
+  final secretKey = await options.getIrohSecretKey();
   return {
     'serverConfig': options.serverConfig.toBytes(),
+    'irohSecretKey': secretKey.toBytes(),
     'roomPersistence': options.roomPersistence != null,
     'relay': encodeRelay(options.relay),
     'alpn': options.alpn,
@@ -33,12 +36,11 @@ Map<String, Object?> encodeServerOptions(EmbeddedServerOptions options) {
 
 EmbeddedServerOptions decodeServerOptions(
   Map<Object?, Object?> value,
-  ServerIdentityStore identityStore,
   ServerPersistence serverPersistence,
   RoomPersistence roomPersistence,
 ) => EmbeddedServerOptions(
   serverConfig: ServerConfig.fromBytes(asBytes(value['serverConfig'])),
-  identityStore: identityStore,
+  getIrohSecretKey: () => SecretKey.fromBytes(asBytes(value['irohSecretKey'])),
   serverPersistence: serverPersistence,
   roomPersistence: value['roomPersistence'] == true ? roomPersistence : null,
   relay: decodeRelay(value['relay']),

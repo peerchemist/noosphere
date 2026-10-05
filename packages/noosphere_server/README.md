@@ -104,7 +104,8 @@ unawaited(server.serve());
 
 `start(config, secretKey: key, persistence: provider)` requires an identity and
 domain-specific server persistence supplied by the host, and performs no
-identity storage I/O. Persist a new identity before starting the server.
+identity storage I/O. A host may deterministically derive that identity or load
+it according to its own policy before starting the server.
 `IrohConfig` no longer accepts
 `secretKeyPath`; remove that argument from embedding code and load the key in
 your wrapper instead.
@@ -144,7 +145,8 @@ dependency on `noosphere_client`; that package is used only by end-to-end tests
 and examples. The 3.0.0 server and 4.0.0 client remove gRPC completely. Migrate
 by replacing
 `GrpcClientApi`/`GrpcConfig` with `IrohClientApi`/`IrohConfig`, pinning the
-server endpoint ID and persisting the server identity key. Canonical domain
+server endpoint ID and persistently loading or deterministically deriving the
+same server identity key. Canonical domain
 bytes are carried inside protobuf messages; the transport and session semantics
 are breaking changes. Enrollment and ROAST use separate versioned ALPNs,
 operation-prefixed QUIC streams, concrete protobuf bodies, and FIN boundaries.

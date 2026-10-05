@@ -26,10 +26,10 @@ void main() {
           secondId: ECCompressedPublicKey.fromPubkey(secondKey.pubkey),
         },
       );
-      final identityStore = MemoryIdentityStore();
+      final irohSecretKey = SecretKey.generate();
       final serverOptions = EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
-        identityStore: identityStore,
+        getIrohSecretKey: () => irohSecretKey,
         serverPersistence: MemoryServerPersistence(),
         relay: IrohRelayConfig.disabled(),
       );
@@ -116,7 +116,6 @@ void main() {
       await firstClientNode.close();
       await serverNode.close();
 
-      expect(identityStore.writes, 1);
       expect(File('host-managed://iroh-secret').existsSync(), isFalse);
     },
     timeout: const Timeout(Duration(minutes: 3)),

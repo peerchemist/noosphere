@@ -3,20 +3,6 @@ import 'dart:typed_data';
 
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 
-final class MemoryIdentityStore implements ServerIdentityStore {
-  Uint8List? _secret;
-
-  @override
-  Future<Uint8List?> read() async =>
-      _secret == null ? null : Uint8List.fromList(_secret!);
-
-  @override
-  Future<void> write(Uint8List secret) async {
-    _secret = Uint8List.fromList(secret);
-    logDemo('Stored the test server identity in memory.');
-  }
-}
-
 void logWorkerEndpoint(WorkerCoordinatorAddress address) => logDemo(
   'Iroh ID: ${address.id}\n'
   'Iroh IPs: ${address.ipAddrs}\n'

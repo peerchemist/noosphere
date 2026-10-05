@@ -3,9 +3,10 @@
 Linux/macOS example for client-only, embedded-server-only, and both-role
 Noosphere nodes.
 
-The example intentionally uses in-memory client storage and an in-memory server
-identity store, and displays that limitation prominently. Enter an Iroh ID
-obtained through an independent trusted channel for client roles. Iroh
+The example intentionally uses in-memory client storage and an in-memory,
+random server identity initializer, and displays that limitation prominently.
+A production wallet should derive the identity from its BIP-39 seed. Enter an
+Iroh ID obtained through an independent trusted channel for client roles. Iroh
 discovery resolves that Iroh ID to direct or relay addresses.
 
 The app prints verbose connection and protocol diagnostics to the terminal,

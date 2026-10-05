@@ -10,7 +10,7 @@ import 'test_support.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('pending identity provider forces bounded, unsafe shutdown', (
+  testWidgets('pending identity initializer stays outside the worker runtime', (
     _,
   ) async {
     await NoosphereFlutter.initialize();
@@ -27,7 +27,7 @@ void main() {
         ),
       },
     );
-    final store = _BlockedIdentityStore();
+    final initializer = _BlockedIdentityInitializer();
     final worker = await NoosphereWorker.start(
       shutdownTimeout: const Duration(milliseconds: 250),
       hostOperationTimeout: const Duration(seconds: 5),
@@ -36,7 +36,7 @@ void main() {
       setupId: 'blocked',
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
-        identityStore: store,
+        getIrohSecretKey: initializer.call,
         serverPersistence: MemoryServerPersistence(),
         relay: IrohRelayConfig.disabled(),
       ),
@@ -45,35 +45,24 @@ void main() {
       starting,
       throwsA(isA<NoosphereWorkerException>()),
     );
-    await store.readStarted.future.timeout(const Duration(seconds: 15));
+    await initializer.started.future.timeout(const Duration(seconds: 15));
 
     await worker.close().timeout(const Duration(seconds: 3));
+    initializer.finish.complete(SecretKey.generate());
     await failedStart;
     await worker.close();
-    store.finishRead.complete(null);
-    await expectLater(
-      NoosphereWorker.start(),
-      throwsA(
-        isA<NoosphereWorkerException>().having(
-          (error) => error.code,
-          'code',
-          'unsafe_restart',
-        ),
-      ),
-    );
+
+    final replacement = await NoosphereWorker.start();
+    await replacement.close();
   }, timeout: const Timeout(Duration(minutes: 2)));
 }
 
-final class _BlockedIdentityStore implements ServerIdentityStore {
-  final readStarted = Completer<void>();
-  final finishRead = Completer<Uint8List?>();
+final class _BlockedIdentityInitializer {
+  final started = Completer<void>();
+  final finish = Completer<SecretKey>();
 
-  @override
-  Future<Uint8List?> read() {
-    if (!readStarted.isCompleted) readStarted.complete();
-    return finishRead.future;
+  Future<SecretKey> call() {
+    if (!started.isCompleted) started.complete();
+    return finish.future;
   }
-
-  @override
-  Future<void> write(Uint8List secret) async {}
 }

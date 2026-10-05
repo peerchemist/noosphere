@@ -3,7 +3,7 @@ import 'dart:math';
 
 import 'package:iroh_quic/iroh_quic.dart';
 
-// CLI policy only. Embedding applications provide their own identity storage.
+// CLI policy only. Embedding applications provide their own identity custody.
 // In-process calls share work; the file lock serializes cooperating processes.
 final _loads = <String, Future<SecretKey>>{};
 

@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'dart:math';
 
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 import 'package:noosphere_flutter/testing.dart';
@@ -36,19 +36,16 @@ Future<EndpointAddr> reachableTestAddress(IrohServer server) async {
       .timeout(const Duration(seconds: 15));
 }
 
-final class MemoryIdentityStore implements ServerIdentityStore {
-  Uint8List? _secret;
-  int writes = 0;
-
-  @override
-  Future<Uint8List?> read() async =>
-      _secret == null ? null : Uint8List.fromList(_secret!);
-
-  @override
-  Future<void> write(Uint8List secret) async {
-    writes++;
-    _secret = Uint8List.fromList(secret);
-  }
+GetIrohSecretKey freshTestIrohSecretKey() {
+  final random = Random.secure();
+  final key = SecretKey.fromBytes(
+    List<int>.generate(
+      SecretKey.lengthBytes,
+      (_) => random.nextInt(256),
+      growable: false,
+    ),
+  );
+  return () => key;
 }
 
 final class MemoryServerPersistence implements ServerPersistence {

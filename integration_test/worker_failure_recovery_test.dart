@@ -29,7 +29,7 @@ void main() {
     final server = await NoosphereNode.start(
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
-        identityStore: MemoryIdentityStore(),
+        getIrohSecretKey: freshTestIrohSecretKey(),
         serverPersistence: MemoryServerPersistence(),
         relay: IrohRelayConfig.disabled(),
       ),
@@ -100,22 +100,18 @@ void main() {
     );
     // Adding a role must preserve existing providers when the combined
     // startup snapshot is still too large to deliver.
-    final identity = MemoryIdentityStore();
+    final identity = SecretKey.generate();
     await expectLater(
       worker.startSetup(
         setupId: 'signer',
         server: EmbeddedServerOptions(
           serverConfig: ServerConfig(group: group),
-          identityStore: identity,
+          getIrohSecretKey: () => identity,
           serverPersistence: MemoryServerPersistence(),
           relay: IrohRelayConfig.disabled(),
         ),
       ),
       startedButUnavailable,
-    );
-    expect(
-      await worker.exportIrohServerIdentity('signer'),
-      await identity.read(),
     );
     expect(await worker.debugClientStorageForTesting('signer'), [rejectedId]);
     await worker.stopSetup('signer');
@@ -143,7 +139,7 @@ void main() {
     addTearDown(worker.close);
     final options = EmbeddedServerOptions(
       serverConfig: ServerConfig(group: group),
-      identityStore: MemoryIdentityStore(),
+      getIrohSecretKey: freshTestIrohSecretKey(),
       serverPersistence: MemoryServerPersistence(),
       relay: IrohRelayConfig.disabled(),
     );

@@ -14,7 +14,6 @@ import 'package:noosphere_server/noosphere_server.dart'
 import 'client_options.dart';
 import 'initialization.dart';
 import 'iroh_node.dart';
-import 'server_identity_store.dart';
 import 'server_options.dart';
 import 'worker/dto_mapper.dart';
 import 'worker/node_factory.dart';
@@ -264,7 +263,6 @@ final class _WorkerRuntime {
             ? null
             : decodeServerOptions(
                 server,
-                _RemoteIdentityStore(_host, setupId),
                 _RemoteServerPersistence(_host, setupId),
                 _RemoteRoomPersistence(_host, setupId),
               ),

@@ -32,7 +32,7 @@ void main() {
         setupId: 'interrupted',
         server: EmbeddedServerOptions(
           serverConfig: ServerConfig(group: group),
-          identityStore: MemoryIdentityStore(),
+          getIrohSecretKey: freshTestIrohSecretKey(),
           serverPersistence: MemoryServerPersistence(),
           relay: IrohRelayConfig.disabled(),
         ),
