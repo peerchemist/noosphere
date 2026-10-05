@@ -542,7 +542,8 @@ final class _AsyncSemaphore {
   }
 }
 
-Event _decodeEvent(protocol.Events event) => event_wire.decodeEvent(event);
+Event _decodeEvent(protocol.EventMessage event) =>
+    event_wire.decodeEvent(event);
 
 Stream<List<int>> _readChunks(RecvStream receive) async* {
   while (true) {

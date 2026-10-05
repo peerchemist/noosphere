@@ -193,8 +193,7 @@ message SignaturesProgressEvent {
   SignaturesProgress progress = 2;
 }
 
-// Despite the plural legacy name, each message contains exactly one event.
-message Events {
+message EventMessage {
   oneof event {
     ParticipantStatusEvent participant_status = 1;
     NewDkgEvent new_dkg = 2;
@@ -409,7 +408,7 @@ message Envelope {
     SessionStarted session_started = 21;
     Ready ready = 25;
     Logout logout = 27;
-    Events event = 28;
+    EventMessage event = 28;
     ProtocolError error = 29;
   }
 }

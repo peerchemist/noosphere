@@ -643,9 +643,9 @@ final $typed_data.Uint8List signaturesProgressEventDescriptor = $convert.base64D
     'QSOQoIcHJvZ3Jlc3MYAiABKAsyHS5ub29zcGhlcmUuU2lnbmF0dXJlc1Byb2dyZXNzUghwcm9n'
     'cmVzcw==');
 
-@$core.Deprecated('Use eventsDescriptor instead')
-const Events$json = {
-  '1': 'Events',
+@$core.Deprecated('Use eventMessageDescriptor instead')
+const EventMessage$json = {
+  '1': 'EventMessage',
   '2': [
     {
       '1': 'participant_status',
@@ -788,29 +788,29 @@ const Events$json = {
   ],
 };
 
-/// Descriptor for `Events`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List eventsDescriptor = $convert.base64Decode(
-    'CgZFdmVudHMSUgoScGFydGljaXBhbnRfc3RhdHVzGAEgASgLMiEubm9vc3BoZXJlLlBhcnRpY2'
-    'lwYW50U3RhdHVzRXZlbnRIAFIRcGFydGljaXBhbnRTdGF0dXMSMQoHbmV3X2RrZxgCIAEoCzIW'
-    'Lm5vb3NwaGVyZS5OZXdEa2dFdmVudEgAUgZuZXdEa2cSRgoOZGtnX2NvbW1pdG1lbnQYAyABKA'
-    'syHS5ub29zcGhlcmUuRGtnQ29tbWl0bWVudEV2ZW50SABSDWRrZ0NvbW1pdG1lbnQSOgoKZGtn'
-    'X3JlamVjdBgEIAEoCzIZLm5vb3NwaGVyZS5Ea2dSZWplY3RFdmVudEgAUglka2dSZWplY3QSSg'
-    'oQZGtnX3JvdW5kMl9zaGFyZRgFIAEoCzIeLm5vb3NwaGVyZS5Ea2dSb3VuZDJTaGFyZUV2ZW50'
-    'SABSDmRrZ1JvdW5kMlNoYXJlEjEKB2RrZ19hY2sYBiABKAsyFi5ub29zcGhlcmUuRGtnQWNrRX'
-    'ZlbnRIAFIGZGtnQWNrEkcKD2RrZ19hY2tfcmVxdWVzdBgHIAEoCzIdLm5vb3NwaGVyZS5Ea2dB'
-    'Y2tSZXF1ZXN0RXZlbnRIAFINZGtnQWNrUmVxdWVzdBJSChJzaWduYXR1cmVzX3JlcXVlc3QYCC'
-    'ABKAsyIS5ub29zcGhlcmUuU2lnbmF0dXJlc1JlcXVlc3RFdmVudEgAUhFzaWduYXR1cmVzUmVx'
-    'dWVzdBJWChRzaWduYXR1cmVfbmV3X3JvdW5kcxgJIAEoCzIiLm5vb3NwaGVyZS5TaWduYXR1cm'
-    'VOZXdSb3VuZHNFdmVudEgAUhJzaWduYXR1cmVOZXdSb3VuZHMSVQoTc2lnbmF0dXJlc19jb21w'
-    'bGV0ZRgKIAEoCzIiLm5vb3NwaGVyZS5TaWduYXR1cmVzQ29tcGxldGVFdmVudEgAUhJzaWduYX'
-    'R1cmVzQ29tcGxldGUSUgoSc2lnbmF0dXJlc19mYWlsdXJlGAsgASgLMiEubm9vc3BoZXJlLlNp'
-    'Z25hdHVyZXNGYWlsdXJlRXZlbnRIAFIRc2lnbmF0dXJlc0ZhaWx1cmUSOQoJa2VlcGFsaXZlGA'
-    'wgASgLMhkubm9vc3BoZXJlLktlZXBhbGl2ZUV2ZW50SABSCWtlZXBhbGl2ZRJACgxzZWNyZXRf'
-    'c2hhcmUYDSABKAsyGy5ub29zcGhlcmUuU2VjcmV0U2hhcmVFdmVudEgAUgtzZWNyZXRTaGFyZR'
-    'JJCg9jb25zdHJ1Y3RlZF9rZXkYDiABKAsyHi5ub29zcGhlcmUuQ29uc3RydWN0ZWRLZXlFdmVu'
-    'dEgAUg5jb25zdHJ1Y3RlZEtleRJVChNzaWduYXR1cmVzX3Byb2dyZXNzGA8gASgLMiIubm9vc3'
-    'BoZXJlLlNpZ25hdHVyZXNQcm9ncmVzc0V2ZW50SABSEnNpZ25hdHVyZXNQcm9ncmVzc0IHCgVl'
-    'dmVudA==');
+/// Descriptor for `EventMessage`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List eventMessageDescriptor = $convert.base64Decode(
+    'CgxFdmVudE1lc3NhZ2USUgoScGFydGljaXBhbnRfc3RhdHVzGAEgASgLMiEubm9vc3BoZXJlLl'
+    'BhcnRpY2lwYW50U3RhdHVzRXZlbnRIAFIRcGFydGljaXBhbnRTdGF0dXMSMQoHbmV3X2RrZxgC'
+    'IAEoCzIWLm5vb3NwaGVyZS5OZXdEa2dFdmVudEgAUgZuZXdEa2cSRgoOZGtnX2NvbW1pdG1lbn'
+    'QYAyABKAsyHS5ub29zcGhlcmUuRGtnQ29tbWl0bWVudEV2ZW50SABSDWRrZ0NvbW1pdG1lbnQS'
+    'OgoKZGtnX3JlamVjdBgEIAEoCzIZLm5vb3NwaGVyZS5Ea2dSZWplY3RFdmVudEgAUglka2dSZW'
+    'plY3QSSgoQZGtnX3JvdW5kMl9zaGFyZRgFIAEoCzIeLm5vb3NwaGVyZS5Ea2dSb3VuZDJTaGFy'
+    'ZUV2ZW50SABSDmRrZ1JvdW5kMlNoYXJlEjEKB2RrZ19hY2sYBiABKAsyFi5ub29zcGhlcmUuRG'
+    'tnQWNrRXZlbnRIAFIGZGtnQWNrEkcKD2RrZ19hY2tfcmVxdWVzdBgHIAEoCzIdLm5vb3NwaGVy'
+    'ZS5Ea2dBY2tSZXF1ZXN0RXZlbnRIAFINZGtnQWNrUmVxdWVzdBJSChJzaWduYXR1cmVzX3JlcX'
+    'Vlc3QYCCABKAsyIS5ub29zcGhlcmUuU2lnbmF0dXJlc1JlcXVlc3RFdmVudEgAUhFzaWduYXR1'
+    'cmVzUmVxdWVzdBJWChRzaWduYXR1cmVfbmV3X3JvdW5kcxgJIAEoCzIiLm5vb3NwaGVyZS5TaW'
+    'duYXR1cmVOZXdSb3VuZHNFdmVudEgAUhJzaWduYXR1cmVOZXdSb3VuZHMSVQoTc2lnbmF0dXJl'
+    'c19jb21wbGV0ZRgKIAEoCzIiLm5vb3NwaGVyZS5TaWduYXR1cmVzQ29tcGxldGVFdmVudEgAUh'
+    'JzaWduYXR1cmVzQ29tcGxldGUSUgoSc2lnbmF0dXJlc19mYWlsdXJlGAsgASgLMiEubm9vc3Bo'
+    'ZXJlLlNpZ25hdHVyZXNGYWlsdXJlRXZlbnRIAFIRc2lnbmF0dXJlc0ZhaWx1cmUSOQoJa2VlcG'
+    'FsaXZlGAwgASgLMhkubm9vc3BoZXJlLktlZXBhbGl2ZUV2ZW50SABSCWtlZXBhbGl2ZRJACgxz'
+    'ZWNyZXRfc2hhcmUYDSABKAsyGy5ub29zcGhlcmUuU2VjcmV0U2hhcmVFdmVudEgAUgtzZWNyZX'
+    'RTaGFyZRJJCg9jb25zdHJ1Y3RlZF9rZXkYDiABKAsyHi5ub29zcGhlcmUuQ29uc3RydWN0ZWRL'
+    'ZXlFdmVudEgAUg5jb25zdHJ1Y3RlZEtleRJVChNzaWduYXR1cmVzX3Byb2dyZXNzGA8gASgLMi'
+    'Iubm9vc3BoZXJlLlNpZ25hdHVyZXNQcm9ncmVzc0V2ZW50SABSEnNpZ25hdHVyZXNQcm9ncmVz'
+    'c0IHCgVldmVudA==');
 
 @$core.Deprecated('Use protocolErrorDescriptor instead')
 const ProtocolError$json = {
@@ -1724,7 +1724,7 @@ const Envelope$json = {
       '3': 28,
       '4': 1,
       '5': 11,
-      '6': '.noosphere.Events',
+      '6': '.noosphere.EventMessage',
       '9': 0,
       '10': 'event'
     },
@@ -1751,6 +1751,6 @@ final $typed_data.Uint8List envelopeDescriptor = $convert.base64Decode(
     'oNc3RhcnRfc2Vzc2lvbhgUIAEoCzIXLm5vb3NwaGVyZS5TdGFydFNlc3Npb25IAFIMc3RhcnRT'
     'ZXNzaW9uEkQKD3Nlc3Npb25fc3RhcnRlZBgVIAEoCzIZLm5vb3NwaGVyZS5TZXNzaW9uU3Rhcn'
     'RlZEgAUg5zZXNzaW9uU3RhcnRlZBIoCgVyZWFkeRgZIAEoCzIQLm5vb3NwaGVyZS5SZWFkeUgA'
-    'UgVyZWFkeRIrCgZsb2dvdXQYGyABKAsyES5ub29zcGhlcmUuTG9nb3V0SABSBmxvZ291dBIpCg'
-    'VldmVudBgcIAEoCzIRLm5vb3NwaGVyZS5FdmVudHNIAFIFZXZlbnQSMAoFZXJyb3IYHSABKAsy'
-    'GC5ub29zcGhlcmUuUHJvdG9jb2xFcnJvckgAUgVlcnJvckIJCgdwYXlsb2Fk');
+    'UgVyZWFkeRIrCgZsb2dvdXQYGyABKAsyES5ub29zcGhlcmUuTG9nb3V0SABSBmxvZ291dBIvCg'
+    'VldmVudBgcIAEoCzIXLm5vb3NwaGVyZS5FdmVudE1lc3NhZ2VIAFIFZXZlbnQSMAoFZXJyb3IY'
+    'HSABKAsyGC5ub29zcGhlcmUuUHJvdG9jb2xFcnJvckgAUgVlcnJvckIJCgdwYXlsb2Fk');

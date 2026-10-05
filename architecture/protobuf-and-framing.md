@@ -21,7 +21,7 @@ message Envelope {
     SessionStarted session_started = 21;
     Ready ready = 25;
     Logout logout = 27;
-    Events event = 28;
+    EventMessage event = 28;
     ProtocolError error = 29;
   }
 }
@@ -91,10 +91,10 @@ Cryptographic signatures bind canonical domain encodings, not the incidental
 serialization order of protobuf fields. This lets the transport wrap existing
 cryptographic values without redefining their signed representation.
 
-## The `Events` payload
+## The `EventMessage` payload
 
 ```proto
-message Events {
+message EventMessage {
   oneof event {
     ParticipantStatusEvent participant_status = 1;
     NewDkgEvent new_dkg = 2;
@@ -104,8 +104,8 @@ message Events {
 }
 ```
 
-Despite its plural name, one `Events` message represents one domain event.
-The `oneof` discriminator and selected generated message replace the former
+One `EventMessage` represents one domain event. The `oneof` discriminator and
+selected generated message replace the former
 type-enum-plus-opaque-bytes representation. For example,
 `signatures_request` contains `signed_details`, `creator_id` and a typed
 `SignaturesProgress` message.
@@ -121,7 +121,7 @@ For a concrete `SignaturesRequestEvent event`, the server's mapping is
 conceptually this code (the real `encodeEvent` handles every supported variant):
 
 ```dart
-final message = protocol.Events(
+final message = protocol.EventMessage(
   signaturesRequest: protocol.SignaturesRequestEvent(
     signedDetails: event.details.toBytes(),
     creatorId: event.creator.toBytes(),
@@ -150,14 +150,14 @@ The receiving path has separate checks:
 | --- | --- |
 | Frame decoder | Enforces envelope size, gathers a complete length-prefixed body, parses protobuf and requires a recognized envelope payload |
 | Session adapter | Checks wire version and accepts event/error envelopes on the established session stream |
-| Event mapping | Requires a selected `Events.event` variant, converts its typed fields, and decodes canonical nested values |
+| Event mapping | Requires a selected `EventMessage.event` variant, converts its typed fields, and decodes canonical nested values |
 | Participant state machine | Checks identities, signed contents, expiry, round/request context and cryptographic contributions as appropriate to the event |
 | Host approval | Decides whether a valid proposal should be accepted for the application's purposes |
 
 Nested domain `fromBytes` readers enforce bounded whole-value decoding,
 including trailing-data checks. A missing event oneof is rejected, and
 `KeepaliveEvent` is represented by an explicit empty protobuf message. There is
-no general signature over the protobuf `Events` wrapper: signed proposals and
+no general signature over the protobuf `EventMessage` wrapper: signed proposals and
 other attestations bind their specified domain hashes, while Iroh authenticates
 the transport endpoints. For example, proposal progress is checked as a
 coordinator report, not as part of the requester's proposal signature.

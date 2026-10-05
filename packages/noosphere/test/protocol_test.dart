@@ -112,7 +112,7 @@ void main() {
           protocol.ConstructedKey.fromBuffer,
         ),
         (
-          protocol.Events(
+          protocol.EventMessage(
             signaturesComplete: protocol.SignaturesCompleteEvent(
               requestId: [1],
               signatures: [
@@ -120,7 +120,7 @@ void main() {
               ],
             ),
           ),
-          protocol.Events.fromBuffer,
+          protocol.EventMessage.fromBuffer,
         ),
       ];
 
@@ -317,7 +317,7 @@ void main() {
       );
       final event = protocol.Envelope(
         wireVersion: 1,
-        event: protocol.Events(keepalive: protocol.KeepaliveEvent()),
+        event: protocol.EventMessage(keepalive: protocol.KeepaliveEvent()),
       );
 
       final decodedStarted = protocol.Envelope.fromBuffer(
@@ -327,41 +327,59 @@ void main() {
 
       expect(decodedStarted.sessionStarted.sessionId, [5]);
       expect(decodedStarted.sessionStarted.snapshot, [6]);
-      expect(decodedEvent.event.whichEvent(), protocol.Events_Event.keepalive);
+      expect(
+        decodedEvent.event.whichEvent(),
+        protocol.EventMessage_Event.keepalive,
+      );
     });
 
     test('covers every typed event variant', () {
-      final events = <protocol.Events>[
-        protocol.Events(participantStatus: protocol.ParticipantStatusEvent()),
-        protocol.Events(newDkg: protocol.NewDkgEvent()),
-        protocol.Events(dkgCommitment: protocol.DkgCommitmentEvent()),
-        protocol.Events(dkgReject: protocol.DkgRejectEvent()),
-        protocol.Events(dkgRound2Share: protocol.DkgRound2ShareEvent()),
-        protocol.Events(dkgAck: protocol.DkgAckEvent()),
-        protocol.Events(dkgAckRequest: protocol.DkgAckRequestEvent()),
-        protocol.Events(signaturesRequest: protocol.SignaturesRequestEvent()),
-        protocol.Events(signatureNewRounds: protocol.SignatureNewRoundsEvent()),
-        protocol.Events(signaturesComplete: protocol.SignaturesCompleteEvent()),
-        protocol.Events(signaturesFailure: protocol.SignaturesFailureEvent()),
-        protocol.Events(keepalive: protocol.KeepaliveEvent()),
-        protocol.Events(secretShare: protocol.SecretShareEvent()),
-        protocol.Events(constructedKey: protocol.ConstructedKeyEvent()),
-        protocol.Events(signaturesProgress: protocol.SignaturesProgressEvent()),
+      final events = <protocol.EventMessage>[
+        protocol.EventMessage(
+          participantStatus: protocol.ParticipantStatusEvent(),
+        ),
+        protocol.EventMessage(newDkg: protocol.NewDkgEvent()),
+        protocol.EventMessage(dkgCommitment: protocol.DkgCommitmentEvent()),
+        protocol.EventMessage(dkgReject: protocol.DkgRejectEvent()),
+        protocol.EventMessage(dkgRound2Share: protocol.DkgRound2ShareEvent()),
+        protocol.EventMessage(dkgAck: protocol.DkgAckEvent()),
+        protocol.EventMessage(dkgAckRequest: protocol.DkgAckRequestEvent()),
+        protocol.EventMessage(
+          signaturesRequest: protocol.SignaturesRequestEvent(),
+        ),
+        protocol.EventMessage(
+          signatureNewRounds: protocol.SignatureNewRoundsEvent(),
+        ),
+        protocol.EventMessage(
+          signaturesComplete: protocol.SignaturesCompleteEvent(),
+        ),
+        protocol.EventMessage(
+          signaturesFailure: protocol.SignaturesFailureEvent(),
+        ),
+        protocol.EventMessage(keepalive: protocol.KeepaliveEvent()),
+        protocol.EventMessage(secretShare: protocol.SecretShareEvent()),
+        protocol.EventMessage(constructedKey: protocol.ConstructedKeyEvent()),
+        protocol.EventMessage(
+          signaturesProgress: protocol.SignaturesProgressEvent(),
+        ),
       ];
 
       expect(
         events
             .map(
               (event) =>
-                  protocol.Events.fromBuffer(event.writeToBuffer())
+                  protocol.EventMessage.fromBuffer(event.writeToBuffer())
                       .whichEvent(),
             )
             .toSet(),
-        protocol.Events_Event.values.where(
-          (event) => event != protocol.Events_Event.notSet,
+        protocol.EventMessage_Event.values.where(
+          (event) => event != protocol.EventMessage_Event.notSet,
         ),
       );
-      expect(protocol.Events().whichEvent(), protocol.Events_Event.notSet);
+      expect(
+        protocol.EventMessage().whichEvent(),
+        protocol.EventMessage_Event.notSet,
+      );
     });
 
     test('empty and unknown payloads remain unset', () {

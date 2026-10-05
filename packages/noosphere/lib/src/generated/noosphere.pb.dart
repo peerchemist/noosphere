@@ -2460,7 +2460,7 @@ class SignaturesProgressEvent extends $pb.GeneratedMessage {
   SignaturesProgress ensureProgress() => $_ensure(1);
 }
 
-enum Events_Event {
+enum EventMessage_Event {
   participantStatus,
   newDkg,
   dkgCommitment,
@@ -2479,9 +2479,8 @@ enum Events_Event {
   notSet
 }
 
-/// Despite the plural legacy name, each message contains exactly one event.
-class Events extends $pb.GeneratedMessage {
-  factory Events({
+class EventMessage extends $pb.GeneratedMessage {
+  factory EventMessage({
     ParticipantStatusEvent? participantStatus,
     NewDkgEvent? newDkg,
     DkgCommitmentEvent? dkgCommitment,
@@ -2520,35 +2519,36 @@ class Events extends $pb.GeneratedMessage {
     return result;
   }
 
-  Events._();
+  EventMessage._();
 
-  factory Events.fromBuffer($core.List<$core.int> data,
+  factory EventMessage.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory Events.fromJson($core.String json,
+  factory EventMessage.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static const $core.Map<$core.int, Events_Event> _Events_EventByTag = {
-    1: Events_Event.participantStatus,
-    2: Events_Event.newDkg,
-    3: Events_Event.dkgCommitment,
-    4: Events_Event.dkgReject,
-    5: Events_Event.dkgRound2Share,
-    6: Events_Event.dkgAck,
-    7: Events_Event.dkgAckRequest,
-    8: Events_Event.signaturesRequest,
-    9: Events_Event.signatureNewRounds,
-    10: Events_Event.signaturesComplete,
-    11: Events_Event.signaturesFailure,
-    12: Events_Event.keepalive,
-    13: Events_Event.secretShare,
-    14: Events_Event.constructedKey,
-    15: Events_Event.signaturesProgress,
-    0: Events_Event.notSet
+  static const $core.Map<$core.int, EventMessage_Event>
+      _EventMessage_EventByTag = {
+    1: EventMessage_Event.participantStatus,
+    2: EventMessage_Event.newDkg,
+    3: EventMessage_Event.dkgCommitment,
+    4: EventMessage_Event.dkgReject,
+    5: EventMessage_Event.dkgRound2Share,
+    6: EventMessage_Event.dkgAck,
+    7: EventMessage_Event.dkgAckRequest,
+    8: EventMessage_Event.signaturesRequest,
+    9: EventMessage_Event.signatureNewRounds,
+    10: EventMessage_Event.signaturesComplete,
+    11: EventMessage_Event.signaturesFailure,
+    12: EventMessage_Event.keepalive,
+    13: EventMessage_Event.secretShare,
+    14: EventMessage_Event.constructedKey,
+    15: EventMessage_Event.signaturesProgress,
+    0: EventMessage_Event.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'Events',
+      _omitMessageNames ? '' : 'EventMessage',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
       createEmptyInstance: create)
     ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
@@ -2589,25 +2589,27 @@ class Events extends $pb.GeneratedMessage {
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  Events clone() => Events()..mergeFromMessage(this);
+  EventMessage clone() => EventMessage()..mergeFromMessage(this);
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  Events copyWith(void Function(Events) updates) =>
-      super.copyWith((message) => updates(message as Events)) as Events;
+  EventMessage copyWith(void Function(EventMessage) updates) =>
+      super.copyWith((message) => updates(message as EventMessage))
+          as EventMessage;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static Events create() => Events._();
+  static EventMessage create() => EventMessage._();
   @$core.override
-  Events createEmptyInstance() => create();
-  static $pb.PbList<Events> createRepeated() => $pb.PbList<Events>();
+  EventMessage createEmptyInstance() => create();
+  static $pb.PbList<EventMessage> createRepeated() =>
+      $pb.PbList<EventMessage>();
   @$core.pragma('dart2js:noInline')
-  static Events getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Events>(create);
-  static Events? _defaultInstance;
+  static EventMessage getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<EventMessage>(create);
+  static EventMessage? _defaultInstance;
 
-  Events_Event whichEvent() => _Events_EventByTag[$_whichOneof(0)]!;
+  EventMessage_Event whichEvent() => _EventMessage_EventByTag[$_whichOneof(0)]!;
   void clearEvent() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -5182,7 +5184,7 @@ class Envelope extends $pb.GeneratedMessage {
     SessionStarted? sessionStarted,
     Ready? ready,
     Logout? logout,
-    Events? event,
+    EventMessage? event,
     ProtocolError? error,
   }) {
     final result = create();
@@ -5235,7 +5237,8 @@ class Envelope extends $pb.GeneratedMessage {
     ..aOM<Ready>(25, _omitFieldNames ? '' : 'ready', subBuilder: Ready.create)
     ..aOM<Logout>(27, _omitFieldNames ? '' : 'logout',
         subBuilder: Logout.create)
-    ..aOM<Events>(28, _omitFieldNames ? '' : 'event', subBuilder: Events.create)
+    ..aOM<EventMessage>(28, _omitFieldNames ? '' : 'event',
+        subBuilder: EventMessage.create)
     ..aOM<ProtocolError>(29, _omitFieldNames ? '' : 'error',
         subBuilder: ProtocolError.create)
     ..hasRequiredFields = false;
@@ -5339,15 +5342,15 @@ class Envelope extends $pb.GeneratedMessage {
   Logout ensureLogout() => $_ensure(6);
 
   @$pb.TagNumber(28)
-  Events get event => $_getN(7);
+  EventMessage get event => $_getN(7);
   @$pb.TagNumber(28)
-  set event(Events value) => $_setField(28, value);
+  set event(EventMessage value) => $_setField(28, value);
   @$pb.TagNumber(28)
   $core.bool hasEvent() => $_has(7);
   @$pb.TagNumber(28)
   void clearEvent() => $_clearField(28);
   @$pb.TagNumber(28)
-  Events ensureEvent() => $_ensure(7);
+  EventMessage ensureEvent() => $_ensure(7);
 
   @$pb.TagNumber(29)
   ProtocolError get error => $_getN(8);

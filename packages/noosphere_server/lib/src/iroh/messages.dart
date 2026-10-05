@@ -11,4 +11,4 @@ extension SessionStartedDomainValues on protocol.SessionStarted {
       SessionID.fromBytes(Uint8List.fromList(sessionId));
 }
 
-protocol.Events encodeEvent(Event event) => event_wire.encodeEvent(event);
+protocol.EventMessage encodeEvent(Event event) => event_wire.encodeEvent(event);

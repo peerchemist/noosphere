@@ -10,14 +10,14 @@ import 'package:noosphere/domain.dart' as domain;
 import 'package:noosphere/src/generated/noosphere.pb.dart' as wire;
 
 /// Converts a domain event to its typed protobuf representation.
-wire.Events encodeEvent(domain.Event event) => switch (event) {
-  domain.ParticipantStatusEvent() => wire.Events(
+wire.EventMessage encodeEvent(domain.Event event) => switch (event) {
+  domain.ParticipantStatusEvent() => wire.EventMessage(
     participantStatus: wire.ParticipantStatusEvent(
       participantId: event.id.toBytes(),
       loggedIn: event.loggedIn,
     ),
   ),
-  domain.NewDkgEvent() => wire.Events(
+  domain.NewDkgEvent() => wire.EventMessage(
     newDkg: wire.NewDkgEvent(
       signedDetails: event.details.toBytes(),
       creatorId: event.creator.toBytes(),
@@ -29,20 +29,20 @@ wire.Events encodeEvent(domain.Event event) => switch (event) {
       ),
     ),
   ),
-  domain.DkgCommitmentEvent() => wire.Events(
+  domain.DkgCommitmentEvent() => wire.EventMessage(
     dkgCommitment: wire.DkgCommitmentEvent(
       name: event.name,
       participantId: event.participant.toBytes(),
       commitment: event.commitment.toBytes(),
     ),
   ),
-  domain.DkgRejectEvent() => wire.Events(
+  domain.DkgRejectEvent() => wire.EventMessage(
     dkgReject: wire.DkgRejectEvent(
       name: event.name,
       participantId: event.participant.toBytes(),
     ),
   ),
-  domain.DkgRound2ShareEvent() => wire.Events(
+  domain.DkgRound2ShareEvent() => wire.EventMessage(
     dkgRound2Share: wire.DkgRound2ShareEvent(
       name: event.name,
       commitmentSetSignature: event.commitmentSetSignature.data,
@@ -50,22 +50,22 @@ wire.Events encodeEvent(domain.Event event) => switch (event) {
       encryptedSecret: event.secret.ciphertext.toBytes(),
     ),
   ),
-  domain.DkgAckEvent() => wire.Events(
+  domain.DkgAckEvent() => wire.EventMessage(
     dkgAck: wire.DkgAckEvent(acks: event.acks.map((ack) => ack.toBytes())),
   ),
-  domain.DkgAckRequestEvent() => wire.Events(
+  domain.DkgAckRequestEvent() => wire.EventMessage(
     dkgAckRequest: wire.DkgAckRequestEvent(
       requests: event.requests.map((request) => request.toBytes()),
     ),
   ),
-  domain.SignaturesRequestEvent() => wire.Events(
+  domain.SignaturesRequestEvent() => wire.EventMessage(
     signaturesRequest: wire.SignaturesRequestEvent(
       signedDetails: event.details.toBytes(),
       creatorId: event.creator.toBytes(),
       progress: _encodeProgress(event.progress),
     ),
   ),
-  domain.SignatureNewRoundsEvent() => wire.Events(
+  domain.SignatureNewRoundsEvent() => wire.EventMessage(
     signatureNewRounds: wire.SignatureNewRoundsEvent(
       requestId: event.reqId.toBytes(),
       rounds: event.rounds.map(
@@ -76,29 +76,31 @@ wire.Events encodeEvent(domain.Event event) => switch (event) {
       ),
     ),
   ),
-  domain.SignaturesCompleteEvent() => wire.Events(
+  domain.SignaturesCompleteEvent() => wire.EventMessage(
     signaturesComplete: wire.SignaturesCompleteEvent(
       requestId: event.reqId.toBytes(),
       signatures: event.signatures.map((signature) => signature.data),
     ),
   ),
-  domain.SignaturesFailureEvent() => wire.Events(
+  domain.SignaturesFailureEvent() => wire.EventMessage(
     signaturesFailure: wire.SignaturesFailureEvent(
       requestId: event.reqId.toBytes(),
     ),
   ),
-  domain.KeepaliveEvent() => wire.Events(keepalive: wire.KeepaliveEvent()),
-  domain.SecretShareEvent() => wire.Events(
+  domain.KeepaliveEvent() => wire.EventMessage(
+    keepalive: wire.KeepaliveEvent(),
+  ),
+  domain.SecretShareEvent() => wire.EventMessage(
     secretShare: wire.SecretShareEvent(
       senderId: event.sender.toBytes(),
       groupKey: event.groupKey.data,
       encryptedKeyShare: event.keyShare.ciphertext.toBytes(),
     ),
   ),
-  domain.ConstructedKeyEvent() => wire.Events(
+  domain.ConstructedKeyEvent() => wire.EventMessage(
     constructedKey: encodeConstructedKeyEvent(event),
   ),
-  domain.SignaturesProgressEvent() => wire.Events(
+  domain.SignaturesProgressEvent() => wire.EventMessage(
     signaturesProgress: wire.SignaturesProgressEvent(
       requestId: event.reqId.toBytes(),
       progress: _encodeProgress(event.progress),
@@ -107,107 +109,111 @@ wire.Events encodeEvent(domain.Event event) => switch (event) {
 };
 
 /// Converts a typed protobuf event to its domain representation.
-domain.Event decodeEvent(wire.Events event) => switch (event.whichEvent()) {
-  wire.Events_Event.participantStatus => domain.ParticipantStatusEvent(
-    id: _identifier(event.participantStatus.participantId),
-    loggedIn: event.participantStatus.loggedIn,
-  ),
-  wire.Events_Event.newDkg => domain.NewDkgEvent(
-    details: domain.Signed<domain.NewDkgDetails>.fromBytes(
-      _bytes(event.newDkg.signedDetails),
-      domain.NewDkgDetails.fromReader,
+domain.Event decodeEvent(wire.EventMessage event) {
+  return switch (event.whichEvent()) {
+    wire.EventMessage_Event.participantStatus => domain.ParticipantStatusEvent(
+      id: _identifier(event.participantStatus.participantId),
+      loggedIn: event.participantStatus.loggedIn,
     ),
-    creator: _identifier(event.newDkg.creatorId),
-    commitments: event.newDkg.commitments
-        .map(
-          (commitment) => (
-            _identifier(commitment.participantId),
-            DkgPublicCommitment.fromBytes(_bytes(commitment.commitment)),
-          ),
-        )
-        .toList(),
-  ),
-  wire.Events_Event.dkgCommitment => domain.DkgCommitmentEvent(
-    name: event.dkgCommitment.name,
-    participant: _identifier(event.dkgCommitment.participantId),
-    commitment: DkgPublicCommitment.fromBytes(
-      _bytes(event.dkgCommitment.commitment),
-    ),
-  ),
-  wire.Events_Event.dkgReject => domain.DkgRejectEvent(
-    name: event.dkgReject.name,
-    participant: _identifier(event.dkgReject.participantId),
-  ),
-  wire.Events_Event.dkgRound2Share => domain.DkgRound2ShareEvent(
-    name: event.dkgRound2Share.name,
-    commitmentSetSignature: cl.SchnorrSignature(
-      _bytes(event.dkgRound2Share.commitmentSetSignature),
-    ),
-    sender: _identifier(event.dkgRound2Share.senderId),
-    secret: domain.DkgEncryptedSecret(
-      ECCiphertext.fromBytes(_bytes(event.dkgRound2Share.encryptedSecret)),
-    ),
-  ),
-  wire.Events_Event.dkgAck => domain.DkgAckEvent(
-    event.dkgAck.acks
-        .map((ack) => domain.SignedDkgAck.fromBytes(_bytes(ack)))
-        .toSet(),
-  ),
-  wire.Events_Event.dkgAckRequest => domain.DkgAckRequestEvent(
-    event.dkgAckRequest.requests
-        .map((request) => domain.DkgAckRequest.fromBytes(_bytes(request)))
-        .toSet(),
-  ),
-  wire.Events_Event.signaturesRequest => _decodeSignaturesRequest(
-    event.signaturesRequest,
-  ),
-  wire.Events_Event.signatureNewRounds => domain.SignatureNewRoundsEvent(
-    reqId: domain.SignaturesRequestId.fromBytes(
-      _bytes(event.signatureNewRounds.requestId),
-    ),
-    rounds: event.signatureNewRounds.rounds
-        .map(
-          (round) => domain.SignatureRoundStart(
-            sigI: round.signatureIndex,
-            commitments: readNoosphere(
-              _bytes(round.commitmentSet),
-              SigningCommitmentSet.fromReader,
+    wire.EventMessage_Event.newDkg => domain.NewDkgEvent(
+      details: domain.Signed<domain.NewDkgDetails>.fromBytes(
+        _bytes(event.newDkg.signedDetails),
+        domain.NewDkgDetails.fromReader,
+      ),
+      creator: _identifier(event.newDkg.creatorId),
+      commitments: event.newDkg.commitments
+          .map(
+            (commitment) => (
+              _identifier(commitment.participantId),
+              DkgPublicCommitment.fromBytes(_bytes(commitment.commitment)),
             ),
-          ),
-        )
-        .toList(),
-  ),
-  wire.Events_Event.signaturesComplete => domain.SignaturesCompleteEvent(
-    reqId: domain.SignaturesRequestId.fromBytes(
-      _bytes(event.signaturesComplete.requestId),
+          )
+          .toList(),
     ),
-    signatures: event.signaturesComplete.signatures
-        .map((signature) => cl.SchnorrSignature(_bytes(signature)))
-        .toList(),
-  ),
-  wire.Events_Event.signaturesFailure => domain.SignaturesFailureEvent(
-    domain.SignaturesRequestId.fromBytes(
-      _bytes(event.signaturesFailure.requestId),
+    wire.EventMessage_Event.dkgCommitment => domain.DkgCommitmentEvent(
+      name: event.dkgCommitment.name,
+      participant: _identifier(event.dkgCommitment.participantId),
+      commitment: DkgPublicCommitment.fromBytes(
+        _bytes(event.dkgCommitment.commitment),
+      ),
     ),
-  ),
-  wire.Events_Event.keepalive => domain.KeepaliveEvent(),
-  wire.Events_Event.secretShare => domain.SecretShareEvent(
-    sender: _identifier(event.secretShare.senderId),
-    groupKey: cl.ECCompressedPublicKey(_bytes(event.secretShare.groupKey)),
-    keyShare: domain.EncryptedKeyShare(
-      ECCiphertext.fromBytes(_bytes(event.secretShare.encryptedKeyShare)),
+    wire.EventMessage_Event.dkgReject => domain.DkgRejectEvent(
+      name: event.dkgReject.name,
+      participant: _identifier(event.dkgReject.participantId),
     ),
-  ),
-  wire.Events_Event.constructedKey => decodeConstructedKeyEvent(
-    event.constructedKey,
-  ),
-  wire.Events_Event.signaturesProgress => _decodeSignaturesProgress(
-    event.signaturesProgress,
-  ),
-  wire.Events_Event.notSet => throw const FormatException(
-    'protobuf event has no event variant',
-  ),
-};
+    wire.EventMessage_Event.dkgRound2Share => domain.DkgRound2ShareEvent(
+      name: event.dkgRound2Share.name,
+      commitmentSetSignature: cl.SchnorrSignature(
+        _bytes(event.dkgRound2Share.commitmentSetSignature),
+      ),
+      sender: _identifier(event.dkgRound2Share.senderId),
+      secret: domain.DkgEncryptedSecret(
+        ECCiphertext.fromBytes(_bytes(event.dkgRound2Share.encryptedSecret)),
+      ),
+    ),
+    wire.EventMessage_Event.dkgAck => domain.DkgAckEvent(
+      event.dkgAck.acks
+          .map((ack) => domain.SignedDkgAck.fromBytes(_bytes(ack)))
+          .toSet(),
+    ),
+    wire.EventMessage_Event.dkgAckRequest => domain.DkgAckRequestEvent(
+      event.dkgAckRequest.requests
+          .map((request) => domain.DkgAckRequest.fromBytes(_bytes(request)))
+          .toSet(),
+    ),
+    wire.EventMessage_Event.signaturesRequest => _decodeSignaturesRequest(
+      event.signaturesRequest,
+    ),
+    wire.EventMessage_Event.signatureNewRounds =>
+      domain.SignatureNewRoundsEvent(
+        reqId: domain.SignaturesRequestId.fromBytes(
+          _bytes(event.signatureNewRounds.requestId),
+        ),
+        rounds: event.signatureNewRounds.rounds
+            .map(
+              (round) => domain.SignatureRoundStart(
+                sigI: round.signatureIndex,
+                commitments: readNoosphere(
+                  _bytes(round.commitmentSet),
+                  SigningCommitmentSet.fromReader,
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    wire.EventMessage_Event.signaturesComplete =>
+      domain.SignaturesCompleteEvent(
+        reqId: domain.SignaturesRequestId.fromBytes(
+          _bytes(event.signaturesComplete.requestId),
+        ),
+        signatures: event.signaturesComplete.signatures
+            .map((signature) => cl.SchnorrSignature(_bytes(signature)))
+            .toList(),
+      ),
+    wire.EventMessage_Event.signaturesFailure => domain.SignaturesFailureEvent(
+      domain.SignaturesRequestId.fromBytes(
+        _bytes(event.signaturesFailure.requestId),
+      ),
+    ),
+    wire.EventMessage_Event.keepalive => domain.KeepaliveEvent(),
+    wire.EventMessage_Event.secretShare => domain.SecretShareEvent(
+      sender: _identifier(event.secretShare.senderId),
+      groupKey: cl.ECCompressedPublicKey(_bytes(event.secretShare.groupKey)),
+      keyShare: domain.EncryptedKeyShare(
+        ECCiphertext.fromBytes(_bytes(event.secretShare.encryptedKeyShare)),
+      ),
+    ),
+    wire.EventMessage_Event.constructedKey => decodeConstructedKeyEvent(
+      event.constructedKey,
+    ),
+    wire.EventMessage_Event.signaturesProgress => _decodeSignaturesProgress(
+      event.signaturesProgress,
+    ),
+    wire.EventMessage_Event.notSet => throw const FormatException(
+      'protobuf event has no event variant',
+    ),
+  };
+}
 
 wire.ConstructedKeyEvent encodeConstructedKeyEvent(
   domain.ConstructedKeyEvent event,

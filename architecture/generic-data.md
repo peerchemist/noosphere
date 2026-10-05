@@ -20,7 +20,7 @@ application action: each is a separate responsibility.
 
 ## Why event byte fields do not make a generic bus
 
-The protobuf `Events` message has a fixed `oneof` containing one typed message
+The protobuf `EventMessage` has a fixed `oneof` containing one typed message
 for every supported Noosphere event. Some fields inside those messages are
 `bytes` because they carry bounded canonical cryptographic/domain values, not
 because they accept arbitrary application payloads. Supplying JSON as a signed
@@ -97,7 +97,7 @@ application JSON string
   -> SignedMessagePayload + MessageSignatureMetadata
   -> requester-signed SignaturesRequestDetails
   -> requestSignatures RPC
-  -> protobuf Events.signatures_request
+  -> protobuf EventMessage.signatures_request
   -> verified client proposal
   -> WorkerSigningRequestEvent.request.proposalBytes
   -> host decodes exact JSON text
@@ -193,7 +193,7 @@ The following is a design outline, not an API already present in this checkout:
 2. Add an authenticated request to `ApiRequestInterface`, protobuf request and
    result variants, and both Iroh RPC adapters. Bind claimed sender and group
    to the authenticated session and enforce recipient membership and limits.
-3. Add a domain event, its protobuf message and a new `Events.event` oneof
+3. Add a domain event, its protobuf message and a new `EventMessage.event` oneof
    field. Update the shared event converter, then verify the payload before
    exposing a client event.
 4. Add a public client event and, if needed, a sanitized worker event/command.

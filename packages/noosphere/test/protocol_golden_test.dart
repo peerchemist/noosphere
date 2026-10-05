@@ -101,10 +101,10 @@ void main() {
   );
 
   test('typed participant event retains fixed protobuf wire bytes', () {
-    // Events oneof field 1 contains ParticipantStatusEvent. Its field 1 is an
+    // EventMessage oneof field 1 contains ParticipantStatusEvent. Its field 1 is an
     // opaque participant ID and field 2 is the login boolean.
     const eventHex = '0a060a02aabb1001';
-    final event = wire.Events(
+    final event = wire.EventMessage(
       participantStatus: wire.ParticipantStatusEvent(
         participantId: [0xaa, 0xbb],
         loggedIn: true,
@@ -112,8 +112,8 @@ void main() {
     );
     expect(cl.bytesToHex(event.writeToBuffer()), eventHex);
 
-    final decoded = wire.Events.fromBuffer(cl.hexToBytes(eventHex));
-    expect(decoded.whichEvent(), wire.Events_Event.participantStatus);
+    final decoded = wire.EventMessage.fromBuffer(cl.hexToBytes(eventHex));
+    expect(decoded.whichEvent(), wire.EventMessage_Event.participantStatus);
     expect(decoded.participantStatus.participantId, [0xaa, 0xbb]);
     expect(decoded.participantStatus.loggedIn, isTrue);
   });

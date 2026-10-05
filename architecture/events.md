@@ -17,7 +17,7 @@ Noosphere has three primary event APIs plus local room-manager streams.
 ```mermaid
 flowchart LR
     S["Server state transition"] --> E["Domain Event"]
-    E --> P["Protobuf Events: typed oneof"]
+    E --> P["Protobuf EventMessage: typed oneof"]
     P --> N["Envelope on Iroh session stream"]
     N --> D["Decoded domain Event"]
     D --> C["Client validates and updates protocol state"]
@@ -107,12 +107,12 @@ There is a typed protobuf conversion followed by one framing step:
 | Layer | Representation | What understands it |
 | --- | --- | --- |
 | Domain value | A concrete `Event`, such as `SignaturesRequestEvent` | Coordinator/client protocol code |
-| Protobuf event | A concrete event message selected by `Events.oneof event` | Generated protobuf code plus the domain/protobuf converters |
+| Protobuf event | A concrete event message selected by `EventMessage.oneof event` | Generated protobuf code plus the domain/protobuf converters |
 | Application frame | Four-byte big-endian envelope length, then protobuf envelope bytes | `encodeEnvelope` / `decodeEnvelopes` |
 | Transport | Bytes on the server-to-client half of the Iroh session QUIC stream | Iroh; it does not interpret the event's fields |
 
-Despite the plural protobuf name `Events`, each wrapper contains **one** event.
-Its `oneof` discriminator selects a generated message such as
+The singular protobuf `EventMessage` contains exactly one event. Its `oneof`
+discriminator selects a generated message such as
 `SignaturesRequestEvent`. The protobuf message exposes the event's fields;
 canonical domain byte encodings remain only for nested cryptographic values
 whose signed representation must not change.
@@ -125,7 +125,7 @@ Iroh session stream bytes
   Envelope:
     wire_version: current Iroh wire version
     event:                           protobuf field 28
-      signatures_request:            Events oneof field 8
+      signatures_request:            EventMessage oneof field 8
         signed_details:               canonical Signed<...> bytes
         creator_id:                   32-byte participant identifier
         progress:
@@ -188,7 +188,7 @@ sequenceDiagram
     S->>S: Validate, create coordination state, await persistence
     S->>T: B's session: SignaturesRequestEvent
     Note over S,T: A receives its RPC result on a separate stream
-    T->>T: Domain Event -> typed Events oneof -> framed Envelope
+    T->>T: Domain Event -> typed EventMessage -> framed Envelope
     T-->>B: B's persistent session stream
     B->>B: Decode; check creator signature, expiry, keys and state
     B-->>H: SignaturesRequestClientEvent (waiting proposal)
@@ -218,7 +218,7 @@ are different protocol stages, not interchangeable meanings of “event”.
 
 ## Wire and domain events
 
-The `Events.event` oneof tags and the shared converter define this mapping.
+The `EventMessage.event` oneof tags and the shared converter define this mapping.
 The tag numbers are protobuf field numbers, not Dart class identifiers.
 
 | Oneof tag | Protobuf field | Domain event | Payload and effect |
@@ -398,7 +398,7 @@ controllers can also buffer before a listener attaches.
 that subscribe later. Subscribe before `startSetup`.
 
 There are no event sequence numbers, durable consumer offsets or generic
-acknowledgments in `Events`. A reconnect creates a new snapshot, not an exact
+acknowledgments in `EventMessage`. A reconnect creates a new snapshot, not an exact
 replay of every missed transient event. Durable completed signatures can be
 redelivered until expiry; the currently unused server completion ACK set does
 not suppress them. Deduplicate application effects by request/application ID.
@@ -412,7 +412,7 @@ event.
 ## Changing or adding a network event
 
 A network event is a protocol change spanning both peers. Define the domain
-variant in `api/events.dart`, add its typed message and a new `Events.event`
+variant in `api/events.dart`, add its typed message and a new `EventMessage.event`
 oneof field in `noosphere.proto`, regenerate bindings, and update the shared
 converter in `event_wire.dart`. Then define when the coordinator emits it, its
 recipients, client-side validation and state effects, and whether it needs a
@@ -435,7 +435,7 @@ For application-defined messages, see [generic data](generic-data.md).
 `RoomManager.snapshots` publishes public room snapshots for its emitted
 transitions, and `rejectedEnrollments` publishes sanitized diagnostics including
 room/invite IDs, a truncated public-key fingerprint, reason and time.
-They are local broadcast streams, not variants of the ROAST `Events.event`
+They are local broadcast streams, not variants of the ROAST `EventMessage.event`
 oneof.
 Do not assume every management method produces a snapshot event: invite issue,
 for example, commits and returns the invite without calling `_emit`.

@@ -117,11 +117,11 @@ void main() {
       SignaturesProgressEvent(reqId: requestId, progress: progress),
     ];
 
-    final variants = <wire.Events_Event>{};
+    final variants = <wire.EventMessage_Event>{};
     for (final original in events) {
       final protobuf = event_wire.encodeEvent(original);
       variants.add(protobuf.whichEvent());
-      final parsed = wire.Events.fromBuffer(protobuf.writeToBuffer());
+      final parsed = wire.EventMessage.fromBuffer(protobuf.writeToBuffer());
       final decoded = event_wire.decodeEvent(parsed);
       expect(decoded.runtimeType, original.runtimeType);
       expect(decoded.toBytes(), original.toBytes());
@@ -129,15 +129,15 @@ void main() {
 
     expect(
       variants,
-      wire.Events_Event.values
-          .where((variant) => variant != wire.Events_Event.notSet)
+      wire.EventMessage_Event.values
+          .where((variant) => variant != wire.EventMessage_Event.notSet)
           .toSet(),
     );
   });
 
   test('rejects an event without a protobuf variant', () {
     expect(
-      () => event_wire.decodeEvent(wire.Events()),
+      () => event_wire.decodeEvent(wire.EventMessage()),
       throwsA(isA<FormatException>()),
     );
   });
@@ -154,7 +154,7 @@ void main() {
         ),
       );
       final protobuf = event_wire.encodeEvent(original);
-      final parsed = wire.Events.fromBuffer(protobuf.writeToBuffer());
+      final parsed = wire.EventMessage.fromBuffer(protobuf.writeToBuffer());
       expect(parsed.signaturesProgress.progress.hasStage(), isTrue);
       final decoded = event_wire.decodeEvent(parsed) as SignaturesProgressEvent;
       expect(decoded.progress.stage, stage);
@@ -162,7 +162,7 @@ void main() {
   });
 
   test('rejects signatures progress without an explicit stage', () {
-    final event = wire.Events(
+    final event = wire.EventMessage(
       signaturesProgress: wire.SignaturesProgressEvent(
         requestId: List<int>.filled(16, 0),
         progress: wire.SignaturesProgress(threshold: 1),

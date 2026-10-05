@@ -96,7 +96,7 @@ process, and closing the app stops an embedded coordinator.
 
 | Boundary | Representation | Purpose |
 | --- | --- | --- |
-| ROAST and enrollment network traffic | Four-byte big-endian length + protobuf `Envelope` | Typed RPCs, session control, and `Events` |
+| ROAST and enrollment network traffic | Four-byte big-endian length + protobuf `Envelope` | Typed RPCs, session control, and `EventMessage` |
 | Domain values inside messages | Canonical `Writable` bytes | Signed proposals, keys, commitments, snapshots, and event bodies |
 | Flutter host/worker communication | Typed Dart envelopes, encoded fields, and selected public DTOs | Local commands, replies, provider calls, and UI events |
 
@@ -106,7 +106,7 @@ the signed transcript encoding is independent of protobuf serialization.
 
 Protobuf describes message structure; it does not encrypt data, persist state,
 or turn arbitrary Dart objects into transferable values. The network
-[`Events`](packages/noosphere/proto/noosphere.proto) message contains a type
+[`EventMessage`](packages/noosphere/proto/noosphere.proto) contains a variant
 discriminator as a `oneof` and a typed protobuf message for every event. Both
 peers must still understand each event's protocol meaning.
 
@@ -118,7 +118,7 @@ results to apply. The same shared model is consumed by the participant state
 machine whether the request API is connected directly or through Iroh.
 
 On Iroh, the server converts each concrete event to its typed protobuf message
-inside the `Events.event` oneof, wraps that in `Envelope.event`, and writes a
+inside the `EventMessage.event` oneof, wraps that in `Envelope.event`, and writes a
 length-prefixed frame on the recipient's persistent session stream. The client
 reverses those steps and validates the reconstructed event before acting on
 it. Canonical domain bytes remain nested only for cryptographic values whose
