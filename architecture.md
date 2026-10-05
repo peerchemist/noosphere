@@ -174,6 +174,7 @@ blind retries.
 | Chapter | Contents |
 | --- | --- |
 | [Packages and source layout](architecture/packages.md) | Dependency direction, exports, source ownership, native dependencies |
+| [Mnemonic and identity workflow](architecture/mnemonic-and-identity.md) | Shared BIP-39 root, domain-separated participant/Iroh identities, DKG distinction and restart behavior |
 | [Data models](architecture/data-models.md) | Identities, groups, DKG, signatures, cryptographic values, storage records |
 | [State and persistence](architecture/state-and-persistence.md) | Host contracts, atomic signing preparation, caches, restart and unknown outcomes |
 | [Protobuf and framing](architecture/protobuf-and-framing.md) | Schema, RPC mapping, canonical payloads, versions and stream decoding |

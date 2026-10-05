@@ -28,6 +28,12 @@ not automatically prove participant identity. A coordinator pin is not a FROST
 verification key. RPC IDs and signing-request IDs are unrelated despite their
 equal byte lengths.
 
+The Iroh secret and participant identity key may be domain-separated children
+of the same application-owned BIP-39 seed. FROST private shares are instead
+created jointly by DKG. See the
+[mnemonic and identity workflow](mnemonic-and-identity.md) for the complete
+derivation, startup and recovery boundaries.
+
 [`GroupConfig`](../packages/noosphere/lib/config/group.dart) contains an `id`
 string and a read-only `Map<Identifier, ECCompressedPublicKey>` sorted by
 identifier. It allows

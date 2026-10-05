@@ -134,7 +134,9 @@ from its 64-byte BIP-39 seed. `deriveIrohSecretKeyFromBip39Seed` uses BIP-85 raw
 entropy at `m/83696968'/128169'/32'/index'`, then gives those bytes to Iroh as
 its Ed25519 seed. The mnemonic, passphrase and BIP-39 seed never cross the
 worker boundary; only the derived endpoint secret is included in startup
-configuration.
+configuration. The full relationship with the participant identity and
+DKG-generated FROST shares is documented in the
+[mnemonic and identity workflow](mnemonic-and-identity.md).
 
 ## Worker proxy ordering and timeout ambiguity
 
