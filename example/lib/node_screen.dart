@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 
+import 'demo_identity.dart';
 import 'diagnostics.dart';
 import 'proposal_widgets.dart';
 import 'session_controller.dart';
@@ -49,9 +50,13 @@ final class _NodeScreenState extends State<NodeScreen> {
         padding: const EdgeInsets.all(24),
         children: [
           Text(
-            'TEST ONLY: deterministic keys and in-memory state.',
+            'TEST ONLY: public test mnemonic, deterministic keys, and '
+            'in-memory state. Never send funds to these keys.',
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
+          const SizedBox(height: 8),
+          const SelectableText('Mnemonic: $demoTestMnemonic'),
+          SelectableText('Iroh path: ${session.irohDerivationPath}'),
           const SizedBox(height: 16),
           DropdownButtonFormField<TestMachine>(
             initialValue: session.machine,
@@ -68,7 +73,8 @@ final class _NodeScreenState extends State<NodeScreen> {
           if (session.machine.runsSigner)
             SelectableText(
               'ROAST participant ${session.machine.participant} public key: '
-              '${session.participantPublicKey.hex}',
+              '${session.participantPublicKey.hex}\n'
+              'Peercoin path: ${session.participantDerivationPath}',
             ),
           if (!session.machine.hostsServer) ...[
             const SizedBox(height: 12),

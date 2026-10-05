@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 import 'package:noosphere_flutter/testing.dart';
 
+import 'demo_identity.dart';
 import 'demo_worker.dart';
 import 'diagnostics.dart';
 
@@ -24,13 +23,10 @@ final class DemoSessionController extends ChangeNotifier
     WidgetsBinding.instance.addObserver(this);
   }
   final Future<DemoWorker> Function() startWorker;
-  SecretKey? _irohSecretKey;
+  final _identity = DemoIdentityMaterial.derive();
   final _serverPersistence = InMemoryServerPersistence();
   final _clientStores = <int, InMemoryClientStorage>{};
-  final _keys = [
-    ECPrivateKey(Uint8List(32)..last = 1),
-    ECPrivateKey(Uint8List(32)..last = 2),
-  ];
+  List<ECPrivateKey> get _keys => _identity.participantKeys;
 
   late final GroupConfig _group = GroupConfig(
     id: 'noosphere-flutter-example',
@@ -60,6 +56,10 @@ final class DemoSessionController extends ChangeNotifier
   ECPrivateKey get _participantKey => _keys[machine.participant - 1];
   ECCompressedPublicKey get participantPublicKey =>
       ECCompressedPublicKey.fromPubkey(_participantKey.pubkey);
+  String get participantDerivationPath =>
+      demoParticipantDerivationPaths[machine.participant - 1];
+  String get irohDerivationPath =>
+      irohIdentityDerivationPath(demoIrohIdentityIndex);
 
   bool _disposed = false;
   bool _cancelStart = false;
@@ -141,8 +141,7 @@ final class DemoSessionController extends ChangeNotifier
           setupId: 'example',
           server: EmbeddedServerOptions(
             serverConfig: ServerConfig(group: _group),
-            getIrohSecretKey: () =>
-                _irohSecretKey ??= _generateIrohSecretKey(),
+            getIrohSecretKey: () => _identity.irohSecretKey,
             serverPersistence: _serverPersistence,
           ),
         );
@@ -395,16 +394,5 @@ final class DemoSessionController extends ChangeNotifier
   Future<void> acceptSignatures(WorkerSigningRequest proposal) => _perform(
     'Accepting signature…',
     (worker) => worker.acceptSignatures('example', proposal),
-  );
-}
-
-SecretKey _generateIrohSecretKey() {
-  final random = Random.secure();
-  return SecretKey.fromBytes(
-    List<int>.generate(
-      SecretKey.lengthBytes,
-      (_) => random.nextInt(256),
-      growable: false,
-    ),
   );
 }

@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 
+import '../example/lib/demo_identity.dart';
 import '../example/lib/demo_worker.dart';
 import '../example/lib/node_screen.dart';
 import '../example/lib/proposal_widgets.dart';
@@ -56,7 +57,7 @@ void main() {
   }
 
   testWidgets(
-    'participant switches isolate storage and capture the right key',
+    'the test mnemonic deterministically supplies participant and Iroh keys',
     (tester) async {
       final workers = <_Worker>[];
       final controller = DemoSessionController(
@@ -76,11 +77,29 @@ void main() {
       expect(clients[0].storage, isNot(same(clients[1].storage)));
       expect(
         cl.bytesToHex((await clients[0].getPrivateKey(KeyPurpose.login)).data),
-        '${'00' * 31}01',
+        'b5ea942912b223b0cb7f6f536e69c29a4a77c7963ea1a1e30621e274942ff0fc',
       );
       expect(
         cl.bytesToHex((await clients[1].getPrivateKey(KeyPurpose.login)).data),
-        '${'00' * 31}02',
+        'e9e175f955f812e432377cf33650393f70db1973c88f3e8031e86bb02d444db8',
+      );
+      expect(workers[1].server, isNull);
+      final firstIrohKey = (await workers[0].server!.getIrohSecretKey())
+          .toBytes();
+      final restartedIrohKey = (await workers[2].server!.getIrohSecretKey())
+          .toBytes();
+      expect(
+        cl.bytesToHex(firstIrohKey),
+        '2514d14689dad166915be9142bd43b118654171a681aaf2955bb191ba2858447',
+      );
+      expect(restartedIrohKey, orderedEquals(firstIrohKey));
+      expect(demoParticipantDerivationPaths, [
+        "m/44'/6'/0'/0/0",
+        "m/44'/6'/0'/0/1",
+      ]);
+      expect(
+        irohIdentityDerivationPath(demoIrohIdentityIndex),
+        "m/83696968'/128169'/32'/0'",
       );
       controller.dispose();
       await controller.shutdown();
@@ -192,6 +211,7 @@ final class _Worker(this.stage) implements DemoWorker {
   final stream = StreamController<NoosphereWorkerEvent>.broadcast(sync: true);
   int starts = 0;
   int closes = 0;
+  EmbeddedServerOptions? server;
   ClientNodeOptions? client;
   @override
   bool isClosed = false;
@@ -205,6 +225,7 @@ final class _Worker(this.stage) implements DemoWorker {
   }) async {
     starts++;
     if (server != null) {
+      this.server = server;
       if (stage == _Stage.server) await gate.future;
       if (!isClosed && stage != _Stage.address) {
         stream.add(WorkerSnapshotEvent(_snapshot()));
