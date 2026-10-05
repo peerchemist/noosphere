@@ -39,8 +39,8 @@ the application-owned endpoint.
 
 | ALPN | Protocol |
 | --- | --- |
-| `noosphere/roast/2` | Direct typed protobuf for login, DKG, signing and events |
-| `noosphere/roast-enrollment/2` | Direct typed protobuf for invite enrollment, when room support is enabled |
+| `noosphere/roast/1` | Direct typed protobuf for login, DKG, signing and events |
+| `noosphere/roast-enrollment/1` | Direct typed protobuf for invite enrollment, when room support is enabled |
 
 The server binds both on the same endpoint when a `RoomManager` is provided.
 It routes each accepted connection according to its negotiated ALPN. Freezing

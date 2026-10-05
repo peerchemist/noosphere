@@ -12,8 +12,8 @@
 
 - Replace the generic protobuf `Envelope`/RPC oneofs with one QUIC bidi stream
   per operation, direct concrete protobuf bodies, FIN-delimited RPC messages,
-  and QUIC-varint length framing only for persistent session events. Bump the
-  ROAST and enrollment ALPNs to `/2`.
+  and QUIC-varint length framing only for persistent session events. This
+  replaces the preview wire format in place without legacy decoding.
 - Add `package:noosphere/wire.dart` as the shared protobuf, framing, event-codec
   and wire-constant entry point used by both transport adapters.
 - Replace the streamed event type/opaque-bytes wrapper with a typed protobuf

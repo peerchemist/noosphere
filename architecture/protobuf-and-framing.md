@@ -16,13 +16,14 @@ Wire compatibility is selected when the QUIC connection is established:
 
 | ALPN | Purpose |
 |---|---|
-| `noosphere/roast/2` | Authentication, session events, and ROAST RPCs |
-| `noosphere/roast-enrollment/2` | Room enrollment RPCs |
+| `noosphere/roast/1` | Authentication, session events, and ROAST RPCs |
+| `noosphere/roast-enrollment/1` | Room enrollment RPCs |
 
-There is no per-message wire-version field. An incompatible peer cannot enter
-the message protocol because it negotiates a different ALPN. The
-`LoginRequest.protocol_version` remains a domain-protocol check and is not a
-transport framing version.
+There is no per-message wire-version field. `/1` names the current coordinated
+preview protocol; the direct-Protobuf format replaces the earlier preview
+layout in place. Noosphere does not decode the former envelope format, so all
+peers must be upgraded together. The `LoginRequest.protocol_version` remains a
+domain-protocol check and is not a transport framing version.
 
 ## One stream per RPC
 

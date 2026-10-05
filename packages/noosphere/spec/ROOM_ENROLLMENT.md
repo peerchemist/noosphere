@@ -50,8 +50,8 @@ memory, have a short TTL, and are removed before proof validation, making every
 nonce one-shot even when validation fails.
 
 The signed transcript retains the `noosphere/roast-enrollment/1` domain
-separator and version 1. Transport uses the `noosphere/roast-enrollment/2`
-ALPN; ordinary protocol traffic uses `noosphere/roast/2`. `IrohServer` binds
+separator and version 1. Transport uses the `noosphere/roast-enrollment/1`
+ALPN; ordinary protocol traffic uses `noosphere/roast/1`. `IrohServer` binds
 both ALPNs to the same
 long-lived endpoint and dispatches on the negotiated ALPN. Freezing does not
 rebind the endpoint or generate a new coordinator identity.

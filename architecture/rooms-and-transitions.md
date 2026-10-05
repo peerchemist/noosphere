@@ -74,7 +74,7 @@ exchange obtains a fresh one; used/revoked invitations remain recorded.
 
 ## Enrollment protobuf RPCs
 
-Enrollment uses `noosphere/roast-enrollment/2` on the coordinator's existing
+Enrollment uses `noosphere/roast-enrollment/1` on the coordinator's existing
 Iroh endpoint. Each operation uses one bidirectional stream. The client sends a
 QUIC-varint operation ID followed directly by the concrete request protobuf and
 FIN. The server sends a status varint followed by the concrete response or
@@ -86,8 +86,8 @@ size limit, and the server reads through EOF before dispatching.
 | `BeginEnrollmentRequest` | Canonical invite bytes and a 33-byte compressed participant public key | `BeginEnrollmentResponse.challenge`: canonical `EnrollmentChallenge` bytes |
 | `RedeemRoomInviteRequest` | Canonical transcript bytes and a 64-byte Schnorr signature | `RedeemRoomInviteResponse.snapshot`: canonical `RoomSnapshot` bytes |
 
-The bidi stream correlates its request and response. The ALPN selects wire
-version 2 and the operation ID selects the expected response type. Enrollment does not
+The bidi stream correlates its request and response. The ALPN selects the wire
+protocol and the operation ID selects the expected response type. Enrollment does not
 require a ROAST session ID: the invite and proof authorize the operation.
 The invite/transcript retain their canonical domain separator and enrollment
 version. Signatures still cover those domain bytes, never a protobuf encoding.
