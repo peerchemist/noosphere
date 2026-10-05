@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:noosphere/noosphere.dart';
+import 'package:noosphere/wire.dart';
 import 'package:noosphere/domain.dart';
 
 import '../server/api_handler.dart';
 import 'connection_context.dart';
-import 'messages.dart';
 
 final class UnknownIrohGroupException implements Exception {
   const UnknownIrohGroupException();

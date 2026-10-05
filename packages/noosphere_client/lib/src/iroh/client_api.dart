@@ -5,9 +5,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:frosty/frosty.dart';
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/event_wire.dart' as event_wire;
-import 'package:noosphere/noosphere.dart' as protocol;
-import 'package:noosphere/noosphere.dart' show decodeEnvelopes, encodeEnvelope;
+import 'package:noosphere/wire.dart' as protocol;
 import 'package:noosphere/api/events.dart';
 import 'package:noosphere/api/request_interface.dart';
 import 'package:noosphere/api/responses/expirable_auth_challenge.dart';
@@ -132,12 +130,12 @@ final class IrohClientApi implements ApiRequestInterface {
     await _write(
       send,
       protocol.Envelope(
-        wireVersion: noosphereIrohWireVersion,
+        wireVersion: protocol.noosphereIrohWireVersion,
         startSession: protocol.StartSession(),
       ),
     );
     final iterator = StreamIterator(
-      decodeEnvelopes(
+      protocol.decodeEnvelopes(
         _readChunks(receive),
         maxEnvelopeLength: config.maxEnvelopeLength,
       ),
@@ -159,7 +157,7 @@ final class IrohClientApi implements ApiRequestInterface {
     await _write(
       send,
       protocol.Envelope(
-        wireVersion: noosphereIrohWireVersion,
+        wireVersion: protocol.noosphereIrohWireVersion,
         ready: protocol.Ready(),
       ),
     );
@@ -178,7 +176,7 @@ final class IrohClientApi implements ApiRequestInterface {
         await _write(
           send,
           protocol.Envelope(
-            wireVersion: noosphereIrohWireVersion,
+            wireVersion: protocol.noosphereIrohWireVersion,
             logout: protocol.Logout(),
           ),
         );
@@ -208,15 +206,18 @@ final class IrohClientApi implements ApiRequestInterface {
         await _write(
           send,
           protocol.Envelope(
-            wireVersion: noosphereIrohWireVersion,
+            wireVersion: protocol.noosphereIrohWireVersion,
             rpcRequest: request,
           ),
         );
         await send.finish();
-        final response = await decodeEnvelopes(
-          _readChunks(receive),
-          maxEnvelopeLength: config.maxEnvelopeLength,
-        ).single.timeout(timeout ?? config.rpcTimeout);
+        final response = await protocol
+            .decodeEnvelopes(
+              _readChunks(receive),
+              maxEnvelopeLength: config.maxEnvelopeLength,
+            )
+            .single
+            .timeout(timeout ?? config.rpcTimeout);
         _validateEnvelope(response);
         if (response.whichPayload() != protocol.Envelope_Payload.rpcResponse) {
           throw IrohProtocolException(
@@ -254,7 +255,7 @@ final class IrohClientApi implements ApiRequestInterface {
         _validateEnvelope(envelope);
         switch (envelope.whichPayload()) {
           case protocol.Envelope_Payload.event:
-            output.add(_decodeEvent(envelope.event));
+            output.add(protocol.decodeEvent(envelope.event));
           case protocol.Envelope_Payload.error:
             throw IrohProtocolException(
               envelope.error.message,
@@ -276,11 +277,14 @@ final class IrohClientApi implements ApiRequestInterface {
 
   Future<void> _write(SendStream send, protocol.Envelope envelope) =>
       send.writeAll(
-        encodeEnvelope(envelope, maxEnvelopeLength: config.maxEnvelopeLength),
+        protocol.encodeEnvelope(
+          envelope,
+          maxEnvelopeLength: config.maxEnvelopeLength,
+        ),
       );
 
   void _validateEnvelope(protocol.Envelope envelope) {
-    if (envelope.wireVersion != noosphereIrohWireVersion) {
+    if (envelope.wireVersion != protocol.noosphereIrohWireVersion) {
       throw IrohProtocolException(
         'unsupported wire version ${envelope.wireVersion}',
       );
@@ -498,7 +502,7 @@ final class IrohClientApi implements ApiRequestInterface {
       protocol.RpcResponse_Response.shareSecretShare,
     );
     return response.shareSecretShare.constructedKeyEvents
-        .map(event_wire.decodeConstructedKeyEvent)
+        .map(protocol.decodeConstructedKeyEvent)
         .toList();
   }
 
@@ -541,9 +545,6 @@ final class _AsyncSemaphore {
     }
   }
 }
-
-Event _decodeEvent(protocol.EventMessage event) =>
-    event_wire.decodeEvent(event);
 
 Stream<List<int>> _readChunks(RecvStream receive) async* {
   while (true) {

@@ -2,12 +2,12 @@
 library;
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 import 'package:noosphere_server/src/iroh/connection_context.dart';
 import 'package:noosphere_server/src/iroh/dispatcher.dart';
-import 'package:noosphere_server/src/iroh/messages.dart';
 import 'package:noosphere_server/src/server/state/state.dart';
 import 'package:test/test.dart';
 
@@ -96,7 +96,9 @@ void main() {
       groupFingerprint: groupConfig.fingerprint,
       connection: context,
     );
-    final replacementId = replacement.domainSessionId;
+    final replacementId = SessionID.fromBytes(
+      Uint8List.fromList(replacement.sessionId),
+    );
 
     expect(api.debugState.clientSessions[existing.id], isNull);
     expect(api.debugState.clientSessions[replacementId], isNotNull);

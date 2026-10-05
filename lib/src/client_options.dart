@@ -1,5 +1,5 @@
 import 'package:iroh_flutter/iroh_flutter.dart';
-import 'package:noosphere/noosphere.dart';
+import 'package:noosphere/wire.dart';
 import 'package:noosphere_client/iroh_transport.dart';
 import 'package:noosphere_client/noosphere_client.dart';
 

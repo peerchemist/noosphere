@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:noosphere/noosphere.dart';
+import 'package:noosphere/wire.dart';
 import 'package:test/test.dart';
 
 void main() {

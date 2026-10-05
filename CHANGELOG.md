@@ -10,6 +10,8 @@
 
 ### Protocol
 
+- Add `package:noosphere/wire.dart` as the shared protobuf, framing, event-codec
+  and wire-constant entry point used by both transport adapters.
 - Replace the streamed event type/opaque-bytes wrapper with a typed protobuf
   `oneof` covering every event. This is a coordinated preview wire break;
   clients and servers must be upgraded together.

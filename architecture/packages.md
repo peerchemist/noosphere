@@ -31,7 +31,7 @@ and transport APIs. It does not export every internal transport helper.
 | Shared-package import | Main exports |
 | --- | --- |
 | `package:noosphere/domain.dart` | Domain events, request contract, responses, signing types, Frosty, rooms and transitions |
-| `package:noosphere/noosphere.dart` | Generated protobuf messages/enums, framing, rooms and transitions |
+| `package:noosphere/wire.dart` | Generated protobuf messages/enums, envelope framing, event conversion and wire constants |
 | `package:noosphere/config.dart` | `GroupConfig` and its binary codec |
 | `package:noosphere/iroh.dart` | ALPN strings, wire version, relay policy |
 | `package:noosphere/common.dart` | Binary helpers, bounded domain reader, expiring maps |
@@ -46,9 +46,9 @@ domain object is not interchangeable with a generated message.
 exports the participant API and shared domain types.
 [`iroh_transport.dart`](../packages/noosphere_client/lib/iroh_transport.dart)
 adds the direct transport API, endpoint wrapper, configuration, reconnecting
-runtime and enrollment transport. `iroh_protocol.dart` is a compatibility
-re-export of the shared wire package. `internals.dart` is implementation access,
-not an application state-management API.
+runtime and enrollment transport. Wire messages and codecs are imported
+directly from `package:noosphere/wire.dart`. `internals.dart` is implementation
+access, not an application state-management API.
 
 [`noosphere_server.dart`](../packages/noosphere_server/lib/noosphere_server.dart)
 exports the handler, server, configuration, rooms and persistence contracts.
@@ -84,8 +84,8 @@ Its session, DKG, signing and key-sharing logic is likewise split into parts.
 `src/iroh/` translates the shared request contract into network activity:
 `server.dart` owns the endpoint; `connection_handler.dart` maps RPCs and drives
 the session stream; `connection_context.dart` tracks authenticated bindings;
-`dispatcher.dart` serializes mutations by group; `messages.dart` maps events
-to protobuf. Enrollment has a separate connection handler.
+`dispatcher.dart` serializes mutations by group and uses the shared event codec.
+Enrollment has a separate connection handler.
 
 `src/room/manager.dart` owns room transitions. `bin/` is a concrete CLI host.
 Its filesystem identity and snapshot stores in `bin/src/` are host adapters,

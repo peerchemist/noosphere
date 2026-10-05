@@ -1,5 +1,5 @@
 import 'package:noosphere/domain.dart' show noosphereRoastProtocolVersion;
-import 'package:noosphere/noosphere.dart' as protocol;
+import 'package:noosphere/wire.dart' as protocol;
 import 'package:protobuf/protobuf.dart';
 import 'package:test/test.dart';
 

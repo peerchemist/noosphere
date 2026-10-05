@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/noosphere.dart' as pb;
+import 'package:noosphere/wire.dart' as pb;
 
 const _alpn = 'noosphere/roast/1';
 const _maxFrameLength = 1024 * 1024;

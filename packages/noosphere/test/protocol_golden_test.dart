@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere/config.dart';
 import 'package:noosphere/domain.dart';
-import 'package:noosphere/noosphere.dart' as wire;
+import 'package:noosphere/wire.dart' as wire;
 import 'package:test/test.dart';
 
 // Fixed, hand-described preview fixtures. Do not regenerate these from the

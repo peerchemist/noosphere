@@ -146,18 +146,17 @@ The implementation path is explicit:
 1. [`ClientSession.sendEvent`](../packages/noosphere_server/lib/src/server/state/client_session.dart)
    enqueues a domain object for that recipient's session.
 2. [`IrohDispatcher.ready`](../packages/noosphere_server/lib/src/iroh/dispatcher.dart)
-   maps the session stream into envelopes.
-   [`encodeEvent`](../packages/noosphere_server/lib/src/iroh/messages.dart)
-   delegates to the shared typed conversion in
-   [`event_wire.dart`](../packages/noosphere/lib/event_wire.dart).
+   maps the session stream into envelopes with the `encodeEvent` conversion
+   exported by [`wire.dart`](../packages/noosphere/lib/wire.dart) and implemented
+   in [`event_wire.dart`](../packages/noosphere/lib/src/event_wire.dart).
 3. [`_handleStartSession`](../packages/noosphere_server/lib/src/iroh/connection_handler.dart)
    writes those envelopes sequentially after `Ready`. Its `_write` method uses
    [`encodeEnvelope`](../packages/noosphere/lib/src/framing.dart), then
    `SendStream.writeAll`. Socket writes do not hold the group's dispatch lane.
 4. [`IrohClientApi`](../packages/noosphere_client/lib/src/iroh/client_api.dart)
    reads native chunks and runs `decodeEnvelopes`. Its `_pumpEvents` checks the
-   wire version and session-envelope kind, and `_decodeEvent` reconstructs the
-   domain value from the selected protobuf `oneof` message.
+   wire version and session-envelope kind, and shared `decodeEvent`
+   reconstructs the domain value from the selected protobuf `oneof` message.
 5. The resulting `Stream<Event>` is attached to `LoginCompleteResponse.events`.
    [`Client._handleEvent`](../packages/noosphere_client/lib/src/client/client_events.dart)
    performs the protocol-specific validation and state work. Selected outcomes
@@ -414,11 +413,11 @@ event.
 A network event is a protocol change spanning both peers. Define the domain
 variant in `api/events.dart`, add its typed message and a new `EventMessage.event`
 oneof field in `noosphere.proto`, regenerate bindings, and update the shared
-converter in `event_wire.dart`. Then define when the coordinator emits it, its
-recipients, client-side validation and state effects, and whether it needs a
-public client or worker projection. A new protobuf message alone does not
-implement any of those behaviors, and existing clients have no generic
-opaque-event handling path.
+converter exported by `wire.dart`. Then define when the coordinator emits it,
+its recipients, client-side validation and state effects, and whether it needs
+a public client or worker projection. A new protobuf message alone does not
+implement any of those behaviors, and existing clients have no generic handling
+path for opaque events.
 
 Decide explicitly whether its information belongs in persistence and reconnect
 snapshots. Test the domain round trip, protobuf/framing round trip, actual

@@ -1,6 +1,6 @@
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere/iroh.dart';
-import 'package:noosphere/noosphere.dart';
+import 'package:noosphere/wire.dart';
 
 import 'server.dart';
 

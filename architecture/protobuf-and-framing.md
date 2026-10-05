@@ -142,9 +142,10 @@ type-enum-plus-opaque-bytes representation. For example,
 `signatures_request` contains `signed_details`, `creator_id` and a typed
 `SignaturesProgress` message.
 
-The server's [event encoder](../packages/noosphere_server/lib/src/iroh/messages.dart)
-and the client decoder use the shared converters in
-[`event_wire.dart`](../packages/noosphere/lib/event_wire.dart). These explicit,
+The server and client adapters import
+[`wire.dart`](../packages/noosphere/lib/wire.dart), which exposes the shared
+converters implemented in
+[`event_wire.dart`](../packages/noosphere/lib/src/event_wire.dart). These explicit,
 exhaustive switches define the supported application protocol. A new oneof
 message requires matching domain conversion and handling; protobuf does not
 supply protocol behavior by itself.

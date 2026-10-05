@@ -3,14 +3,12 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/event_wire.dart' as event_wire;
-import 'package:noosphere/noosphere.dart' hide DkgAckRequest;
+import 'package:noosphere/wire.dart' hide DkgAckRequest;
 import 'package:noosphere/domain.dart';
 
 import '../config/iroh.dart';
 import 'connection_context.dart';
 import 'dispatcher.dart';
-import 'messages.dart';
 
 final class IrohConnectionHandler {
   IrohConnectionHandler({
@@ -510,9 +508,7 @@ final class IrohConnectionHandler {
     return RpcResponse(
       requestId: request.requestId,
       shareSecretShare: ShareSecretShareResponse(
-        constructedKeyEvents: dispatched.value.map(
-          event_wire.encodeConstructedKeyEvent,
-        ),
+        constructedKeyEvents: dispatched.value.map(encodeConstructedKeyEvent),
       ),
     );
   }

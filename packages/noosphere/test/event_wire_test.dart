@@ -2,8 +2,7 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere/domain.dart';
-import 'package:noosphere/event_wire.dart' as event_wire;
-import 'package:noosphere/noosphere.dart' as wire;
+import 'package:noosphere/wire.dart' as wire;
 import 'package:test/test.dart';
 
 void main() {
@@ -119,10 +118,10 @@ void main() {
 
     final variants = <wire.EventMessage_Event>{};
     for (final original in events) {
-      final protobuf = event_wire.encodeEvent(original);
+      final protobuf = wire.encodeEvent(original);
       variants.add(protobuf.whichEvent());
       final parsed = wire.EventMessage.fromBuffer(protobuf.writeToBuffer());
-      final decoded = event_wire.decodeEvent(parsed);
+      final decoded = wire.decodeEvent(parsed);
       expect(decoded.runtimeType, original.runtimeType);
       expect(decoded.toBytes(), original.toBytes());
     }
@@ -137,7 +136,7 @@ void main() {
 
   test('rejects an event without a protobuf variant', () {
     expect(
-      () => event_wire.decodeEvent(wire.EventMessage()),
+      () => wire.decodeEvent(wire.EventMessage()),
       throwsA(isA<FormatException>()),
     );
   });
@@ -153,10 +152,10 @@ void main() {
           stage: stage,
         ),
       );
-      final protobuf = event_wire.encodeEvent(original);
+      final protobuf = wire.encodeEvent(original);
       final parsed = wire.EventMessage.fromBuffer(protobuf.writeToBuffer());
       expect(parsed.signaturesProgress.progress.hasStage(), isTrue);
-      final decoded = event_wire.decodeEvent(parsed) as SignaturesProgressEvent;
+      final decoded = wire.decodeEvent(parsed) as SignaturesProgressEvent;
       expect(decoded.progress.stage, stage);
     }
   });
@@ -168,9 +167,6 @@ void main() {
         progress: wire.SignaturesProgress(threshold: 1),
       ),
     );
-    expect(
-      () => event_wire.decodeEvent(event),
-      throwsA(isA<FormatException>()),
-    );
+    expect(() => wire.decodeEvent(event), throwsA(isA<FormatException>()));
   });
 }

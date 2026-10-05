@@ -1,5 +1,5 @@
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/noosphere.dart' show defaultMaxEnvelopeLength;
+import 'package:noosphere/wire.dart' show defaultMaxEnvelopeLength;
 import 'package:noosphere/iroh.dart';
 
 export 'package:noosphere/iroh.dart';

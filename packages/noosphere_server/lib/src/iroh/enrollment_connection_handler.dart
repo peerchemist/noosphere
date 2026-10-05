@@ -4,8 +4,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere/api/types/signed.dart';
-import 'package:noosphere/iroh.dart';
-import 'package:noosphere/noosphere.dart' as protocol;
+import 'package:noosphere/wire.dart' as protocol;
 import 'package:noosphere/room.dart';
 
 import '../room/manager.dart';
@@ -61,7 +60,7 @@ final class IrohEnrollmentConnectionHandler {
           .single
           .timeout(timeout);
       requestReceived = true;
-      if (envelope.wireVersion != noosphereIrohWireVersion) {
+      if (envelope.wireVersion != protocol.noosphereIrohWireVersion) {
         throw const RoomException(RoomFailureCode.unsupportedVersion);
       }
       if (envelope.whichPayload() != protocol.Envelope_Payload.rpcRequest) {
@@ -75,7 +74,7 @@ final class IrohEnrollmentConnectionHandler {
       await _write(
         send,
         protocol.Envelope(
-          wireVersion: noosphereIrohWireVersion,
+          wireVersion: protocol.noosphereIrohWireVersion,
           rpcResponse: response,
         ),
       );
@@ -85,7 +84,7 @@ final class IrohEnrollmentConnectionHandler {
         await _write(
           send,
           protocol.Envelope(
-            wireVersion: noosphereIrohWireVersion,
+            wireVersion: protocol.noosphereIrohWireVersion,
             rpcResponse: request == null
                 ? null
                 : protocol.RpcResponse(

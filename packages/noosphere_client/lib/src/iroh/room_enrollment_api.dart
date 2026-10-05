@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere/api/types/signed.dart';
-import 'package:noosphere/noosphere.dart' as protocol;
+import 'package:noosphere/wire.dart' as protocol;
 import 'package:noosphere/room.dart';
 
 import '../client/client.dart';
@@ -37,7 +37,7 @@ final class IrohRoomEnrollmentApi implements RoomEnrollmentApi {
       bootstrapAddress: transport.bootstrapAddress,
       pinnedServerId: transport.pinnedServerId,
       relay: transport.relay,
-      alpn: noosphereEnrollmentAlpn,
+      alpn: protocol.noosphereEnrollmentAlpn,
       connectTimeout: transport.connectTimeout,
       authTimeout: transport.authTimeout,
       rpcTimeout: transport.rpcTimeout,
@@ -126,7 +126,7 @@ final class IrohRoomEnrollmentApi implements RoomEnrollmentApi {
     request.requestId = requestId;
     final frame = protocol.encodeEnvelope(
       protocol.Envelope(
-        wireVersion: noosphereIrohWireVersion,
+        wireVersion: protocol.noosphereIrohWireVersion,
         rpcRequest: request,
       ),
       maxEnvelopeLength: config.maxEnvelopeLength,
@@ -146,7 +146,7 @@ final class IrohRoomEnrollmentApi implements RoomEnrollmentApi {
           .single
           .timeout(config.authTimeout);
       responseReceived = true;
-      if (envelope.wireVersion != noosphereIrohWireVersion) {
+      if (envelope.wireVersion != protocol.noosphereIrohWireVersion) {
         throw const FormatException('unsupported Iroh wire version');
       }
       if (envelope.whichPayload() == protocol.Envelope_Payload.error) {

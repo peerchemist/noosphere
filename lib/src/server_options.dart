@@ -1,4 +1,4 @@
-import 'package:noosphere/noosphere.dart';
+import 'package:noosphere/wire.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 
 import 'server_identity_store.dart';

@@ -11,7 +11,8 @@ implementations such as Iroh endpoints remain outside it.
 
 The public libraries separate the semantic and wire layers:
 
-- `noosphere.dart` contains generated protobuf messages and bounded framing.
+- `wire.dart` contains generated protobuf messages, bounded framing, event
+  conversion and wire constants.
 - `domain.dart` contains ROAST requests, responses, events and shared types.
 - `config.dart` and `common.dart` contain shared configuration and utilities.
 - `iroh.dart` contains the shared ALPN and relay-policy value objects, without
