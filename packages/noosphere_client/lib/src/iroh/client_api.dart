@@ -6,6 +6,7 @@ import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:frosty/frosty.dart';
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere/wire.dart' as protocol;
+import 'package:protobuf/protobuf.dart';
 import 'package:noosphere/api/events.dart';
 import 'package:noosphere/api/request_interface.dart';
 import 'package:noosphere/api/responses/expirable_auth_challenge.dart';
@@ -76,7 +77,6 @@ final class IrohClientApi implements ApiRequestInterface {
   late final _AsyncSemaphore _rpcStreams = _AsyncSemaphore(
     config.maxConcurrentStreams,
   );
-  SendStream? _sessionSend;
   bool _closed = false;
   Uint8List? _groupFingerprint;
   Identifier? _participantId;
@@ -90,20 +90,19 @@ final class IrohClientApi implements ApiRequestInterface {
     int protocolVersion = noosphereRoastProtocolVersion,
   }) async {
     final response = await _rpc(
-      protocol.RpcRequest(
-        login: protocol.LoginRequest(
-          groupFingerprint: groupFingerprint,
-          participantId: participantId.toBytes(),
-          protocolVersion: protocolVersion,
-        ),
+      protocol.RoastOperation.login,
+      protocol.LoginRequest(
+        groupFingerprint: groupFingerprint,
+        participantId: participantId.toBytes(),
+        protocolVersion: protocolVersion,
       ),
-      protocol.RpcResponse_Response.login,
+      protocol.LoginResponse.fromBuffer,
       timeout: config.authTimeout,
     );
     _groupFingerprint = Uint8List.fromList(groupFingerprint);
     _participantId = participantId;
     return ExpirableAuthChallengeResponse.fromBytes(
-      Uint8List.fromList(response.login.challenge),
+      Uint8List.fromList(response.challenge),
     );
   }
 
@@ -115,54 +114,38 @@ final class IrohClientApi implements ApiRequestInterface {
       throw StateError('login must be called before respondToChallenge');
     }
     await _rpc(
-      protocol.RpcRequest(
-        respondToChallenge: protocol.SignedAuthChallenge(
-          challenge: signedChallenge.obj.toBytes(),
-          signature: signedChallenge.signature.data,
-        ),
+      protocol.RoastOperation.respondToChallenge,
+      protocol.SignedAuthChallenge(
+        challenge: signedChallenge.obj.toBytes(),
+        signature: signedChallenge.signature.data,
       ),
-      protocol.RpcResponse_Response.respondToChallenge,
+      protocol.RespondToChallengeResponse.fromBuffer,
       timeout: config.authTimeout,
     );
 
     final (send, receive) = await _connection.openBi();
-    _sessionSend = send;
-    await _write(
+    await _writeRequest(
       send,
-      protocol.Envelope(
-        wireVersion: protocol.noosphereIrohWireVersion,
-        startSession: protocol.StartSession(),
-      ),
+      protocol.RoastOperation.startSession.id,
+      protocol.StartSession(),
     );
+    await send.finish();
     final iterator = StreamIterator(
-      protocol.decodeEnvelopes(
+      protocol.decodeLengthPrefixedMessages(
         _readChunks(receive),
-        maxEnvelopeLength: config.maxEnvelopeLength,
+        maxMessageLength: config.maxMessageLength,
       ),
     );
     if (!await iterator.moveNext().timeout(config.authTimeout)) {
       throw const IrohProtocolException('session stream ended before snapshot');
     }
-    final envelope = iterator.current;
-    _validateEnvelope(envelope);
-    if (envelope.whichPayload() != protocol.Envelope_Payload.sessionStarted) {
-      throw IrohProtocolException(
-        'expected SessionStarted, got ${envelope.whichPayload()}',
-      );
-    }
+    final started = protocol.SessionStarted.fromBuffer(iterator.current);
 
     late final StreamController<Event> events;
     events = StreamController<Event>(onCancel: () => logout());
     unawaited(_pumpEvents(iterator, events));
-    await _write(
-      send,
-      protocol.Envelope(
-        wireVersion: protocol.noosphereIrohWireVersion,
-        ready: protocol.Ready(),
-      ),
-    );
     return LoginCompleteResponse.fromBytes(
-      Uint8List.fromList(envelope.sessionStarted.snapshot),
+      Uint8List.fromList(started.snapshot),
       events.stream,
     );
   }
@@ -170,73 +153,40 @@ final class IrohClientApi implements ApiRequestInterface {
   Future<void> logout() async {
     if (_closed) return;
     _closed = true;
-    final send = _sessionSend;
-    if (send != null) {
-      try {
-        await _write(
-          send,
-          protocol.Envelope(
-            wireVersion: protocol.noosphereIrohWireVersion,
-            logout: protocol.Logout(),
-          ),
-        );
-        await send.finish();
-      } on Exception {
-        // Connection loss is equivalent to logout from the caller's view.
-      }
-    }
     _connection.close(reason: 'client logout'.codeUnits);
     await _endpoint.close();
   }
 
   Future<void> close() => logout();
 
-  Future<protocol.RpcResponse> _rpc(
-    protocol.RpcRequest request,
-    protocol.RpcResponse_Response expected, {
+  Future<T> _rpc<T extends GeneratedMessage>(
+    protocol.RoastOperation operation,
+    GeneratedMessage request,
+    T Function(List<int>) decodeResponse, {
     Duration? timeout,
   }) async {
     if (_closed) throw const IrohClientClosedException();
     return _rpcStreams.run(() async {
       if (_closed) throw const IrohClientClosedException();
-      final requestId = coinlib.generateRandomBytes(16);
-      request.requestId = requestId;
       final (send, receive) = await _connection.openBi();
       try {
-        await _write(
-          send,
-          protocol.Envelope(
-            wireVersion: protocol.noosphereIrohWireVersion,
-            rpcRequest: request,
-          ),
-        );
+        await _writeRequest(send, operation.id, request);
         await send.finish();
-        final response = await protocol
-            .decodeEnvelopes(
-              _readChunks(receive),
-              maxEnvelopeLength: config.maxEnvelopeLength,
-            )
-            .single
+        final reader = protocol.QuicStreamReader(_readChunks(receive));
+        final status = await reader.readVarInt().timeout(
+          timeout ?? config.rpcTimeout,
+        );
+        final body = await reader
+            .readToEnd(maxLength: config.maxMessageLength)
             .timeout(timeout ?? config.rpcTimeout);
-        _validateEnvelope(response);
-        if (response.whichPayload() != protocol.Envelope_Payload.rpcResponse) {
-          throw IrohProtocolException(
-            'expected RpcResponse, got ${response.whichPayload()}',
-          );
+        if (status == protocol.RpcResponseStatus.error) {
+          final error = protocol.ProtocolError.fromBuffer(body);
+          throw IrohProtocolException(error.message, error: error);
         }
-        final rpc = response.rpcResponse;
-        if (!_sameBytes(rpc.requestId, requestId)) {
-          throw const IrohProtocolException('response request_id mismatch');
+        if (status != protocol.RpcResponseStatus.success) {
+          throw IrohProtocolException('unknown response status $status');
         }
-        if (rpc.whichResponse() == protocol.RpcResponse_Response.error) {
-          throw IrohProtocolException(rpc.error.message, error: rpc.error);
-        }
-        if (rpc.whichResponse() != expected) {
-          throw IrohProtocolException(
-            'expected $expected, got ${rpc.whichResponse()}',
-          );
-        }
-        return rpc;
+        return decodeResponse(body);
       } on TimeoutException {
         await send.reset(1);
         await receive.stop(1);
@@ -246,26 +196,16 @@ final class IrohClientApi implements ApiRequestInterface {
   }
 
   Future<void> _pumpEvents(
-    StreamIterator<protocol.Envelope> iterator,
+    StreamIterator<Uint8List> iterator,
     StreamController<Event> output,
   ) async {
     try {
       while (await iterator.moveNext()) {
-        final envelope = iterator.current;
-        _validateEnvelope(envelope);
-        switch (envelope.whichPayload()) {
-          case protocol.Envelope_Payload.event:
-            output.add(protocol.decodeEvent(envelope.event));
-          case protocol.Envelope_Payload.error:
-            throw IrohProtocolException(
-              envelope.error.message,
-              error: envelope.error,
-            );
-          default:
-            throw IrohProtocolException(
-              'unexpected session payload ${envelope.whichPayload()}',
-            );
-        }
+        output.add(
+          protocol.decodeEvent(
+            protocol.EventMessage.fromBuffer(iterator.current),
+          ),
+        );
       }
     } catch (error, stackTrace) {
       if (!_closed) output.addError(error, stackTrace);
@@ -275,35 +215,30 @@ final class IrohClientApi implements ApiRequestInterface {
     }
   }
 
-  Future<void> _write(SendStream send, protocol.Envelope envelope) =>
-      send.writeAll(
-        protocol.encodeEnvelope(
-          envelope,
-          maxEnvelopeLength: config.maxEnvelopeLength,
-        ),
-      );
-
-  void _validateEnvelope(protocol.Envelope envelope) {
-    if (envelope.wireVersion != protocol.noosphereIrohWireVersion) {
-      throw IrohProtocolException(
-        'unsupported wire version ${envelope.wireVersion}',
+  Future<void> _writeRequest(
+    SendStream send,
+    int operationId,
+    GeneratedMessage request,
+  ) async {
+    final body = request.writeToBuffer();
+    if (body.length > config.maxMessageLength) {
+      throw protocol.FrameTooLargeException(
+        length: body.length,
+        maximum: config.maxMessageLength,
       );
     }
-    if (envelope.whichPayload() == protocol.Envelope_Payload.error) {
-      throw IrohProtocolException(
-        envelope.error.message,
-        error: envelope.error,
-      );
-    }
+    await send.writeAll(protocol.encodeQuicVarInt(operationId));
+    await send.writeAll(body);
   }
 
   @override
   Future<Expiry> extendSession(SessionID sid) async {
     final response = await _rpc(
-      protocol.RpcRequest(extendSession: protocol.Bytes(data: sid.toBytes())),
-      protocol.RpcResponse_Response.extendSession,
+      protocol.RoastOperation.extendSession,
+      protocol.Bytes(data: sid.toBytes()),
+      protocol.ExtendSessionResponse.fromBuffer,
     );
-    return Expiry.fromBytes(Uint8List.fromList(response.extendSession.expiry));
+    return Expiry.fromBytes(Uint8List.fromList(response.expiry));
   }
 
   @override
@@ -313,24 +248,22 @@ final class IrohClientApi implements ApiRequestInterface {
     required DkgPublicCommitment commitment,
   }) async {
     await _rpc(
-      protocol.RpcRequest(
-        requestNewDkg: protocol.DkgRequest(
-          sid: sid.toBytes(),
-          signedDetails: signedDetails.toBytes(),
-          commitment: commitment.toBytes(),
-        ),
+      protocol.RoastOperation.requestNewDkg,
+      protocol.DkgRequest(
+        sid: sid.toBytes(),
+        signedDetails: signedDetails.toBytes(),
+        commitment: commitment.toBytes(),
       ),
-      protocol.RpcResponse_Response.requestNewDkg,
+      protocol.RequestNewDkgResponse.fromBuffer,
     );
   }
 
   @override
   Future<void> rejectDkg({required SessionID sid, required String name}) async {
     await _rpc(
-      protocol.RpcRequest(
-        rejectDkg: protocol.DkgToReject(sid: sid.toBytes(), name: name),
-      ),
-      protocol.RpcResponse_Response.rejectDkg,
+      protocol.RoastOperation.rejectDkg,
+      protocol.DkgToReject(sid: sid.toBytes(), name: name),
+      protocol.RejectDkgResponse.fromBuffer,
     );
   }
 
@@ -341,14 +274,13 @@ final class IrohClientApi implements ApiRequestInterface {
     required DkgPublicCommitment commitment,
   }) async {
     await _rpc(
-      protocol.RpcRequest(
-        submitDkgCommitment: protocol.DkgCommitment(
-          sid: sid.toBytes(),
-          name: name,
-          commitment: commitment.toBytes(),
-        ),
+      protocol.RoastOperation.submitDkgCommitment,
+      protocol.DkgCommitment(
+        sid: sid.toBytes(),
+        name: name,
+        commitment: commitment.toBytes(),
       ),
-      protocol.RpcResponse_Response.submitDkgCommitment,
+      protocol.SubmitDkgCommitmentResponse.fromBuffer,
     );
   }
 
@@ -360,20 +292,19 @@ final class IrohClientApi implements ApiRequestInterface {
     required Map<Identifier, DkgEncryptedSecret> secrets,
   }) async {
     await _rpc(
-      protocol.RpcRequest(
-        submitDkgRound2: protocol.DkgRound2(
-          sid: sid.toBytes(),
-          name: name,
-          commitmentSetSignature: commitmentSetSignature.data,
-          secrets: secrets.entries.map(
-            (entry) => protocol.DkgSecret(
-              id: entry.key.toBytes(),
-              secret: entry.value.ciphertext.toBytes(),
-            ),
+      protocol.RoastOperation.submitDkgRound2,
+      protocol.DkgRound2(
+        sid: sid.toBytes(),
+        name: name,
+        commitmentSetSignature: commitmentSetSignature.data,
+        secrets: secrets.entries.map(
+          (entry) => protocol.DkgSecret(
+            id: entry.key.toBytes(),
+            secret: entry.value.ciphertext.toBytes(),
           ),
         ),
       ),
-      protocol.RpcResponse_Response.submitDkgRound2,
+      protocol.SubmitDkgRound2Response.fromBuffer,
     );
   }
 
@@ -383,13 +314,12 @@ final class IrohClientApi implements ApiRequestInterface {
     required Set<SignedDkgAck> acks,
   }) async {
     await _rpc(
-      protocol.RpcRequest(
-        sendDkgAcks: protocol.DkgAcks(
-          sid: sid.toBytes(),
-          acks: acks.map((ack) => ack.toBytes()),
-        ),
+      protocol.RoastOperation.sendDkgAcks,
+      protocol.DkgAcks(
+        sid: sid.toBytes(),
+        acks: acks.map((ack) => ack.toBytes()),
       ),
-      protocol.RpcResponse_Response.sendDkgAcks,
+      protocol.SendDkgAcksResponse.fromBuffer,
     );
   }
 
@@ -399,15 +329,14 @@ final class IrohClientApi implements ApiRequestInterface {
     required Set<DkgAckRequest> requests,
   }) async {
     final response = await _rpc(
-      protocol.RpcRequest(
-        requestDkgAcks: protocol.DkgAckRequest(
-          sid: sid.toBytes(),
-          requests: requests.map((request) => request.toBytes()),
-        ),
+      protocol.RoastOperation.requestDkgAcks,
+      protocol.DkgAckRequest(
+        sid: sid.toBytes(),
+        requests: requests.map((request) => request.toBytes()),
       ),
-      protocol.RpcResponse_Response.requestDkgAcks,
+      protocol.RequestDkgAcksResponse.fromBuffer,
     );
-    return response.requestDkgAcks.acks
+    return response.acks
         .map((ack) => SignedDkgAck.fromBytes(Uint8List.fromList(ack)))
         .toSet();
   }
@@ -420,15 +349,14 @@ final class IrohClientApi implements ApiRequestInterface {
     required List<SigningCommitment> commitments,
   }) async {
     await _rpc(
-      protocol.RpcRequest(
-        requestSignatures: protocol.SignaturesRequest(
-          sid: sid.toBytes(),
-          keys: keys.map((key) => key.toBytes()),
-          signedDetails: signedDetails.toBytes(),
-          commitments: commitments.map((commitment) => commitment.toBytes()),
-        ),
+      protocol.RoastOperation.requestSignatures,
+      protocol.SignaturesRequest(
+        sid: sid.toBytes(),
+        keys: keys.map((key) => key.toBytes()),
+        signedDetails: signedDetails.toBytes(),
+        commitments: commitments.map((commitment) => commitment.toBytes()),
       ),
-      protocol.RpcResponse_Response.requestSignatures,
+      protocol.RequestSignaturesResponse.fromBuffer,
     );
   }
 
@@ -438,13 +366,9 @@ final class IrohClientApi implements ApiRequestInterface {
     required SignaturesRequestId reqId,
   }) async {
     await _rpc(
-      protocol.RpcRequest(
-        rejectSignaturesRequest: protocol.SignaturesRejection(
-          sid: sid.toBytes(),
-          reqId: reqId.toBytes(),
-        ),
-      ),
-      protocol.RpcResponse_Response.rejectSignaturesRequest,
+      protocol.RoastOperation.rejectSignaturesRequest,
+      protocol.SignaturesRejection(sid: sid.toBytes(), reqId: reqId.toBytes()),
+      protocol.RejectSignaturesRequestResponse.fromBuffer,
     );
   }
 
@@ -455,16 +379,15 @@ final class IrohClientApi implements ApiRequestInterface {
     required List<SignatureReply> replies,
   }) async {
     final response = await _rpc(
-      protocol.RpcRequest(
-        submitSignatureReplies: protocol.SignaturesReplies(
-          sid: sid.toBytes(),
-          reqId: reqId.toBytes(),
-          replies: replies.map((reply) => reply.toBytes()),
-        ),
+      protocol.RoastOperation.submitSignatureReplies,
+      protocol.SignaturesReplies(
+        sid: sid.toBytes(),
+        reqId: reqId.toBytes(),
+        replies: replies.map((reply) => reply.toBytes()),
       ),
-      protocol.RpcResponse_Response.submitSignatureReplies,
+      protocol.SubmitSignatureRepliesResponse.fromBuffer,
     );
-    final outcome = response.submitSignatureReplies;
+    final outcome = response;
     return switch (outcome.whichOutcome()) {
       protocol.SubmitSignatureRepliesResponse_Outcome.noUpdate => null,
       protocol.SubmitSignatureRepliesResponse_Outcome.newRound =>
@@ -487,21 +410,20 @@ final class IrohClientApi implements ApiRequestInterface {
     required Map<Identifier, EncryptedKeyShare> encryptedSecrets,
   }) async {
     final response = await _rpc(
-      protocol.RpcRequest(
-        shareSecretShare: protocol.SecretShare(
-          sid: sid.toBytes(),
-          groupKey: groupKey.data,
-          secrets: encryptedSecrets.entries.map(
-            (entry) => protocol.EncryptedSecret(
-              id: entry.key.toBytes(),
-              share: entry.value.ciphertext.toBytes(),
-            ),
+      protocol.RoastOperation.shareSecretShare,
+      protocol.SecretShare(
+        sid: sid.toBytes(),
+        groupKey: groupKey.data,
+        secrets: encryptedSecrets.entries.map(
+          (entry) => protocol.EncryptedSecret(
+            id: entry.key.toBytes(),
+            share: entry.value.ciphertext.toBytes(),
           ),
         ),
       ),
-      protocol.RpcResponse_Response.shareSecretShare,
+      protocol.ShareSecretShareResponse.fromBuffer,
     );
-    return response.shareSecretShare.constructedKeyEvents
+    return response.constructedKeyEvents
         .map(protocol.decodeConstructedKeyEvent)
         .toList();
   }
@@ -512,13 +434,12 @@ final class IrohClientApi implements ApiRequestInterface {
     required Signed<KeyWasConstructed> constructedKey,
   }) async {
     await _rpc(
-      protocol.RpcRequest(
-        ackKeyConstructed: protocol.ConstructedKey(
-          sid: sid.toBytes(),
-          constructedKey: constructedKey.toBytes(),
-        ),
+      protocol.RoastOperation.ackKeyConstructed,
+      protocol.ConstructedKey(
+        sid: sid.toBytes(),
+        constructedKey: constructedKey.toBytes(),
       ),
-      protocol.RpcResponse_Response.ackKeyConstructed,
+      protocol.AckKeyConstructedResponse.fromBuffer,
     );
   }
 }
@@ -552,12 +473,4 @@ Stream<List<int>> _readChunks(RecvStream receive) async* {
     if (chunk == null) return;
     if (chunk.isNotEmpty) yield chunk;
   }
-}
-
-bool _sameBytes(List<int> first, List<int> second) {
-  if (first.length != second.length) return false;
-  for (var i = 0; i < first.length; i++) {
-    if (first[i] != second[i]) return false;
-  }
-  return true;
 }

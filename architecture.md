@@ -82,8 +82,9 @@ process, and closing the app stops an embedded coordinator.
    secp256k1 identity key. The connection becomes bound to a group, participant,
    and logical session.
 4. A persistent bidirectional stream performs
-   `StartSession -> SessionStarted(snapshot) -> Ready`. It subsequently carries
-   coordinator events. Ordinary RPCs use separate bidirectional streams.
+   `StartSession -> FIN`, followed by `SessionStarted(snapshot)` and event
+   records in the response direction. Ordinary RPCs use separate bidirectional
+   streams.
 5. A participant requests DKG or signatures. Other participants receive signed
    proposal events and approve or reject through their applications.
 6. Protocol implementations advance DKG or ROAST, awaiting required durable
@@ -96,11 +97,11 @@ process, and closing the app stops an embedded coordinator.
 
 | Boundary | Representation | Purpose |
 | --- | --- | --- |
-| ROAST and enrollment network traffic | Four-byte big-endian length + protobuf `Envelope` | Typed RPCs, session control, and `EventMessage` |
+| ROAST and enrollment network traffic | Operation-prefixed QUIC streams with concrete protobuf bodies; varint lengths only for persistent records | Typed RPCs and `EventMessage` |
 | Domain values inside messages | Canonical `Writable` bytes | Signed proposals, keys, commitments, snapshots, and event bodies |
 | Flutter host/worker communication | Typed Dart envelopes, encoded fields, and selected public DTOs | Local commands, replies, provider calls, and UI events |
 
-Room enrollment uses the same protobuf envelope and framing on its dedicated
+Room enrollment uses the same direct-protobuf stream rules on its dedicated
 Iroh ALPN. Its typed begin/redeem RPCs carry canonical invite and proof bytes;
 the signed transcript encoding is independent of protobuf serialization.
 
@@ -118,8 +119,8 @@ results to apply. The same shared model is consumed by the participant state
 machine whether the request API is connected directly or through Iroh.
 
 On Iroh, the server converts each concrete event to its typed protobuf message
-inside the `EventMessage.event` oneof, wraps that in `Envelope.event`, and writes a
-length-prefixed frame on the recipient's persistent session stream. The client
+inside the `EventMessage.event` oneof and writes a QUIC-varint length-prefixed
+record on the recipient's persistent session stream. The client
 reverses those steps and validates the reconstructed event before acting on
 it. Canonical domain bytes remain nested only for cryptographic values whose
 signed representation must remain stable.

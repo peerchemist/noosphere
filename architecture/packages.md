@@ -31,9 +31,9 @@ and transport APIs. It does not export every internal transport helper.
 | Shared-package import | Main exports |
 | --- | --- |
 | `package:noosphere/domain.dart` | Domain events, request contract, responses, signing types, Frosty, rooms and transitions |
-| `package:noosphere/wire.dart` | Generated protobuf messages/enums, envelope framing, event conversion and wire constants |
+| `package:noosphere/wire.dart` | Generated protobuf messages/enums, operation IDs, QUIC-varint framing, event conversion and wire constants |
 | `package:noosphere/config.dart` | `GroupConfig` and its binary codec |
-| `package:noosphere/iroh.dart` | ALPN strings, wire version, relay policy |
+| `package:noosphere/iroh.dart` | Versioned ALPN strings and relay policy |
 | `package:noosphere/common.dart` | Binary helpers, bounded domain reader, expiring maps |
 | `package:noosphere/room.dart` | Invites, enrollment contract/transcript and snapshots |
 | `package:noosphere/group_transition.dart` | Transition proposal, policy, key plan and approval |

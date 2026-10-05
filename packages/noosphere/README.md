@@ -11,8 +11,9 @@ implementations such as Iroh endpoints remain outside it.
 
 The public libraries separate the semantic and wire layers:
 
-- `wire.dart` contains generated protobuf messages, bounded framing, event
-  conversion and wire constants.
+- `wire.dart` contains generated protobuf messages, stable operation IDs,
+  QUIC-varint helpers for persistent records, event conversion and wire
+  constants. Single-message RPC bodies are delimited by QUIC FIN.
 - `domain.dart` contains ROAST requests, responses, events and shared types.
 - `config.dart` and `common.dart` contain shared configuration and utilities.
 - `iroh.dart` contains the shared ALPN and relay-policy value objects, without

@@ -1,5 +1,5 @@
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/wire.dart' show defaultMaxEnvelopeLength;
+import 'package:noosphere/wire.dart' show defaultMaxMessageLength;
 import 'package:noosphere/iroh.dart';
 
 export 'package:noosphere/iroh.dart';
@@ -27,7 +27,7 @@ final class IrohClientTransportConfig {
     this.connectTimeout = defaultConnectTimeout,
     this.authTimeout = defaultAuthTimeout,
     this.rpcTimeout = defaultRpcTimeout,
-    this.maxEnvelopeLength = defaultMaxEnvelopeLength,
+    this.maxMessageLength = defaultMaxMessageLength,
     this.maxConcurrentStreams = defaultMaxConcurrentStreams,
     this.nativeLibraryPath,
   }) : relay = relay ?? IrohRelayConfig.defaultNetwork() {
@@ -41,8 +41,8 @@ final class IrohClientTransportConfig {
     if (rpcTimeout <= Duration.zero) {
       throw ArgumentError.value(rpcTimeout, 'rpcTimeout');
     }
-    if (maxEnvelopeLength < 1 || maxEnvelopeLength > 0xffffffff) {
-      throw RangeError.range(maxEnvelopeLength, 1, 0xffffffff);
+    if (maxMessageLength < 1 || maxMessageLength > 0xffffffff) {
+      throw RangeError.range(maxMessageLength, 1, 0xffffffff);
     }
     if (maxConcurrentStreams < 1) {
       throw RangeError.range(maxConcurrentStreams, 1, null);
@@ -58,7 +58,7 @@ final class IrohClientTransportConfig {
   final Duration connectTimeout;
   final Duration authTimeout;
   final Duration rpcTimeout;
-  final int maxEnvelopeLength;
+  final int maxMessageLength;
   final int maxConcurrentStreams;
   final String? nativeLibraryPath;
 }

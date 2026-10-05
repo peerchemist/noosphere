@@ -6,6 +6,7 @@ import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere/api/types/signed.dart';
 import 'package:noosphere/wire.dart' as protocol;
 import 'package:noosphere/room.dart';
+import 'package:protobuf/protobuf.dart';
 
 import '../client/client.dart';
 import '../client/room_enrollment.dart';
@@ -41,7 +42,7 @@ final class IrohRoomEnrollmentApi implements RoomEnrollmentApi {
       connectTimeout: transport.connectTimeout,
       authTimeout: transport.authTimeout,
       rpcTimeout: transport.rpcTimeout,
-      maxEnvelopeLength: transport.maxEnvelopeLength,
+      maxMessageLength: transport.maxMessageLength,
       maxConcurrentStreams: transport.maxConcurrentStreams,
       nativeLibraryPath: transport.nativeLibraryPath,
     );
@@ -86,16 +87,15 @@ final class IrohRoomEnrollmentApi implements RoomEnrollmentApi {
     required cl.ECCompressedPublicKey participantPublicKey,
   }) async {
     final response = await _rpc(
-      protocol.RpcRequest(
-        beginEnrollment: protocol.BeginEnrollmentRequest(
-          invite: invite.toBytes(),
-          participantPublicKey: participantPublicKey.data,
-        ),
+      protocol.EnrollmentOperation.beginEnrollment,
+      protocol.BeginEnrollmentRequest(
+        invite: invite.toBytes(),
+        participantPublicKey: participantPublicKey.data,
       ),
-      protocol.RpcResponse_Response.beginEnrollment,
+      protocol.BeginEnrollmentResponse.fromBuffer,
     );
     return EnrollmentChallenge.fromBytes(
-      Uint8List.fromList(response.beginEnrollment.challenge),
+      Uint8List.fromList(response.challenge),
     );
   }
 
@@ -104,68 +104,52 @@ final class IrohRoomEnrollmentApi implements RoomEnrollmentApi {
     Signed<EnrollmentTranscript> proof,
   ) async {
     final response = await _rpc(
-      protocol.RpcRequest(
-        redeemRoomInvite: protocol.RedeemRoomInviteRequest(
-          transcript: proof.obj.toBytes(),
-          signature: proof.signature.data,
-        ),
+      protocol.EnrollmentOperation.redeemRoomInvite,
+      protocol.RedeemRoomInviteRequest(
+        transcript: proof.obj.toBytes(),
+        signature: proof.signature.data,
       ),
-      protocol.RpcResponse_Response.redeemRoomInvite,
+      protocol.RedeemRoomInviteResponse.fromBuffer,
     );
-    return RoomSnapshot.fromBytes(
-      Uint8List.fromList(response.redeemRoomInvite.snapshot),
-    );
+    return RoomSnapshot.fromBytes(Uint8List.fromList(response.snapshot));
   }
 
-  Future<protocol.RpcResponse> _rpc(
-    protocol.RpcRequest request,
-    protocol.RpcResponse_Response expected,
+  Future<T> _rpc<T extends GeneratedMessage>(
+    protocol.EnrollmentOperation operation,
+    GeneratedMessage request,
+    T Function(List<int>) decodeResponse,
   ) async {
     if (_closed) throw StateError('enrollment client is closed');
-    final requestId = cl.generateRandomBytes(16);
-    request.requestId = requestId;
-    final frame = protocol.encodeEnvelope(
-      protocol.Envelope(
-        wireVersion: protocol.noosphereIrohWireVersion,
-        rpcRequest: request,
-      ),
-      maxEnvelopeLength: config.maxEnvelopeLength,
-    );
+    final body = request.writeToBuffer();
+    if (body.length > config.maxMessageLength) {
+      throw protocol.FrameTooLargeException(
+        length: body.length,
+        maximum: config.maxMessageLength,
+      );
+    }
     final (send, receive) = await _connection.openBi();
     var requestFinished = false;
     var responseReceived = false;
     try {
-      await send.writeAll(frame).timeout(config.authTimeout);
+      await send
+          .writeAll(protocol.encodeQuicVarInt(operation.id))
+          .timeout(config.authTimeout);
+      await send.writeAll(body).timeout(config.authTimeout);
       await send.finish().timeout(config.authTimeout);
       requestFinished = true;
-      final envelope = await protocol
-          .decodeEnvelopes(
-            _readChunks(receive),
-            maxEnvelopeLength: config.maxEnvelopeLength,
-          )
-          .single
+      final reader = protocol.QuicStreamReader(_readChunks(receive));
+      final status = await reader.readVarInt().timeout(config.authTimeout);
+      final responseBody = await reader
+          .readToEnd(maxLength: config.maxMessageLength)
           .timeout(config.authTimeout);
       responseReceived = true;
-      if (envelope.wireVersion != protocol.noosphereIrohWireVersion) {
-        throw const FormatException('unsupported Iroh wire version');
+      if (status == protocol.RpcResponseStatus.error) {
+        _throwProtocolError(protocol.ProtocolError.fromBuffer(responseBody));
       }
-      if (envelope.whichPayload() == protocol.Envelope_Payload.error) {
-        _throwProtocolError(envelope.error);
+      if (status != protocol.RpcResponseStatus.success) {
+        throw FormatException('unknown response status $status');
       }
-      if (envelope.whichPayload() != protocol.Envelope_Payload.rpcResponse) {
-        throw const FormatException('expected enrollment RpcResponse');
-      }
-      final response = envelope.rpcResponse;
-      if (!cl.bytesEqual(Uint8List.fromList(response.requestId), requestId)) {
-        throw const FormatException('response request_id mismatch');
-      }
-      if (response.whichResponse() == protocol.RpcResponse_Response.error) {
-        _throwProtocolError(response.error);
-      }
-      if (response.whichResponse() != expected) {
-        throw const FormatException('invalid enrollment response');
-      }
-      return response;
+      return decodeResponse(responseBody);
     } on Object {
       if (!requestFinished) {
         try {

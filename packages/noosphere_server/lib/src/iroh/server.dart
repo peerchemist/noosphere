@@ -212,7 +212,7 @@ final class IrohServer {
           connection: connection,
           rooms: rooms!,
           timeout: config.authTimeout,
-          maxMessageLength: config.maxEnvelopeLength,
+          maxMessageLength: config.maxMessageLength,
           maxStreams: config.maxStreamsPerConnection,
         ).run().whenComplete(() => _connections.remove(handling));
       } else if (alpn == config.alpn) {

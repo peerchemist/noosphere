@@ -1,5 +1,5 @@
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere/wire.dart' show defaultMaxEnvelopeLength;
+import 'package:noosphere/wire.dart' show defaultMaxMessageLength;
 import 'package:noosphere_server/noosphere_server.dart';
 import 'package:yaml/yaml.dart';
 
@@ -86,9 +86,9 @@ IrohConfig _readIroh(_MapReader reader) {
     shutdownTimeout:
         reader['timeouts-ms']['shutdown'].duration() ??
         IrohConfig.defaultShutdownTimeout,
-    maxEnvelopeLength:
-        reader['limits']['max-envelope-bytes'].value<int>() ??
-        defaultMaxEnvelopeLength,
+    maxMessageLength:
+        reader['limits']['max-message-bytes'].value<int>() ??
+        defaultMaxMessageLength,
     maxConnections:
         reader['limits']['max-connections'].value<int>() ??
         IrohConfig.defaultMaxConnections,

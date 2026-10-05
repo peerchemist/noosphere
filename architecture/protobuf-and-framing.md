@@ -1,278 +1,153 @@
-# Protobuf and framing
+# Protobuf and QUIC framing
 
-[Architecture overview](../architecture.md)
+Noosphere uses Protobuf only for typed serialization. QUIC streams provide
+isolation, correlation, and, for single-message directions, the message
+boundary. There is no generic `Envelope`, `RpcRequest`, or `RpcResponse`
+protobuf.
 
-The canonical network schema is
-[`noosphere.proto`](../packages/noosphere/proto/noosphere.proto). It uses proto3
-messages and enums. There is no gRPC service definition: current RPCs are
-implemented directly over Iroh bidirectional QUIC streams.
+The canonical schema is
+[`noosphere.proto`](../packages/noosphere/proto/noosphere.proto). Generated
+Dart classes and the transport helpers are exported by
+`package:noosphere/wire.dart`.
 
-## Why this layered design
+## Version negotiation
 
-Noosphere deliberately separates its domain model, protobuf transport model
-and stream framing:
+Wire compatibility is selected when the QUIC connection is established:
 
-| Layer | Responsibility | Design reason |
-| --- | --- | --- |
-| Domain objects | Protocol meaning, invariants and cryptographic operations | Server and client state machines work with types such as `Event`, `Identifier` and `Signed<T>`, without depending on generated transport classes |
-| Protobuf messages | Typed network representation, variant discrimination and stable field numbers | `oneof` fields make RPC and event variants explicit and provide generated cross-language codecs |
-| Canonical domain bytes | Exact representation of signed and Frosty-owned nested values | Signatures and hashes must bind a specified stable encoding rather than incidental protobuf serialization order |
-| Length-prefixed frames | Boundaries between protobuf envelopes on a session stream | Iroh uses reliable QUIC streams, which deliver an ordered byte stream but do not preserve individual write or read boundaries |
+| ALPN | Purpose |
+|---|---|
+| `noosphere/roast/2` | Authentication, session events, and ROAST RPCs |
+| `noosphere/roast-enrollment/2` | Room enrollment RPCs |
 
-The domain/protobuf conversion is intentional. Using generated protobuf
-classes directly as the domain model would couple protocol state and validation
-to transport-generated types. Replacing protobuf with one custom binary format
-would remove that conversion, but would also give up the explicit schema,
-generated codecs and protobuf evolution rules. Encoding every nested
-cryptographic value as protobuf would require a separate canonical signing
-specification; raw protobuf serialization is not used as a signature preimage.
+There is no per-message wire-version field. An incompatible peer cannot enter
+the message protocol because it negotiates a different ALPN. The
+`LoginRequest.protocol_version` remains a domain-protocol check and is not a
+transport framing version.
 
-This separation costs conversion code, allocations and round-trip tests. That
-tradeoff is accepted for clarity and interoperability. Performance-sensitive
-changes should be driven by profiling; protobuf overhead is not assumed to be
-significant compared with network and cryptographic work.
+## One stream per RPC
 
-Framing is required independently of protobuf. A stream read can contain part
-of one envelope, exactly one envelope, or several envelopes, regardless of how
-the sender grouped its writes. The four-byte length prefix lets the receiver
-buffer exactly one complete protobuf body, reject an oversized advertised body
-before allocating it, and then pass that body to the protobuf decoder. This
-would still be necessary with a different non-self-framing message codec.
-
-## Envelope structure
-
-Every ROAST or enrollment frame contains one `Envelope`:
-
-```proto
-message Envelope {
-  uint32 wire_version = 1;
-  oneof payload {
-    RpcRequest rpc_request = 10;
-    RpcResponse rpc_response = 11;
-    StartSession start_session = 20;
-    SessionStarted session_started = 21;
-    Ready ready = 25;
-    Logout logout = 27;
-    EventMessage event = 28;
-    ProtocolError error = 29;
-  }
-}
-```
-
-The `oneof` describes which body is present. The generated Dart API exposes
-`whichPayload()`, `whichRequest()`, and `whichResponse()` discriminators.
-An envelope without a recognized payload is invalid for the framing API.
-
-`RpcRequest` contains a nonempty caller-generated `request_id` plus one of 16
-operations. `RpcResponse` echoes that ID and contains a typed result or error.
-The client verifies the ID and expected result variant before decoding data.
-
-## Request mapping
-
-| Domain operation | Protobuf request body | Result content |
-| --- | --- | --- |
-| `login` | `LoginRequest` | Serialized expiring challenge |
-| `respondToChallenge` | `SignedAuthChallenge` | Authentication success; snapshot follows on the session stream |
-| `extendSession` | `Bytes` containing session ID | Serialized `Expiry` |
-| `requestNewDkg` | `DkgRequest` | Explicit empty success |
-| `rejectDkg` | `DkgToReject` | Explicit empty success |
-| `submitDkgCommitment` | `DkgCommitment` | Explicit empty success |
-| `submitDkgRound2` | `DkgRound2` | Explicit empty success |
-| `sendDkgAcks` | `DkgAcks` | Explicit empty success |
-| `requestDkgAcks` | `DkgAckRequest` | Repeated serialized signed ACKs |
-| `requestSignatures` | `SignaturesRequest` | Explicit empty success |
-| `rejectSignaturesRequest` | `SignaturesRejection` | Explicit empty success |
-| `submitSignatureReplies` | `SignaturesReplies` | `oneof`: no update, new round, completed signatures |
-| `shareSecretShare` | `SecretShare` | Already-known constructed-key events |
-| `ackKeyConstructed` | `ConstructedKey` | Explicit empty success |
-| `beginEnrollment` | `BeginEnrollmentRequest` | Serialized `EnrollmentChallenge` |
-| `redeemRoomInvite` | `RedeemRoomInviteRequest` | Serialized `RoomSnapshot` |
-
-The concrete mappings live in the
-[client adapter](../packages/noosphere_client/lib/src/iroh/client_api.dart) and
-[server connection handler](../packages/noosphere_server/lib/src/iroh/connection_handler.dart).
-The enrollment operations use the
-[enrollment client](../packages/noosphere_client/lib/src/iroh/room_enrollment_api.dart)
-and [enrollment handler](../packages/noosphere_server/lib/src/iroh/enrollment_connection_handler.dart)
-on the dedicated enrollment ALPN, before a ROAST session exists.
-The envelope RPC uses `SubmitSignatureRepliesResponse` with typed outcomes.
-Unused legacy response wrappers have been removed from the schema.
-
-## Canonical domain bytes inside protobuf
-
-Examples of `bytes` fields include signed request details, Frosty aggregate
-key information, commitments, encrypted shares and snapshots. Their contents
-are the existing `Writable.toBytes()` encodings:
+Every RPC owns one QUIC bidirectional stream. Its request direction is:
 
 ```text
-SignaturesRequestDetails
-  -> Signed<SignaturesRequestDetails>.toBytes()
-  -> SignaturesRequest.signed_details
-  -> RpcRequest.request_signatures
-  -> Envelope.rpc_request
-  -> protobuf bytes
-  -> length-prefixed QUIC stream data
+[operation: QUIC varint][concrete request protobuf bytes] FIN
 ```
 
-The receiving adapter unwraps protobuf, then invokes the relevant domain
-decoder. Structural protobuf validity therefore does not imply valid domain
-data, a valid cryptographic signature, an authorized session, or a permissible
-state transition. Those are separate checks.
+The operation ID is defined in `RoastOperation` or `EnrollmentOperation` and
+maps directly to one generated request type and one generated response type.
+For example, `RoastOperation.login` maps `LoginRequest` to `LoginResponse`.
+IDs are stable integers rather than protobuf enum ordinals.
 
-Cryptographic signatures bind canonical domain encodings, not the incidental
-serialization order of protobuf fields. This lets the transport wrap existing
-cryptographic values without redefining their signed representation.
+| ROAST ID | Request | Success response |
+|---:|---|---|
+| 1 | `LoginRequest` | `LoginResponse` |
+| 2 | `SignedAuthChallenge` | `RespondToChallengeResponse` |
+| 3 | `Bytes` (session ID) | `ExtendSessionResponse` |
+| 4 | `DkgRequest` | `RequestNewDkgResponse` |
+| 5 | `DkgToReject` | `RejectDkgResponse` |
+| 6 | `DkgCommitment` | `SubmitDkgCommitmentResponse` |
+| 7 | `DkgRound2` | `SubmitDkgRound2Response` |
+| 8 | `DkgAcks` | `SendDkgAcksResponse` |
+| 9 | `DkgAckRequest` | `RequestDkgAcksResponse` |
+| 10 | `SignaturesRequest` | `RequestSignaturesResponse` |
+| 11 | `SignaturesRejection` | `RejectSignaturesRequestResponse` |
+| 12 | `SignaturesReplies` | `SubmitSignatureRepliesResponse` |
+| 13 | `SecretShare` | `ShareSecretShareResponse` |
+| 14 | `ConstructedKey` | `AckKeyConstructedResponse` |
+| 15 | `StartSession` | persistent `SessionStarted`, then `EventMessage` records |
 
-## The `EventMessage` payload
+| Enrollment ID | Request | Success response |
+|---:|---|---|
+| 1 | `BeginEnrollmentRequest` | `BeginEnrollmentResponse` |
+| 2 | `RedeemRoomInviteRequest` | `RedeemRoomInviteResponse` |
 
-```proto
-message EventMessage {
-  oneof event {
-    ParticipantStatusEvent participant_status = 1;
-    NewDkgEvent new_dkg = 2;
-    // ...one typed field for every supported event...
-    SignaturesProgressEvent signatures_progress = 15;
-  }
-}
-```
-
-One `EventMessage` represents one domain event. The `oneof` discriminator and
-selected generated message replace the former
-type-enum-plus-opaque-bytes representation. For example,
-`signatures_request` contains `signed_details`, `creator_id` and a typed
-`SignaturesProgress` message.
-
-The server and client adapters import
-[`wire.dart`](../packages/noosphere/lib/wire.dart), which exposes the shared
-converters implemented in
-[`event_wire.dart`](../packages/noosphere/lib/src/event_wire.dart). These explicit,
-exhaustive switches define the supported application protocol. A new oneof
-message requires matching domain conversion and handling; protobuf does not
-supply protocol behavior by itself.
-
-For a concrete `SignaturesRequestEvent event`, the server's mapping is
-conceptually this code (the real `encodeEvent` handles every supported variant):
-
-```dart
-final message = protocol.EventMessage(
-  signaturesRequest: protocol.SignaturesRequestEvent(
-    signedDetails: event.details.toBytes(),
-    creatorId: event.creator.toBytes(),
-    progress: encodeProgress(event.progress),
-  ),
-);
-final envelope = protocol.Envelope(
-  wireVersion: noosphereIrohWireVersion,
-  event: message,
-);
-final frame = encodeEnvelope(envelope);
-// The connection handler awaits send.writeAll(frame).
-```
-
-Every event's own fields are now described in `noosphere.proto`. Nested
-cryptographic objects such as `Signed<SignaturesRequestDetails>`, FROST
-commitments, ACKs and ciphertexts remain `bytes` containing their canonical
-domain encoding. Their signatures and hashes bind those encodings, so the
-protobuf transport must not redefine them. Identifiers, request IDs, public
-keys and signatures are also byte strings with lengths enforced while
-constructing the domain value.
-
-The receiving path has separate checks:
-
-| Stage | Check and result |
-| --- | --- |
-| Frame decoder | Enforces envelope size, gathers a complete length-prefixed body, parses protobuf and requires a recognized envelope payload |
-| Session adapter | Checks wire version and accepts event/error envelopes on the established session stream |
-| Event mapping | Requires a selected `EventMessage.event` variant, converts its typed fields, and decodes canonical nested values |
-| Participant state machine | Checks identities, signed contents, expiry, round/request context and cryptographic contributions as appropriate to the event |
-| Host approval | Decides whether a valid proposal should be accepted for the application's purposes |
-
-Nested domain `fromBytes` readers enforce bounded whole-value decoding,
-including trailing-data checks. A missing event oneof is rejected, and
-`KeepaliveEvent` is represented by an explicit empty protobuf message. There is
-no general signature over the protobuf `EventMessage` wrapper: signed proposals
-and other attestations bind their specified domain hashes, while Iroh
-authenticates the transport endpoints. For example, proposal progress is
-checked as a coordinator report, not as part of the requester's proposal
-signature.
-
-A framing, envelope or domain-decoding failure in `_pumpEvents` is reported
-as a stream error and closes that event stream. A protocol-validation failure
-inside `Client._handleEvent` is reported through `Client.events` and disconnects
-the client session. These paths do not retry the offending event; a reconnecting
-runtime establishes a new session and snapshot.
-
-The [event chapter](events.md#from-a-dart-event-to-iroh-bytes-and-back) traces the
-producer, recipient selection, both codecs and the receiving state transition,
-including a worked signing-proposal sequence.
-
-`SessionStarted.snapshot` contains a serialized `LoginCompleteResponse`:
-session ID/expiry, server start time, online peers, pending DKG/signing requests,
-pending rounds, completed signatures and encrypted recovery shares. Its live
-`events` stream is not serialized; the receiving adapter attaches that stream
-when constructing the domain response.
-
-## Frame encoding and incremental decoding
-
-[`framing.dart`](../packages/noosphere/lib/src/framing.dart) defines:
+The response direction is:
 
 ```text
-4 bytes: unsigned protobuf body length, big-endian
-N bytes: Envelope.writeToBuffer()
+[status: QUIC varint][concrete response protobuf bytes] FIN
 ```
 
-The default maximum body length is 1,048,576 bytes. The four-byte prefix is
-additional. `encodeEnvelope` rejects an unset payload or an oversized body.
+Status `0` means the body is the concrete response type selected by the
+operation. Status `1` means the body is `ProtocolError`. The status prefix is a
+two-way result discriminator, not a protobuf envelope; it never contains or
+nests request/response messages. FIN delimits the body, so an RPC has no
+message-length prefix.
 
-`decodeEnvelopes` is an `async*` stream transformer because QUIC read chunks
-do not preserve application-message boundaries. It accumulates four header
-bytes, validates the advertised size before allocating a body, and yields
-each complete envelope immediately. One read can contain several frames;
-one frame can span many reads. Retained state is one frame body plus the
-current input chunk, rather than a list of all messages.
+Using a stream as the correlation unit removes request IDs and prevents a
+slow RPC from blocking unrelated RPC bytes. A client can open several RPC
+streams concurrently while each response remains paired with its request by
+QUIC itself.
 
-Failures distinguish oversized frames, truncated headers/bodies, invalid
-protobuf and missing payloads. Transport adapters read native chunks up to
-64 KiB. Version acceptance is checked by transport code, independently of
-the framing decoder.
+An unknown operation ID produces an error response and a normal FIN. Older
+peers can therefore reject newly added operations without mis-decoding their
+protobuf body or closing the connection.
 
-## Versions and errors
+## Persistent event stream
 
-The current Iroh wire version and ROAST login protocol version are both 1,
-but they are separate concepts. Package versions and signed-message format
-versions are separate again. The internal worker uses same-build Dart message
-types and generation IDs; it has no independently negotiated wire version.
+FIN cannot delimit individual records on a long-lived stream. The authenticated
+session therefore uses one request followed by a persistent response direction:
 
-The [version policy](../packages/noosphere/spec/VERSIONING.md) treats this as
-an R&D baseline: matching version numbers do not promise compatibility across
-different development builds. Current changes update both peers together.
-The policy reserves stable field-number evolution and compatibility decisions
-for a stable release.
+```text
+client -> server:
+[startSession operation varint][StartSession protobuf] FIN
 
-`ProtocolError` defines a code, message and retryable flag, including possible
-unknown-outcome and authentication codes. This is a representational vocabulary,
-not a guarantee that each error branch selects the most specific code today.
-The current server maps many caught errors to `INVALID_REQUEST`; the client
-also exposes local timeout/transport failures. A retryable field does not
-automatically replay a mutation.
+server -> client:
+[length varint][SessionStarted protobuf]
+[length varint][EventMessage protobuf]
+[length varint][EventMessage protobuf]
+...
+FIN
+```
 
-Enrollment domain failures also set the optional `room_failure_code` to the
-`RoomFailureCode` index. Presence distinguishes `unknownRoom` (zero) from an
-error without a room code. `RoomEnrollmentProtocolException` preserves that
-index, uses `0xffff` when it is absent, and exposes the protobuf error. A
-request that could be decoded receives a correlated `RpcResponse.error`;
-framing, wire-version and envelope-shape failures use `Envelope.error`.
+Lengths use the RFC 9000 QUIC variable-length integer encoding. Each length
+covers only the following protobuf bytes. `SessionStarted` is always the first
+record; every later record is `EventMessage`, so no per-record type envelope is
+needed. The shared decoder is incremental because QUIC read calls may split or
+combine records arbitrarily.
 
-## Generation and other formats
+The server attaches the session and subscribes it to queued/live events before
+writing the snapshot record. This preserves the snapshot/subscription boundary
+without a `Ready` control message. Closing the QUIC connection is logout; there
+is no `Logout` protobuf on the session stream.
 
-Generated files live in
-[`lib/src/generated`](../packages/noosphere/lib/src/generated). Run
-`./tool/generate_protocol.sh` from `packages/noosphere`; `--check` regenerates
-into temporary storage and compares the result. The script uses the local
-pinned Dart protoc plugin and retains `.pb.dart`, `.pbenum.dart` and
-`.pbjson.dart`. There are no generated gRPC service stubs.
+## Large objects and media
 
-Worker messages are typed Dart envelopes carrying encoded fields and public
-DTOs, and the server persistence snapshot is versioned JSON with binary
-components. Those local boundaries have their own decoders; both network ALPNs
-share protobuf framing.
+Large opaque data must not be placed in an RPC protobuf or buffered into the
+normal message limit. A dedicated stream uses this layout:
+
+```text
+[object operation/type varint]
+[small concrete metadata protobuf]
+[raw object bytes]
+FIN
+```
+
+The operation fixes the metadata type and tells the receiver where its typed
+header ends. If a future object protocol needs a variable-size header, that
+header gets a QUIC-varint length; the raw payload still runs to FIN. No generic
+protobuf envelope is introduced.
+
+No current Noosphere operation transfers a large object, so this is a design
+constraint for new operations rather than an unused wire message today.
+
+## Limits and failures
+
+`maxMessageLength` bounds a FIN-delimited protobuf body and each persistent
+record. Oversized bodies fail before protobuf parsing. Truncated QUIC varints,
+truncated persistent records, invalid protobuf bytes, unknown response status,
+and unknown operation IDs are protocol errors.
+
+The operation/status prefixes and persistent lengths use the same QUIC-varint
+codec. Encoding is minimal; decoding accepts all widths permitted by QUIC.
+
+## Why this design
+
+QUIC already multiplexes reliable ordered byte streams. Adding a generic
+protobuf envelope and a fixed length prefix to every one-message stream would
+duplicate stream isolation, message correlation, and FIN framing. Direct
+protobuf bodies keep operation dispatch explicit and allow independent schema
+evolution for each RPC.
+
+A framing layer remains necessary only where a single stream contains multiple
+messages: QUIC streams preserve byte order, but not application write/read
+boundaries. That is why the persistent event stream retains
+`[QUIC varint length][protobuf]` records while ordinary RPC streams do not.

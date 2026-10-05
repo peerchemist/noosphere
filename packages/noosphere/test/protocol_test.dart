@@ -1,397 +1,96 @@
-import 'package:noosphere/domain.dart' show noosphereRoastProtocolVersion;
 import 'package:noosphere/wire.dart' as protocol;
 import 'package:protobuf/protobuf.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('protobuf messages', () {
-    test('all domain messages round-trip their exact wire bytes', () {
-      final cases = <(GeneratedMessage, GeneratedMessage Function(List<int>))>[
-        (protocol.Bytes(data: [1, 2]), protocol.Bytes.fromBuffer),
-        (
-          protocol.LoginRequest(
-            groupFingerprint: [1],
-            participantId: [2],
-            protocolVersion: noosphereRoastProtocolVersion,
-          ),
-          protocol.LoginRequest.fromBuffer,
-        ),
-        (
-          protocol.SignedAuthChallenge(signature: [1], challenge: [2]),
-          protocol.SignedAuthChallenge.fromBuffer,
-        ),
-        (
-          protocol.DkgRequest(sid: [1], signedDetails: [2], commitment: [3]),
-          protocol.DkgRequest.fromBuffer,
-        ),
-        (
-          protocol.DkgToReject(sid: [1], name: 'dkg'),
-          protocol.DkgToReject.fromBuffer,
-        ),
-        (
-          protocol.DkgCommitment(sid: [1], name: 'dkg', commitment: [2]),
-          protocol.DkgCommitment.fromBuffer,
-        ),
-        (
-          protocol.DkgSecret(id: [1], secret: [2]),
-          protocol.DkgSecret.fromBuffer,
-        ),
-        (
-          protocol.DkgRound2(
-            sid: [1],
-            name: 'dkg',
-            commitmentSetSignature: [2],
-            secrets: [
-              protocol.DkgSecret(id: [3], secret: [4]),
-            ],
-          ),
-          protocol.DkgRound2.fromBuffer,
-        ),
-        (
-          protocol.DkgAcks(
-            sid: [1],
-            acks: [
-              [2],
-              [3],
-            ],
-          ),
-          protocol.DkgAcks.fromBuffer,
-        ),
-        (
-          protocol.DkgAckRequest(
-            sid: [1],
-            requests: [
-              [2],
-            ],
-          ),
-          protocol.DkgAckRequest.fromBuffer,
-        ),
-        (
-          protocol.SignaturesRequest(
-            sid: [1],
-            keys: [
-              [2],
-            ],
-            signedDetails: [3],
-            commitments: [
-              [4],
-            ],
-          ),
-          protocol.SignaturesRequest.fromBuffer,
-        ),
-        (
-          protocol.SignaturesRejection(sid: [1], reqId: [2]),
-          protocol.SignaturesRejection.fromBuffer,
-        ),
-        (
-          protocol.SignaturesReplies(
-            sid: [1],
-            reqId: [2],
-            replies: [
-              [3],
-            ],
-          ),
-          protocol.SignaturesReplies.fromBuffer,
-        ),
-        (
-          protocol.EncryptedSecret(id: [1], share: [2]),
-          protocol.EncryptedSecret.fromBuffer,
-        ),
-        (
-          protocol.SecretShare(
-            sid: [1],
-            groupKey: [2],
-            secrets: [
-              protocol.EncryptedSecret(id: [3], share: [4]),
-            ],
-          ),
-          protocol.SecretShare.fromBuffer,
-        ),
-        (
-          protocol.ConstructedKey(sid: [1], constructedKey: [2]),
-          protocol.ConstructedKey.fromBuffer,
-        ),
-        (
-          protocol.EventMessage(
-            signaturesComplete: protocol.SignaturesCompleteEvent(
-              requestId: [1],
-              signatures: [
-                [2],
-              ],
-            ),
-          ),
-          protocol.EventMessage.fromBuffer,
-        ),
-      ];
-
-      for (final (message, parseMessage) in cases) {
-        final wireBytes = message.writeToBuffer();
-        expect(
-          parseMessage(wireBytes).writeToBuffer(),
-          wireBytes,
-          reason: message.info_.messageName,
-        );
-      }
-    });
+  test('operation IDs are unique and map back to concrete operations', () {
+    expect(
+      protocol.RoastOperation.values.map((operation) => operation.id).toSet(),
+      hasLength(protocol.RoastOperation.values.length),
+    );
+    expect(
+      protocol.EnrollmentOperation.values
+          .map((operation) => operation.id)
+          .toSet(),
+      hasLength(protocol.EnrollmentOperation.values.length),
+    );
+    for (final operation in protocol.RoastOperation.values) {
+      expect(protocol.RoastOperation.fromId(operation.id), operation);
+    }
+    expect(protocol.RoastOperation.fromId(999), isNull);
   });
 
-  group('typed RPC envelopes', () {
-    test('covers all ROAST and enrollment RPC types', () {
-      final requests = <protocol.RpcRequest>[
-        protocol.RpcRequest(login: protocol.LoginRequest()),
-        protocol.RpcRequest(respondToChallenge: protocol.SignedAuthChallenge()),
-        protocol.RpcRequest(extendSession: protocol.Bytes()),
-        protocol.RpcRequest(requestNewDkg: protocol.DkgRequest()),
-        protocol.RpcRequest(rejectDkg: protocol.DkgToReject()),
-        protocol.RpcRequest(submitDkgCommitment: protocol.DkgCommitment()),
-        protocol.RpcRequest(submitDkgRound2: protocol.DkgRound2()),
-        protocol.RpcRequest(sendDkgAcks: protocol.DkgAcks()),
-        protocol.RpcRequest(requestDkgAcks: protocol.DkgAckRequest()),
-        protocol.RpcRequest(requestSignatures: protocol.SignaturesRequest()),
-        protocol.RpcRequest(
-          rejectSignaturesRequest: protocol.SignaturesRejection(),
-        ),
-        protocol.RpcRequest(
-          submitSignatureReplies: protocol.SignaturesReplies(),
-        ),
-        protocol.RpcRequest(shareSecretShare: protocol.SecretShare()),
-        protocol.RpcRequest(ackKeyConstructed: protocol.ConstructedKey()),
-        protocol.RpcRequest(
-          beginEnrollment: protocol.BeginEnrollmentRequest(
-            invite: [1],
-            participantPublicKey: [2],
-          ),
-        ),
-        protocol.RpcRequest(
-          redeemRoomInvite: protocol.RedeemRoomInviteRequest(
-            transcript: [3],
-            signature: [4],
-          ),
-        ),
-      ];
-      final responses = <protocol.RpcResponse>[
-        protocol.RpcResponse(login: protocol.LoginResponse()),
-        protocol.RpcResponse(
-          respondToChallenge: protocol.RespondToChallengeResponse(),
-        ),
-        protocol.RpcResponse(extendSession: protocol.ExtendSessionResponse()),
-        protocol.RpcResponse(requestNewDkg: protocol.RequestNewDkgResponse()),
-        protocol.RpcResponse(rejectDkg: protocol.RejectDkgResponse()),
-        protocol.RpcResponse(
-          submitDkgCommitment: protocol.SubmitDkgCommitmentResponse(),
-        ),
-        protocol.RpcResponse(
-          submitDkgRound2: protocol.SubmitDkgRound2Response(),
-        ),
-        protocol.RpcResponse(sendDkgAcks: protocol.SendDkgAcksResponse()),
-        protocol.RpcResponse(requestDkgAcks: protocol.RequestDkgAcksResponse()),
-        protocol.RpcResponse(
-          requestSignatures: protocol.RequestSignaturesResponse(),
-        ),
-        protocol.RpcResponse(
-          rejectSignaturesRequest: protocol.RejectSignaturesRequestResponse(),
-        ),
-        protocol.RpcResponse(
-          submitSignatureReplies: protocol.SubmitSignatureRepliesResponse(),
-        ),
-        protocol.RpcResponse(
-          shareSecretShare: protocol.ShareSecretShareResponse(),
-        ),
-        protocol.RpcResponse(
-          ackKeyConstructed: protocol.AckKeyConstructedResponse(),
-        ),
-        protocol.RpcResponse(
-          beginEnrollment: protocol.BeginEnrollmentResponse(challenge: [5]),
-        ),
-        protocol.RpcResponse(
-          redeemRoomInvite: protocol.RedeemRoomInviteResponse(snapshot: [6]),
-        ),
-      ];
+  test('all concrete RPC request and response protobufs round-trip', () {
+    final messages = <GeneratedMessage>[
+      protocol.LoginRequest(groupFingerprint: [1]),
+      protocol.SignedAuthChallenge(signature: [1]),
+      protocol.Bytes(data: [1]),
+      protocol.DkgRequest(sid: [1]),
+      protocol.DkgToReject(sid: [1]),
+      protocol.DkgCommitment(sid: [1]),
+      protocol.DkgRound2(sid: [1]),
+      protocol.DkgAcks(sid: [1]),
+      protocol.DkgAckRequest(sid: [1]),
+      protocol.SignaturesRequest(sid: [1]),
+      protocol.SignaturesRejection(sid: [1]),
+      protocol.SignaturesReplies(sid: [1]),
+      protocol.SecretShare(sid: [1]),
+      protocol.ConstructedKey(sid: [1]),
+      protocol.StartSession(),
+      protocol.BeginEnrollmentRequest(invite: [1]),
+      protocol.RedeemRoomInviteRequest(transcript: [1]),
+      protocol.LoginResponse(challenge: [1]),
+      protocol.RespondToChallengeResponse(),
+      protocol.ExtendSessionResponse(expiry: [1]),
+      protocol.RequestNewDkgResponse(),
+      protocol.RejectDkgResponse(),
+      protocol.SubmitDkgCommitmentResponse(),
+      protocol.SubmitDkgRound2Response(),
+      protocol.SendDkgAcksResponse(),
+      protocol.RequestDkgAcksResponse(
+        acks: [
+          [1],
+        ],
+      ),
+      protocol.RequestSignaturesResponse(),
+      protocol.RejectSignaturesRequestResponse(),
+      protocol.SubmitSignatureRepliesResponse(
+        noUpdate: protocol.NoSignatureUpdate(),
+      ),
+      protocol.ShareSecretShareResponse(),
+      protocol.AckKeyConstructedResponse(),
+      protocol.BeginEnrollmentResponse(challenge: [1]),
+      protocol.RedeemRoomInviteResponse(snapshot: [1]),
+    ];
 
-      expect(
-        requests.map((request) => request.whichRequest()).toSet(),
-        hasLength(16),
-      );
-      expect(
-        responses.map((response) => response.whichResponse()).toSet(),
-        hasLength(16),
-      );
-      expect(
-        requests,
-        everyElement(
-          predicate<protocol.RpcRequest>(
-            (request) =>
-                request.whichRequest() != protocol.RpcRequest_Request.notSet,
-          ),
-        ),
-      );
-      expect(
-        responses,
-        everyElement(
-          predicate<protocol.RpcResponse>(
-            (response) =>
-                response.whichResponse() !=
-                protocol.RpcResponse_Response.notSet,
-          ),
-        ),
-      );
-    });
-
-    test('distinguishes absent and zero-valued room failure codes', () {
-      final absent = protocol.ProtocolError.fromBuffer(
-        protocol.ProtocolError(
-          code: protocol.ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
-        ).writeToBuffer(),
-      );
-      final zero = protocol.ProtocolError.fromBuffer(
-        protocol.ProtocolError(
-          code: protocol.ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
-          roomFailureCode: 0,
-        ).writeToBuffer(),
-      );
-      expect(absent.hasRoomFailureCode(), isFalse);
-      expect(zero.hasRoomFailureCode(), isTrue);
-      expect(zero.roomFailureCode, 0);
-    });
-
-    test('round-trips request ID and nested request oneof', () {
-      final envelope = protocol.Envelope(
-        wireVersion: 1,
-        rpcRequest: protocol.RpcRequest(
-          requestId: [9, 8, 7],
-          submitSignatureReplies: protocol.SignaturesReplies(
-            sid: [1],
-            reqId: [2],
-            replies: [
-              [3],
-            ],
-          ),
-        ),
-      );
-
-      final decoded = protocol.Envelope.fromBuffer(envelope.writeToBuffer());
-
-      expect(decoded.whichPayload(), protocol.Envelope_Payload.rpcRequest);
-      expect(decoded.rpcRequest.requestId, [9, 8, 7]);
-      expect(
-        decoded.rpcRequest.whichRequest(),
-        protocol.RpcRequest_Request.submitSignatureReplies,
-      );
-    });
-
-    test('represents all submitSignatureReplies outcomes', () {
-      final outcomes = <protocol.SubmitSignatureRepliesResponse>[
-        protocol.SubmitSignatureRepliesResponse(
-          noUpdate: protocol.NoSignatureUpdate(),
-        ),
-        protocol.SubmitSignatureRepliesResponse(
-          newRound: protocol.NewSignatureRound(data: [1]),
-        ),
-        protocol.SubmitSignatureRepliesResponse(
-          completed: protocol.CompletedSignatures(data: [2]),
-        ),
-      ];
-
-      expect(
-        outcomes
-            .map(
-              (outcome) => protocol.SubmitSignatureRepliesResponse.fromBuffer(
-                outcome.writeToBuffer(),
-              ).whichOutcome(),
-            )
-            .toSet(),
-        {
-          protocol.SubmitSignatureRepliesResponse_Outcome.noUpdate,
-          protocol.SubmitSignatureRepliesResponse_Outcome.newRound,
-          protocol.SubmitSignatureRepliesResponse_Outcome.completed,
-        },
-      );
-    });
+    for (final message in messages) {
+      final bytes = message.writeToBuffer();
+      final decoded = message.createEmptyInstance()..mergeFromBuffer(bytes);
+      expect(decoded.writeToBuffer(), bytes, reason: message.info_.messageName);
+    }
   });
 
-  group('session messages', () {
-    test('round-trips a snapshot and event', () {
-      final started = protocol.Envelope(
-        wireVersion: 1,
-        sessionStarted: protocol.SessionStarted(sessionId: [5], snapshot: [6]),
-      );
-      final event = protocol.Envelope(
-        wireVersion: 1,
-        event: protocol.EventMessage(keepalive: protocol.KeepaliveEvent()),
-      );
+  test('protocol errors preserve an explicitly zero room failure code', () {
+    final absent = protocol.ProtocolError.fromBuffer(
+      protocol.ProtocolError().writeToBuffer(),
+    );
+    final zero = protocol.ProtocolError.fromBuffer(
+      protocol.ProtocolError(roomFailureCode: 0).writeToBuffer(),
+    );
+    expect(absent.hasRoomFailureCode(), isFalse);
+    expect(zero.hasRoomFailureCode(), isTrue);
+  });
 
-      final decodedStarted = protocol.Envelope.fromBuffer(
-        started.writeToBuffer(),
-      );
-      final decodedEvent = protocol.Envelope.fromBuffer(event.writeToBuffer());
-
-      expect(decodedStarted.sessionStarted.sessionId, [5]);
-      expect(decodedStarted.sessionStarted.snapshot, [6]);
-      expect(
-        decodedEvent.event.whichEvent(),
-        protocol.EventMessage_Event.keepalive,
-      );
-    });
-
-    test('covers every typed event variant', () {
-      final events = <protocol.EventMessage>[
-        protocol.EventMessage(
-          participantStatus: protocol.ParticipantStatusEvent(),
-        ),
-        protocol.EventMessage(newDkg: protocol.NewDkgEvent()),
-        protocol.EventMessage(dkgCommitment: protocol.DkgCommitmentEvent()),
-        protocol.EventMessage(dkgReject: protocol.DkgRejectEvent()),
-        protocol.EventMessage(dkgRound2Share: protocol.DkgRound2ShareEvent()),
-        protocol.EventMessage(dkgAck: protocol.DkgAckEvent()),
-        protocol.EventMessage(dkgAckRequest: protocol.DkgAckRequestEvent()),
-        protocol.EventMessage(
-          signaturesRequest: protocol.SignaturesRequestEvent(),
-        ),
-        protocol.EventMessage(
-          signatureNewRounds: protocol.SignatureNewRoundsEvent(),
-        ),
-        protocol.EventMessage(
-          signaturesComplete: protocol.SignaturesCompleteEvent(),
-        ),
-        protocol.EventMessage(
-          signaturesFailure: protocol.SignaturesFailureEvent(),
-        ),
-        protocol.EventMessage(keepalive: protocol.KeepaliveEvent()),
-        protocol.EventMessage(secretShare: protocol.SecretShareEvent()),
-        protocol.EventMessage(constructedKey: protocol.ConstructedKeyEvent()),
-        protocol.EventMessage(
-          signaturesProgress: protocol.SignaturesProgressEvent(),
-        ),
-      ];
-
-      expect(
-        events
-            .map(
-              (event) =>
-                  protocol.EventMessage.fromBuffer(event.writeToBuffer())
-                      .whichEvent(),
-            )
-            .toSet(),
-        protocol.EventMessage_Event.values.where(
-          (event) => event != protocol.EventMessage_Event.notSet,
-        ),
-      );
-      expect(
-        protocol.EventMessage().whichEvent(),
-        protocol.EventMessage_Event.notSet,
-      );
-    });
-
-    test('empty and unknown payloads remain unset', () {
-      expect(
-        protocol.Envelope().whichPayload(),
-        protocol.Envelope_Payload.notSet,
-      );
-
-      // wire_version = 1 followed by unknown length-delimited field 99.
-      final unknown = protocol.Envelope.fromBuffer([8, 1, 154, 6, 0]);
-      expect(unknown.wireVersion, 1);
-      expect(unknown.whichPayload(), protocol.Envelope_Payload.notSet);
-    });
+  test('session records remain concrete protobuf messages', () {
+    final started = protocol.SessionStarted.fromBuffer(
+      protocol.SessionStarted(sessionId: [5], snapshot: [6]).writeToBuffer(),
+    );
+    final event = protocol.EventMessage.fromBuffer(
+      protocol.EventMessage(keepalive: protocol.KeepaliveEvent())
+          .writeToBuffer(),
+    );
+    expect(started.sessionId, [5]);
+    expect(started.snapshot, [6]);
+    expect(event.whichEvent(), protocol.EventMessage_Event.keepalive);
   });
 }

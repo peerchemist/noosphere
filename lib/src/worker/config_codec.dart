@@ -25,7 +25,7 @@ Map<String, Object?> encodeServerOptions(EmbeddedServerOptions options) {
     'authTimeout': options.authTimeout.inMicroseconds,
     'rpcTimeout': options.rpcTimeout.inMicroseconds,
     'shutdownTimeout': options.shutdownTimeout.inMicroseconds,
-    'maxEnvelopeLength': options.maxEnvelopeLength,
+    'maxMessageLength': options.maxMessageLength,
     'maxConnections': options.maxConnections,
     'maxStreamsPerConnection': options.maxStreamsPerConnection,
   };
@@ -46,7 +46,7 @@ EmbeddedServerOptions decodeServerOptions(
   authTimeout: micros(value['authTimeout']),
   rpcTimeout: micros(value['rpcTimeout']),
   shutdownTimeout: micros(value['shutdownTimeout']),
-  maxEnvelopeLength: value['maxEnvelopeLength']! as int,
+  maxMessageLength: value['maxMessageLength']! as int,
   maxConnections: value['maxConnections']! as int,
   maxStreamsPerConnection: value['maxStreamsPerConnection']! as int,
 );
@@ -65,7 +65,7 @@ Map<String, Object?> encodeClientOptions(ClientNodeOptions options) => {
   'connectTimeout': options.connectTimeout.inMicroseconds,
   'authTimeout': options.authTimeout.inMicroseconds,
   'rpcTimeout': options.rpcTimeout.inMicroseconds,
-  'maxEnvelopeLength': options.maxEnvelopeLength,
+  'maxMessageLength': options.maxMessageLength,
   'maxConcurrentStreams': options.maxConcurrentStreams,
   'reconnect': {
     'initialDelay': options.reconnect.initialDelay.inMicroseconds,
@@ -101,7 +101,7 @@ ClientNodeOptions decodeClientOptions(
     connectTimeout: micros(value['connectTimeout']),
     authTimeout: micros(value['authTimeout']),
     rpcTimeout: micros(value['rpcTimeout']),
-    maxEnvelopeLength: value['maxEnvelopeLength']! as int,
+    maxMessageLength: value['maxMessageLength']! as int,
     maxConcurrentStreams: value['maxConcurrentStreams']! as int,
     reconnect: IrohReconnectConfig(
       initialDelay: micros(reconnect['initialDelay']),

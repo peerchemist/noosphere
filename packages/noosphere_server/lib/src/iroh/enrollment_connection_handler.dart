@@ -6,6 +6,7 @@ import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere/api/types/signed.dart';
 import 'package:noosphere/wire.dart' as protocol;
 import 'package:noosphere/room.dart';
+import 'package:protobuf/protobuf.dart';
 
 import '../room/manager.dart';
 
@@ -49,51 +50,24 @@ final class IrohEnrollmentConnectionHandler {
   }
 
   Future<void> _handle(SendStream send, RecvStream receive) async {
-    protocol.RpcRequest? request;
     var requestReceived = false;
     try {
-      final envelope = await protocol
-          .decodeEnvelopes(
-            _readChunks(receive),
-            maxEnvelopeLength: maxMessageLength,
-          )
-          .single
+      final reader = protocol.QuicStreamReader(_readChunks(receive));
+      final operationId = await reader.readVarInt().timeout(timeout);
+      final body = await reader
+          .readToEnd(maxLength: maxMessageLength)
           .timeout(timeout);
       requestReceived = true;
-      if (envelope.wireVersion != protocol.noosphereIrohWireVersion) {
-        throw const RoomException(RoomFailureCode.unsupportedVersion);
+      final operation = protocol.EnrollmentOperation.fromId(operationId);
+      if (operation == null) {
+        throw FormatException('unknown enrollment operation ID $operationId');
       }
-      if (envelope.whichPayload() != protocol.Envelope_Payload.rpcRequest) {
-        throw const FormatException('expected enrollment RpcRequest');
-      }
-      request = envelope.rpcRequest;
-      if (request.requestId.isEmpty) {
-        throw const FormatException('request_id is empty');
-      }
-      final response = await _dispatch(request);
-      await _write(
-        send,
-        protocol.Envelope(
-          wireVersion: protocol.noosphereIrohWireVersion,
-          rpcResponse: response,
-        ),
-      );
+      final response = await _dispatch(operation, body);
+      await _write(send, protocol.RpcResponseStatus.success, response);
     } on Object catch (error) {
       final failure = _protocolError(error);
       try {
-        await _write(
-          send,
-          protocol.Envelope(
-            wireVersion: protocol.noosphereIrohWireVersion,
-            rpcResponse: request == null
-                ? null
-                : protocol.RpcResponse(
-                    requestId: request.requestId,
-                    error: failure,
-                  ),
-            error: request == null ? failure : null,
-          ),
-        );
+        await _write(send, protocol.RpcResponseStatus.error, failure);
       } on Object {
         // The peer may already have closed the stream.
       }
@@ -118,24 +92,22 @@ final class IrohEnrollmentConnectionHandler {
     }
   }
 
-  Future<protocol.RpcResponse> _dispatch(protocol.RpcRequest request) async {
-    switch (request.whichRequest()) {
-      case protocol.RpcRequest_Request.beginEnrollment:
-        final body = request.beginEnrollment;
+  Future<GeneratedMessage> _dispatch(
+    protocol.EnrollmentOperation operation,
+    List<int> bytes,
+  ) async {
+    switch (operation) {
+      case protocol.EnrollmentOperation.beginEnrollment:
+        final body = protocol.BeginEnrollmentRequest.fromBuffer(bytes);
         final challenge = await rooms.beginEnrollment(
           invite: RoomInvite.fromBytes(Uint8List.fromList(body.invite)),
           participantPublicKey: cl.ECCompressedPublicKey(
             Uint8List.fromList(body.participantPublicKey),
           ),
         );
-        return protocol.RpcResponse(
-          requestId: request.requestId,
-          beginEnrollment: protocol.BeginEnrollmentResponse(
-            challenge: challenge.toBytes(),
-          ),
-        );
-      case protocol.RpcRequest_Request.redeemRoomInvite:
-        final body = request.redeemRoomInvite;
+        return protocol.BeginEnrollmentResponse(challenge: challenge.toBytes());
+      case protocol.EnrollmentOperation.redeemRoomInvite:
+        final body = protocol.RedeemRoomInviteRequest.fromBuffer(bytes);
         final snapshot = await rooms.redeemRoomInvite(
           Signed(
             obj: EnrollmentTranscript.fromBytes(
@@ -144,24 +116,25 @@ final class IrohEnrollmentConnectionHandler {
             signature: cl.SchnorrSignature(Uint8List.fromList(body.signature)),
           ),
         );
-        return protocol.RpcResponse(
-          requestId: request.requestId,
-          redeemRoomInvite: protocol.RedeemRoomInviteResponse(
-            snapshot: snapshot.toBytes(),
-          ),
-        );
-      default:
-        throw const FormatException(
-          'RPC is not supported on the enrollment ALPN',
-        );
+        return protocol.RedeemRoomInviteResponse(snapshot: snapshot.toBytes());
     }
   }
 
-  Future<void> _write(SendStream send, protocol.Envelope envelope) => send
-      .writeAll(
-        protocol.encodeEnvelope(envelope, maxEnvelopeLength: maxMessageLength),
-      )
-      .timeout(timeout);
+  Future<void> _write(
+    SendStream send,
+    int status,
+    GeneratedMessage message,
+  ) async {
+    final body = message.writeToBuffer();
+    if (body.length > maxMessageLength) {
+      throw protocol.FrameTooLargeException(
+        length: body.length,
+        maximum: maxMessageLength,
+      );
+    }
+    await send.writeAll(protocol.encodeQuicVarInt(status)).timeout(timeout);
+    await send.writeAll(body).timeout(timeout);
+  }
 }
 
 protocol.ProtocolError _protocolError(Object error) {

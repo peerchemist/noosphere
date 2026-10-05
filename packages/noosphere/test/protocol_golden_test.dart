@@ -68,37 +68,32 @@ void main() {
     expect(decoded.sigHash, details.sigHash);
   });
 
-  test(
-    'login protobuf fields and envelope framing retain fixed wire bytes',
-    () async {
-      // Two short opaque byte fields are sufficient to test protobuf layout;
-      // they are deliberately not valid authentication credentials.
-      const loginHex = '0a02aabb120201021801';
-      final login = wire.LoginRequest(
-        groupFingerprint: [0xaa, 0xbb],
-        participantId: [1, 2],
-        protocolVersion: noosphereRoastProtocolVersion,
-      );
-      expect(cl.bytesToHex(login.writeToBuffer()), loginHex);
-      expect(
-        wire.LoginRequest.fromBuffer(cl.hexToBytes(loginHex)).protocolVersion,
-        1,
-      );
-      // BE u32 body length 19; envelope version 1 and RPC request containing
-      // request ID 7 and the login message above.
-      const frameHex = '000000130801520f0a0107520a$loginHex';
-      final envelope = wire.Envelope(
-        wireVersion: 1,
-        rpcRequest: wire.RpcRequest(requestId: [7], login: login),
-      );
-      expect(cl.bytesToHex(wire.encodeEnvelope(envelope)), frameHex);
-      final decoded = await wire
-          .decodeEnvelopes(Stream<Uint8List>.value(cl.hexToBytes(frameHex)))
-          .single;
-      expect(decoded.rpcRequest.requestId, [7]);
-      expect(decoded.rpcRequest.login.groupFingerprint, [0xaa, 0xbb]);
-    },
-  );
+  test('login protobuf and operation-prefixed stream retain fixed wire bytes', () async {
+    // Two short opaque byte fields are sufficient to test protobuf layout;
+    // they are deliberately not valid authentication credentials.
+    const loginHex = '0a02aabb120201021801';
+    final login = wire.LoginRequest(
+      groupFingerprint: [0xaa, 0xbb],
+      participantId: [1, 2],
+      protocolVersion: noosphereRoastProtocolVersion,
+    );
+    expect(cl.bytesToHex(login.writeToBuffer()), loginHex);
+    expect(
+      wire.LoginRequest.fromBuffer(cl.hexToBytes(loginHex)).protocolVersion,
+      1,
+    );
+    // Operation 1 is a one-byte QUIC varint, followed directly by LoginRequest.
+    const streamHex = '01$loginHex';
+    expect(
+      cl.bytesToHex(
+        Uint8List.fromList([
+          ...wire.encodeQuicVarInt(wire.RoastOperation.login.id),
+          ...login.writeToBuffer(),
+        ]),
+      ),
+      streamHex,
+    );
+  });
 
   test('typed participant event retains fixed protobuf wire bytes', () {
     // EventMessage oneof field 1 contains ParticipantStatusEvent. Its field 1 is an

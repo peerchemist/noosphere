@@ -1,15 +1,12 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:protobuf/protobuf.dart';
-
-import 'generated/noosphere.pb.dart';
-
-const int defaultMaxEnvelopeLength = 1024 * 1024;
+const int defaultMaxMessageLength = 1024 * 1024;
+const int maximumQuicVarInt = 0x3fffffffffffffff;
 
 sealed class FrameException implements Exception {
   const FrameException(this.message);
-
   final String message;
 
   @override
@@ -18,8 +15,7 @@ sealed class FrameException implements Exception {
 
 final class FrameTooLargeException extends FrameException {
   const FrameTooLargeException({required this.length, required this.maximum})
-    : super('frame length $length exceeds maximum $maximum');
-
+    : super('message length $length exceeds maximum $maximum');
   final int length;
   final int maximum;
 }
@@ -28,135 +24,174 @@ final class TruncatedFrameException extends FrameException {
   const TruncatedFrameException(super.message);
 }
 
-final class InvalidEnvelopeException extends FrameException {
-  const InvalidEnvelopeException(super.message, {this.cause});
-
-  final Object? cause;
+/// Encodes [value] using the shortest RFC 9000 QUIC variable-length integer.
+Uint8List encodeQuicVarInt(int value) {
+  if (value < 0 || value > maximumQuicVarInt) {
+    throw RangeError.range(value, 0, maximumQuicVarInt, 'value');
+  }
+  final length = switch (value) {
+    < 0x40 => 1,
+    < 0x4000 => 2,
+    < 0x40000000 => 4,
+    _ => 8,
+  };
+  final bytes = Uint8List(length);
+  var remaining = value;
+  for (var index = length - 1; index >= 0; index--) {
+    bytes[index] = remaining & 0xff;
+    remaining ~/= 256;
+  }
+  bytes[0] |= switch (length) {
+    1 => 0x00,
+    2 => 0x40,
+    4 => 0x80,
+    _ => 0xc0,
+  };
+  return bytes;
 }
 
-/// Serializes one envelope with a four-byte unsigned big-endian length prefix.
-Uint8List encodeEnvelope(
-  Envelope envelope, {
-  int maxEnvelopeLength = defaultMaxEnvelopeLength,
+/// Prefixes one message for a stream that carries multiple protobuf messages.
+Uint8List encodeLengthPrefixedMessage(
+  List<int> message, {
+  int maxMessageLength = defaultMaxMessageLength,
 }) {
-  _checkMaximum(maxEnvelopeLength);
-  _checkPayload(envelope);
-
-  final body = envelope.writeToBuffer();
-  if (body.length > maxEnvelopeLength) {
+  _checkMaximum(maxMessageLength);
+  if (message.length > maxMessageLength) {
     throw FrameTooLargeException(
-      length: body.length,
-      maximum: maxEnvelopeLength,
+      length: message.length,
+      maximum: maxMessageLength,
     );
   }
-
-  final framed = Uint8List(4 + body.length);
-  ByteData.sublistView(framed, 0, 4).setUint32(0, body.length, Endian.big);
-  framed.setRange(4, framed.length, body);
+  final length = encodeQuicVarInt(message.length);
+  final framed = Uint8List(length.length + message.length);
+  framed.setRange(0, length.length, length);
+  framed.setRange(length.length, framed.length, message);
   return framed;
 }
 
-/// Lazily decodes length-prefixed envelopes from arbitrary input chunks.
-///
-/// A frame is emitted as soon as its body is complete. The decoder retains at
-/// most one frame body in addition to the chunk currently supplied by [source].
-Stream<Envelope> decodeEnvelopes(
+/// Decodes `[QUIC varint length][message]` records from a persistent stream.
+Stream<Uint8List> decodeLengthPrefixedMessages(
   Stream<List<int>> source, {
-  int maxEnvelopeLength = defaultMaxEnvelopeLength,
+  int maxMessageLength = defaultMaxMessageLength,
 }) async* {
-  _checkMaximum(maxEnvelopeLength);
-
-  final header = Uint8List(4);
-  var headerLength = 0;
-  Uint8List? body;
-  var bodyLength = 0;
-
-  await for (final chunk in source) {
-    var chunkOffset = 0;
-    while (chunkOffset < chunk.length) {
-      if (headerLength < header.length) {
-        final count = math.min(
-          header.length - headerLength,
-          chunk.length - chunkOffset,
-        );
-        header.setRange(headerLength, headerLength + count, chunk, chunkOffset);
-        headerLength += count;
-        chunkOffset += count;
-
-        if (headerLength < header.length) continue;
-
-        final expectedLength = ByteData.sublistView(header)
-            .getUint32(0, Endian.big);
-        if (expectedLength > maxEnvelopeLength) {
-          throw FrameTooLargeException(
-            length: expectedLength,
-            maximum: maxEnvelopeLength,
-          );
-        }
-        body = Uint8List(expectedLength);
-        bodyLength = 0;
-
-        if (expectedLength == 0) {
-          headerLength = 0;
-          body = null;
-          yield _decodeEnvelope(const <int>[]);
-        }
-      }
-
-      final currentBody = body;
-      if (currentBody == null) continue;
-
-      final count = math.min(
-        currentBody.length - bodyLength,
-        chunk.length - chunkOffset,
-      );
-      currentBody.setRange(bodyLength, bodyLength + count, chunk, chunkOffset);
-      bodyLength += count;
-      chunkOffset += count;
-
-      if (bodyLength == currentBody.length) {
-        headerLength = 0;
-        body = null;
-        bodyLength = 0;
-        yield _decodeEnvelope(currentBody);
-      }
-    }
-  }
-
-  if (body != null) {
-    throw TruncatedFrameException(
-      'stream ended after $bodyLength of ${body.length} body bytes',
-    );
-  }
-  if (headerLength != 0) {
-    throw TruncatedFrameException(
-      'stream ended after $headerLength of 4 header bytes',
-    );
-  }
-}
-
-Envelope _decodeEnvelope(List<int> body) {
-  final Envelope envelope;
+  final reader = QuicStreamReader(source);
   try {
-    envelope = Envelope.fromBuffer(body);
-  } on InvalidProtocolBufferException catch (error) {
-    throw InvalidEnvelopeException(
-      'frame body is not a valid Envelope protobuf',
-      cause: error,
-    );
+    while (true) {
+      final length = await reader.readVarIntOrNull();
+      if (length == null) return;
+      yield await reader.readExactly(length, maxLength: maxMessageLength);
+    }
+  } finally {
+    await reader.cancel();
   }
-  _checkPayload(envelope);
-  return envelope;
 }
 
-void _checkPayload(Envelope envelope) {
-  if (envelope.whichPayload() == Envelope_Payload.notSet) {
-    throw const InvalidEnvelopeException('envelope payload is not set');
+/// Incremental reader shared by FIN-delimited RPC bodies and persistent streams.
+final class QuicStreamReader {
+  QuicStreamReader(Stream<List<int>> source)
+    : _iterator = StreamIterator<List<int>>(source);
+
+  final StreamIterator<List<int>> _iterator;
+  List<int> _chunk = const [];
+  int _offset = 0;
+  bool _ended = false;
+
+  Future<int> readVarInt() async {
+    final value = await readVarIntOrNull();
+    if (value == null) {
+      throw const TruncatedFrameException(
+        'stream ended before a QUIC varint was received',
+      );
+    }
+    return value;
+  }
+
+  Future<int?> readVarIntOrNull() async {
+    final first = await _readByte();
+    if (first == null) return null;
+    final length = 1 << (first >> 6);
+    var value = first & 0x3f;
+    for (var index = 1; index < length; index++) {
+      final byte = await _readByte();
+      if (byte == null) {
+        throw TruncatedFrameException(
+          'stream ended after $index of $length QUIC varint bytes',
+        );
+      }
+      value = value * 256 + byte;
+    }
+    return value;
+  }
+
+  Future<Uint8List> readExactly(
+    int length, {
+    int maxLength = defaultMaxMessageLength,
+  }) async {
+    _checkLength(length, maxLength);
+    final result = Uint8List(length);
+    var written = 0;
+    while (written < length) {
+      if (!await _ensureData()) {
+        throw TruncatedFrameException(
+          'stream ended after $written of $length message bytes',
+        );
+      }
+      final count = math.min(length - written, _chunk.length - _offset);
+      result.setRange(written, written + count, _chunk, _offset);
+      written += count;
+      _offset += count;
+    }
+    return result;
+  }
+
+  /// Reads the rest of a single-message stream, using FIN as its boundary.
+  Future<Uint8List> readToEnd({int maxLength = defaultMaxMessageLength}) async {
+    _checkMaximum(maxLength);
+    final builder = BytesBuilder(copy: false);
+    var length = 0;
+    while (await _ensureData()) {
+      final available = _chunk.length - _offset;
+      length += available;
+      if (length > maxLength) {
+        throw FrameTooLargeException(length: length, maximum: maxLength);
+      }
+      builder.add(_chunk.sublist(_offset));
+      _offset = _chunk.length;
+    }
+    return builder.takeBytes();
+  }
+
+  Future<void> cancel() => _iterator.cancel();
+
+  Future<int?> _readByte() async {
+    if (!await _ensureData()) return null;
+    return _chunk[_offset++];
+  }
+
+  Future<bool> _ensureData() async {
+    while (_offset >= _chunk.length) {
+      if (_ended) return false;
+      if (!await _iterator.moveNext()) {
+        _ended = true;
+        return false;
+      }
+      _chunk = _iterator.current;
+      _offset = 0;
+    }
+    return true;
+  }
+}
+
+void _checkLength(int length, int maximum) {
+  _checkMaximum(maximum);
+  if (length < 0) throw RangeError.value(length, 'length');
+  if (length > maximum) {
+    throw FrameTooLargeException(length: length, maximum: maximum);
   }
 }
 
 void _checkMaximum(int maximum) {
-  if (maximum < 1 || maximum > 0xffffffff) {
-    throw RangeError.range(maximum, 1, 0xffffffff, 'maxEnvelopeLength');
+  if (maximum < 1 || maximum > maximumQuicVarInt) {
+    throw RangeError.range(maximum, 1, maximumQuicVarInt, 'maxMessageLength');
   }
 }

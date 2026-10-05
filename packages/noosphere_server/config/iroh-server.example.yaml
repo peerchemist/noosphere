@@ -1,7 +1,7 @@
 secret-key-path: /var/lib/noosphere/iroh-secret.key
 state-directory: /var/lib/noosphere/state
 native-library-path: /app/lib/libirohdart_ffi.so
-alpn: noosphere/roast/1
+alpn: noosphere/roast/2
 relay:
   policy: default-network
 timeouts-ms:
@@ -9,7 +9,7 @@ timeouts-ms:
   rpc: 30000
   shutdown: 5000
 limits:
-  max-envelope-bytes: 8388608
+  max-message-bytes: 8388608
   max-connections: 128
   max-streams-per-connection: 32
 server:

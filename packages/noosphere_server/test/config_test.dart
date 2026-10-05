@@ -54,7 +54,7 @@ timeouts-ms:
   rpc: 3456
   shutdown: 4567
 limits:
-  max-envelope-bytes: 8192
+  max-message-bytes: 8192
   max-connections: 16
   max-streams-per-connection: 8
 native-library-path: /app/libirohdart_ffi.so
@@ -66,7 +66,7 @@ native-library-path: /app/libirohdart_ffi.so
       expect(config.server.authTimeout.inMilliseconds, 2345);
       expect(config.server.rpcTimeout.inMilliseconds, 3456);
       expect(config.server.shutdownTimeout.inMilliseconds, 4567);
-      expect(config.server.maxEnvelopeLength, 8192);
+      expect(config.server.maxMessageLength, 8192);
       expect(config.server.maxConnections, 16);
       expect(config.server.maxStreamsPerConnection, 8);
       expect(config.server.nativeLibraryPath, '/app/libirohdart_ffi.so');

@@ -39,14 +39,15 @@ the application-owned endpoint.
 
 | ALPN | Protocol |
 | --- | --- |
-| `noosphere/roast/1` | Protobuf envelopes for login, DKG, signing and events |
-| `noosphere/roast-enrollment/1` | Protobuf envelopes for invite enrollment, when room support is enabled |
+| `noosphere/roast/2` | Direct typed protobuf for login, DKG, signing and events |
+| `noosphere/roast-enrollment/2` | Direct typed protobuf for invite enrollment, when room support is enabled |
 
 The server binds both on the same endpoint when a `RoomManager` is provided.
 It routes each accepted connection according to its negotiated ALPN. Freezing
 a room adds its group to the dispatcher; it does not replace or rebind Iroh.
-Both ALPNs use the shared big-endian length prefix and `Envelope` schema.
-Each handler accepts only the operations exposed on its ALPN.
+Both ALPNs dispatch a leading QUIC-varint operation ID directly to concrete
+protobuf request/response types. Each handler accepts only the operations
+exposed on its ALPN.
 
 ## Authentication and snapshot handshake
 
@@ -62,8 +63,8 @@ sequenceDiagram
     S-->>C: RPC authenticated
     C->>S: New persistent stream: StartSession
     S-->>C: SessionStarted(session ID, snapshot)
-    C->>S: Ready
-    S-->>C: Event envelopes
+    Note over C,S: Client request direction finishes with FIN
+    S-->>C: Length-prefixed EventMessage records
     C->>S: Independent streams for domain RPCs
 ```
 
@@ -78,26 +79,27 @@ Authentication succeeds before creating the logical session. Only
 starting authentication from displacing a live signer.
 
 `SessionStarted` carries a snapshot captured through the group's serialized
-dispatcher. Events generated after that point queue for the session. `Ready`
-opens event delivery and enables domain operations. On the client, `Ready` is
-sent after installing the event pump and before `Client.login` completes all
-snapshot restoration; the stream controller buffers while the high-level
-client attaches.
+dispatcher. The server subscribes to queued/live events before writing that
+snapshot, then sends event records on the same response direction. No `Ready`
+control is required; the stream controller buffers while the high-level client
+attaches.
 
 The session ID in a domain RPC must match the ID bound to the connection.
 It is not a standalone bearer token that can be used on any connection.
 
 ## RPC streams and session stream
 
-Each `_rpc` call opens a new bidirectional stream, writes one framed request,
-finishes its sending half and awaits a single framed response. The adapter
-generates a new 16-byte request ID and checks the echoed ID and result type.
-A semaphore bounds concurrent client RPC streams.
+Each `_rpc` call opens a new bidirectional stream, writes an operation QUIC
+varint followed by one concrete request protobuf, finishes its sending half,
+and awaits a status varint plus one concrete response protobuf through FIN.
+The stream itself correlates the response, so no request ID is generated or
+echoed. A semaphore bounds concurrent client RPC streams.
 
-The session uses a separate long-lived bidirectional stream: server events
-travel in one direction, and `Ready`/`Logout` controls in the other. A slow RPC
-does not occupy that same byte stream. QUIC's independent streams do not remove
-the need to serialize mutations of a group's domain state.
+The session uses a separate long-lived bidirectional stream. The client sends
+`StartSession` and FIN; the server sends `SessionStarted` followed by event
+records until logout/connection close. A slow RPC does not occupy that same byte
+stream. QUIC's independent streams do not remove the need to serialize
+mutations of a group's domain state.
 
 The server tracks active connections and streams, resets streams over the
 configured limit, and applies read/write and operation timeouts. Network
@@ -112,19 +114,19 @@ selection determines which streams receive a domain object. That decision is
 made by the coordinator's protocol code; Iroh does not provide the group's
 broadcast or recipient-selection semantics.
 
-After `Ready`, `IrohDispatcher` maps each queued/live object through
-`encodeEvent` into `Envelope.event`. The connection handler awaits each framed
-write on that session's server-to-client sending half. The client incrementally
-reads envelopes from the receiving half, selects a domain decoder using the
-protobuf event type, and passes a `Stream<Event>` into the participant client.
+`IrohDispatcher` maps each queued/live object through `encodeEvent` into an
+`EventMessage`. The connection handler prefixes each message with its QUIC
+varint length and awaits the write on the server-to-client sending half. The
+client incrementally reads records, selects a domain decoder using the protobuf
+event type, and passes a `Stream<Event>` into the participant client.
 [The complete event path](events.md#from-a-dart-event-to-iroh-bytes-and-back)
 explains the data representations and subsequent validation.
 
-The reverse direction of this same stream carries session controls. Participant
-contributions such as commitments and signature replies go through domain RPCs
-on separate streams; clients do not publish arbitrary `Envelope.event` messages
-back to the coordinator. There is no per-event request/response pair on the
-session stream.
+The client finishes the session stream's request direction after `StartSession`.
+Participant contributions such as commitments and signature replies go through
+domain RPCs on separate streams; clients do not publish arbitrary
+`EventMessage` values back to the coordinator. There is no per-event
+request/response pair on the session stream.
 
 The byte stream preserves its own write order, but RPC responses and other
 participants' streams have independent delivery timing. A successful event
@@ -183,8 +185,7 @@ Changing coordinator identity uses a separate app-approved
 
 ## Shutdown and confidentiality
 
-Client logout attempts a `Logout` control, finishes the session sending half,
-closes the connection and releases its owned endpoint. Server shutdown closes
+Client logout closes the connection and releases its owned endpoint. Server shutdown closes
 the endpoint, waits for connection handlers and then drains the dispatcher
 with configured time bounds. The Flutter node joins its server's serving task.
 

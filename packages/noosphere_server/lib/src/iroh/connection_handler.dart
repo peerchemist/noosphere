@@ -3,8 +3,10 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/wire.dart' hide DkgAckRequest;
-import 'package:noosphere/domain.dart';
+import 'package:noosphere/api/types/dkg_ack_request.dart' as domain;
+import 'package:noosphere/wire.dart';
+import 'package:noosphere/domain.dart' hide DkgAckRequest;
+import 'package:protobuf/protobuf.dart';
 
 import '../config/iroh.dart';
 import 'connection_context.dart';
@@ -59,64 +61,47 @@ final class IrohConnectionHandler {
   }
 
   Future<void> _handleStream(SendStream send, RecvStream receive) async {
-    final iterator = StreamIterator(
-      decodeEnvelopes(
-        _readChunks(receive),
-        maxEnvelopeLength: config.maxEnvelopeLength,
-      ),
-    );
+    final reader = QuicStreamReader(_readChunks(receive));
+    var persistentResponse = false;
     try {
-      if (!await iterator.moveNext().timeout(config.authTimeout)) return;
-      final first = iterator.current;
-      if (first.wireVersion != noosphereIrohWireVersion) {
-        await _write(
+      final operationId = await reader.readVarInt().timeout(config.authTimeout);
+      final body = await reader
+          .readToEnd(maxLength: config.maxMessageLength)
+          .timeout(config.rpcTimeout);
+      final operation = RoastOperation.fromId(operationId);
+      if (operation == null) {
+        await _writeError(
           send,
-          _error(
-            ProtocolErrorCode.PROTOCOL_ERROR_UNSUPPORTED_VERSION,
-            'unsupported Iroh wire version',
+          ProtocolError(
+            code: ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
+            message: 'unknown ROAST operation ID $operationId',
           ),
         );
+      } else if (operation == RoastOperation.startSession) {
+        StartSession.fromBuffer(body);
+        persistentResponse = true;
+        await _handleStartSession(send);
       } else {
-        switch (first.whichPayload()) {
-          case Envelope_Payload.rpcRequest:
-            final timeout = switch (first.rpcRequest.whichRequest()) {
-              RpcRequest_Request.login ||
-              RpcRequest_Request.respondToChallenge => config.authTimeout,
-              _ => config.rpcTimeout,
-            };
-            await _handleRpc(send, first.rpcRequest).timeout(timeout);
-          case Envelope_Payload.startSession:
-            await _handleStartSession(send, iterator);
-          case Envelope_Payload.logout:
-            final group = context.groupFingerprint;
-            if (group != null) {
-              await dispatcher.logout(
-                groupFingerprint: group,
-                connection: context,
-              );
-            }
-          default:
-            await _write(
-              send,
-              _error(
-                ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
-                'payload is not valid as the first stream message',
-              ),
-            );
-        }
+        final timeout = switch (operation) {
+          RoastOperation.login ||
+          RoastOperation.respondToChallenge => config.authTimeout,
+          _ => config.rpcTimeout,
+        };
+        await _handleRpc(send, operation, body).timeout(timeout);
       }
     } on Exception catch (error) {
       try {
-        await _write(
-          send,
-          _error(ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST, '$error'),
-        );
+        if (persistentResponse) {
+          await send.reset(1);
+        } else {
+          await _writeError(send, _protocolError(error));
+        }
       } on Exception {
         // The stream may already have been closed/reset by the peer.
       }
     } finally {
       try {
-        await iterator.cancel();
+        await reader.cancel();
       } on Exception {
         // Connection loss may also surface while cancelling the decoder.
       }
@@ -128,71 +113,71 @@ final class IrohConnectionHandler {
     }
   }
 
-  Future<void> _handleRpc(SendStream send, RpcRequest request) async {
-    if (request.requestId.isEmpty) {
-      await _write(
-        send,
-        _rpcError(
-          request.requestId,
-          ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
-          'request_id is empty',
-        ),
-      );
-      return;
-    }
-
-    final RpcResponse response;
+  Future<void> _handleRpc(
+    SendStream send,
+    RoastOperation operation,
+    List<int> body,
+  ) async {
+    final GeneratedMessage response;
     try {
-      response = switch (request.whichRequest()) {
-        RpcRequest_Request.login => await _login(request),
-        RpcRequest_Request.respondToChallenge => await _authenticate(request),
-        RpcRequest_Request.extendSession => await _extendSession(request),
-        RpcRequest_Request.requestNewDkg => await _requestNewDkg(request),
-        RpcRequest_Request.rejectDkg => await _rejectDkg(request),
-        RpcRequest_Request.submitDkgCommitment => await _submitDkgCommitment(
-          request,
+      response = switch (operation) {
+        RoastOperation.login => await _login(LoginRequest.fromBuffer(body)),
+        RoastOperation.respondToChallenge => await _authenticate(
+          SignedAuthChallenge.fromBuffer(body),
         ),
-        RpcRequest_Request.submitDkgRound2 => await _submitDkgRound2(request),
-        RpcRequest_Request.sendDkgAcks => await _sendDkgAcks(request),
-        RpcRequest_Request.requestDkgAcks => await _requestDkgAcks(request),
-        RpcRequest_Request.requestSignatures => await _requestSignatures(
-          request,
+        RoastOperation.extendSession => await _extendSession(
+          Bytes.fromBuffer(body),
         ),
-        RpcRequest_Request.rejectSignaturesRequest =>
-          await _rejectSignaturesRequest(request),
-        RpcRequest_Request.submitSignatureReplies =>
-          await _submitSignatureReplies(request),
-        RpcRequest_Request.shareSecretShare => await _shareSecretShare(request),
-        RpcRequest_Request.ackKeyConstructed => await _ackKeyConstructed(
-          request,
+        RoastOperation.requestNewDkg => await _requestNewDkg(
+          DkgRequest.fromBuffer(body),
         ),
-        _ => RpcResponse(
-          requestId: request.requestId,
-          error: ProtocolError(
-            code: ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
-            message: 'RPC is not supported on the ROAST ALPN',
-          ),
+        RoastOperation.rejectDkg => await _rejectDkg(
+          DkgToReject.fromBuffer(body),
+        ),
+        RoastOperation.submitDkgCommitment => await _submitDkgCommitment(
+          DkgCommitment.fromBuffer(body),
+        ),
+        RoastOperation.submitDkgRound2 => await _submitDkgRound2(
+          DkgRound2.fromBuffer(body),
+        ),
+        RoastOperation.sendDkgAcks => await _sendDkgAcks(
+          DkgAcks.fromBuffer(body),
+        ),
+        RoastOperation.requestDkgAcks => await _requestDkgAcks(
+          DkgAckRequest.fromBuffer(body),
+        ),
+        RoastOperation.requestSignatures => await _requestSignatures(
+          SignaturesRequest.fromBuffer(body),
+        ),
+        RoastOperation.rejectSignaturesRequest =>
+          await _rejectSignaturesRequest(SignaturesRejection.fromBuffer(body)),
+        RoastOperation.submitSignatureReplies => await _submitSignatureReplies(
+          SignaturesReplies.fromBuffer(body),
+        ),
+        RoastOperation.shareSecretShare => await _shareSecretShare(
+          SecretShare.fromBuffer(body),
+        ),
+        RoastOperation.ackKeyConstructed => await _ackKeyConstructed(
+          ConstructedKey.fromBuffer(body),
+        ),
+        RoastOperation.startSession => throw StateError(
+          'session operation reached RPC dispatcher',
         ),
       };
     } on Exception catch (error) {
-      await _write(
+      await _writeError(
         send,
-        _rpcError(
-          request.requestId,
-          ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
-          '$error',
+        ProtocolError(
+          code: ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
+          message: '$error',
         ),
       );
       return;
     }
-    await _write(
-      send,
-      Envelope(wireVersion: noosphereIrohWireVersion, rpcResponse: response),
-    );
+    await _writeResponse(send, response);
   }
 
-  Future<RpcResponse> _login(RpcRequest request) async {
-    final login = request.login;
+  Future<LoginResponse> _login(LoginRequest login) async {
     final challenge = await dispatcher.beginAuthentication(
       groupFingerprint: login.groupFingerprint,
       participantId: Identifier.fromBytes(
@@ -201,14 +186,12 @@ final class IrohConnectionHandler {
       connection: context,
       protocolVersion: login.protocolVersion,
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      login: LoginResponse(challenge: challenge.toBytes()),
-    );
+    return LoginResponse(challenge: challenge.toBytes());
   }
 
-  Future<RpcResponse> _authenticate(RpcRequest request) async {
-    final signed = request.respondToChallenge;
+  Future<RespondToChallengeResponse> _authenticate(
+    SignedAuthChallenge signed,
+  ) async {
     final group = context.boundGroupFingerprint;
     if (group == null) throw StateError('connection has no group binding');
     await dispatcher.completeAuthentication(
@@ -221,36 +204,25 @@ final class IrohConnectionHandler {
         ),
       ),
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      respondToChallenge: RespondToChallengeResponse(
-        authenticated: EmptySuccess(),
-      ),
-    );
+    return RespondToChallengeResponse(authenticated: EmptySuccess());
   }
 
-  Future<RpcResponse> _extendSession(RpcRequest request) async {
+  Future<ExtendSessionResponse> _extendSession(Bytes request) async {
     final group = context.groupFingerprint;
     if (group == null) throw StateError('connection is not authenticated');
     final dispatched = await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
       operation: (handler, _) async {
-        final expiry = await handler.extendSession(
-          _sessionId(request.extendSession.data),
-        );
+        final expiry = await handler.extendSession(_sessionId(request.data));
         return IrohDispatchResult(expiry);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      extendSession: ExtendSessionResponse(expiry: dispatched.value.toBytes()),
-    );
+    return ExtendSessionResponse(expiry: dispatched.value.toBytes());
   }
 
-  Future<RpcResponse> _requestNewDkg(RpcRequest request) async {
+  Future<RequestNewDkgResponse> _requestNewDkg(DkgRequest rpc) async {
     final group = _readyGroup();
-    final rpc = request.requestNewDkg;
     await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -268,15 +240,11 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      requestNewDkg: RequestNewDkgResponse(success: EmptySuccess()),
-    );
+    return RequestNewDkgResponse(success: EmptySuccess());
   }
 
-  Future<RpcResponse> _rejectDkg(RpcRequest request) async {
+  Future<RejectDkgResponse> _rejectDkg(DkgToReject rpc) async {
     final group = _readyGroup();
-    final rpc = request.rejectDkg;
     await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -285,15 +253,13 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      rejectDkg: RejectDkgResponse(success: EmptySuccess()),
-    );
+    return RejectDkgResponse(success: EmptySuccess());
   }
 
-  Future<RpcResponse> _submitDkgCommitment(RpcRequest request) async {
+  Future<SubmitDkgCommitmentResponse> _submitDkgCommitment(
+    DkgCommitment rpc,
+  ) async {
     final group = _readyGroup();
-    final rpc = request.submitDkgCommitment;
     await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -308,15 +274,11 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      submitDkgCommitment: SubmitDkgCommitmentResponse(success: EmptySuccess()),
-    );
+    return SubmitDkgCommitmentResponse(success: EmptySuccess());
   }
 
-  Future<RpcResponse> _submitDkgRound2(RpcRequest request) async {
+  Future<SubmitDkgRound2Response> _submitDkgRound2(DkgRound2 rpc) async {
     final group = _readyGroup();
-    final rpc = request.submitDkgRound2;
     await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -339,15 +301,11 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      submitDkgRound2: SubmitDkgRound2Response(success: EmptySuccess()),
-    );
+    return SubmitDkgRound2Response(success: EmptySuccess());
   }
 
-  Future<RpcResponse> _sendDkgAcks(RpcRequest request) async {
+  Future<SendDkgAcksResponse> _sendDkgAcks(DkgAcks rpc) async {
     final group = _readyGroup();
-    final rpc = request.sendDkgAcks;
     await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -361,15 +319,11 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      sendDkgAcks: SendDkgAcksResponse(success: EmptySuccess()),
-    );
+    return SendDkgAcksResponse(success: EmptySuccess());
   }
 
-  Future<RpcResponse> _requestDkgAcks(RpcRequest request) async {
+  Future<RequestDkgAcksResponse> _requestDkgAcks(DkgAckRequest rpc) async {
     final group = _readyGroup();
-    final rpc = request.requestDkgAcks;
     final dispatched = await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -379,24 +333,22 @@ final class IrohConnectionHandler {
           requests: rpc.requests
               .map(
                 (request) =>
-                    DkgAckRequest.fromBytes(Uint8List.fromList(request)),
+                    domain.DkgAckRequest.fromBytes(Uint8List.fromList(request)),
               )
               .toSet(),
         );
         return IrohDispatchResult(acks);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      requestDkgAcks: RequestDkgAcksResponse(
-        acks: dispatched.value.map((ack) => ack.toBytes()),
-      ),
+    return RequestDkgAcksResponse(
+      acks: dispatched.value.map((ack) => ack.toBytes()),
     );
   }
 
-  Future<RpcResponse> _requestSignatures(RpcRequest request) async {
+  Future<RequestSignaturesResponse> _requestSignatures(
+    SignaturesRequest rpc,
+  ) async {
     final group = _readyGroup();
-    final rpc = request.requestSignatures;
     await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -420,15 +372,13 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      requestSignatures: RequestSignaturesResponse(success: EmptySuccess()),
-    );
+    return RequestSignaturesResponse(success: EmptySuccess());
   }
 
-  Future<RpcResponse> _rejectSignaturesRequest(RpcRequest request) async {
+  Future<RejectSignaturesRequestResponse> _rejectSignaturesRequest(
+    SignaturesRejection rpc,
+  ) async {
     final group = _readyGroup();
-    final rpc = request.rejectSignaturesRequest;
     await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -440,17 +390,13 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      rejectSignaturesRequest: RejectSignaturesRequestResponse(
-        success: EmptySuccess(),
-      ),
-    );
+    return RejectSignaturesRequestResponse(success: EmptySuccess());
   }
 
-  Future<RpcResponse> _submitSignatureReplies(RpcRequest request) async {
+  Future<SubmitSignatureRepliesResponse> _submitSignatureReplies(
+    SignaturesReplies rpc,
+  ) async {
     final group = _readyGroup();
-    final rpc = request.submitSignatureReplies;
     final dispatched = await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -467,23 +413,19 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(response);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      submitSignatureReplies: switch (dispatched.value) {
-        SignatureNewRoundsResponse response => SubmitSignatureRepliesResponse(
-          newRound: NewSignatureRound(data: response.toBytes()),
-        ),
-        SignaturesCompleteResponse response => SubmitSignatureRepliesResponse(
-          completed: CompletedSignatures(data: response.toBytes()),
-        ),
-        null => SubmitSignatureRepliesResponse(noUpdate: NoSignatureUpdate()),
-      },
-    );
+    return switch (dispatched.value) {
+      SignatureNewRoundsResponse response => SubmitSignatureRepliesResponse(
+        newRound: NewSignatureRound(data: response.toBytes()),
+      ),
+      SignaturesCompleteResponse response => SubmitSignatureRepliesResponse(
+        completed: CompletedSignatures(data: response.toBytes()),
+      ),
+      null => SubmitSignatureRepliesResponse(noUpdate: NoSignatureUpdate()),
+    };
   }
 
-  Future<RpcResponse> _shareSecretShare(RpcRequest request) async {
+  Future<ShareSecretShareResponse> _shareSecretShare(SecretShare rpc) async {
     final group = _readyGroup();
-    final rpc = request.shareSecretShare;
     final dispatched = await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -505,17 +447,15 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(events);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      shareSecretShare: ShareSecretShareResponse(
-        constructedKeyEvents: dispatched.value.map(encodeConstructedKeyEvent),
-      ),
+    return ShareSecretShareResponse(
+      constructedKeyEvents: dispatched.value.map(encodeConstructedKeyEvent),
     );
   }
 
-  Future<RpcResponse> _ackKeyConstructed(RpcRequest request) async {
+  Future<AckKeyConstructedResponse> _ackKeyConstructed(
+    ConstructedKey rpc,
+  ) async {
     final group = _readyGroup();
-    final rpc = request.ackKeyConstructed;
     await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
@@ -530,10 +470,7 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RpcResponse(
-      requestId: request.requestId,
-      ackKeyConstructed: AckKeyConstructedResponse(success: EmptySuccess()),
-    );
+    return AckKeyConstructedResponse(success: EmptySuccess());
   }
 
   Uint8List _readyGroup() {
@@ -548,75 +485,66 @@ final class IrohConnectionHandler {
     return requested;
   }
 
-  Future<void> _handleStartSession(
-    SendStream send,
-    StreamIterator<Envelope> iterator,
-  ) async {
+  Future<void> _handleStartSession(SendStream send) async {
     final group = context.groupFingerprint;
     if (group == null) throw StateError('connection is not authenticated');
     final started = await dispatcher
         .startSession(groupFingerprint: group, connection: context)
         .timeout(config.authTimeout);
-    await _write(
-      send,
-      Envelope(wireVersion: noosphereIrohWireVersion, sessionStarted: started),
-    );
-    if (!await iterator.moveNext().timeout(config.authTimeout) ||
-        iterator.current.whichPayload() != Envelope_Payload.ready) {
-      throw StateError('expected Ready after SessionStarted');
-    }
     final events = await dispatcher
         .ready(groupFingerprint: group, connection: context)
         .timeout(config.authTimeout);
-    final controls = _handleSessionControls(iterator, group);
-    final writingEvents = () async {
-      await for (final event in events) {
-        await _write(send, event);
-      }
-    }();
-    final eventsEndedFirst = await Future.any([
-      writingEvents.then((_) => true),
-      controls.then((_) => false),
-    ]);
-    if (!eventsEndedFirst) await writingEvents;
-  }
-
-  Future<void> _handleSessionControls(
-    StreamIterator<Envelope> iterator,
-    List<int> group,
-  ) async {
-    while (await iterator.moveNext()) {
-      switch (iterator.current.whichPayload()) {
-        case Envelope_Payload.logout:
-          await dispatcher.logout(groupFingerprint: group, connection: context);
-          return;
-        default:
-          throw StateError('unexpected session control payload');
-      }
+    await _writePersistentMessage(send, started);
+    await for (final event in events) {
+      await _writePersistentMessage(send, event);
     }
   }
 
-  Future<void> _write(SendStream send, Envelope envelope) => send
+  Future<void> _writeResponse(
+    SendStream send,
+    GeneratedMessage response,
+  ) async {
+    final body = response.writeToBuffer();
+    if (body.length > config.maxMessageLength) {
+      throw FrameTooLargeException(
+        length: body.length,
+        maximum: config.maxMessageLength,
+      );
+    }
+    await send
+        .writeAll(encodeQuicVarInt(RpcResponseStatus.success))
+        .timeout(config.rpcTimeout);
+    await send.writeAll(body).timeout(config.rpcTimeout);
+  }
+
+  Future<void> _writeError(SendStream send, ProtocolError error) async {
+    final body = error.writeToBuffer();
+    await send
+        .writeAll(encodeQuicVarInt(RpcResponseStatus.error))
+        .timeout(config.rpcTimeout);
+    await send.writeAll(body).timeout(config.rpcTimeout);
+  }
+
+  Future<void> _writePersistentMessage(
+    SendStream send,
+    GeneratedMessage message,
+  ) => send
       .writeAll(
-        encodeEnvelope(envelope, maxEnvelopeLength: config.maxEnvelopeLength),
+        encodeLengthPrefixedMessage(
+          message.writeToBuffer(),
+          maxMessageLength: config.maxMessageLength,
+        ),
       )
       .timeout(config.rpcTimeout);
 
-  Envelope _rpcError(
-    List<int> requestId,
-    ProtocolErrorCode code,
-    String message,
-  ) => Envelope(
-    wireVersion: noosphereIrohWireVersion,
-    rpcResponse: RpcResponse(
-      requestId: requestId,
-      error: ProtocolError(code: code, message: message),
-    ),
-  );
-
-  Envelope _error(ProtocolErrorCode code, String message) => Envelope(
-    wireVersion: noosphereIrohWireVersion,
-    error: ProtocolError(code: code, message: message),
+  ProtocolError _protocolError(Object error) => ProtocolError(
+    code: switch (error) {
+      FrameTooLargeException() =>
+        ProtocolErrorCode.PROTOCOL_ERROR_RESOURCE_EXHAUSTED,
+      TimeoutException() => ProtocolErrorCode.PROTOCOL_ERROR_DEADLINE_EXCEEDED,
+      _ => ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
+    },
+    message: '$error',
   );
 }
 

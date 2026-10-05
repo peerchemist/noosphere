@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere/wire.dart';
-import 'package:noosphere_server/noosphere_server.dart';
+import 'package:noosphere_server/noosphere_server.dart' hide KeepaliveEvent;
 import 'package:noosphere_server/src/iroh/connection_context.dart';
 import 'package:noosphere_server/src/iroh/dispatcher.dart';
 import 'package:test/test.dart';
@@ -111,10 +111,7 @@ void main() {
     final first = dispatcher.invokeAndSend(
       groupFingerprint: groupConfig.fingerprint,
       connection: connection(),
-      operation: (_, _) => IrohDispatchResult(
-        1,
-        outgoing: [Envelope(wireVersion: 1, ready: Ready())],
-      ),
+      operation: (_, _) => IrohDispatchResult(1, outgoing: [KeepaliveEvent()]),
       send: (_) {
         writeStarted.complete();
         return releaseWriter.future;

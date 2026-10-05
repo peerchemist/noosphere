@@ -239,7 +239,7 @@ final class _NativeBackend implements NoosphereNodeBackend {
         authTimeout: options.authTimeout,
         rpcTimeout: options.rpcTimeout,
         shutdownTimeout: options.shutdownTimeout,
-        maxEnvelopeLength: options.maxEnvelopeLength,
+        maxMessageLength: options.maxMessageLength,
         maxConnections: options.maxConnections,
         maxStreamsPerConnection: options.maxStreamsPerConnection,
       ),

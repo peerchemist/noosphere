@@ -21,7 +21,7 @@ final class EmbeddedServerOptions({
   final Duration authTimeout = IrohConfig.defaultAuthTimeout,
   final Duration rpcTimeout = IrohConfig.defaultRpcTimeout,
   final Duration shutdownTimeout = IrohConfig.defaultShutdownTimeout,
-  final int maxEnvelopeLength = defaultMaxEnvelopeLength,
+  final int maxMessageLength = defaultMaxMessageLength,
   final int maxConnections = IrohConfig.defaultMaxConnections,
   final int maxStreamsPerConnection = defaultServerMaxStreamsPerConnection,
 }) {}

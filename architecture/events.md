@@ -18,7 +18,7 @@ Noosphere has three primary event APIs plus local room-manager streams.
 flowchart LR
     S["Server state transition"] --> E["Domain Event"]
     E --> P["Protobuf EventMessage: typed oneof"]
-    P --> N["Envelope on Iroh session stream"]
+    P --> N["Length-prefixed record on Iroh session stream"]
     N --> D["Decoded domain Event"]
     D --> C["Client validates and updates protocol state"]
     C --> CE["ClientEvent"]
@@ -59,14 +59,15 @@ server routes the event.
 | Message or object | Who produces it and why |
 | --- | --- |
 | Domain RPC request | Participant asks the coordinator to perform an operation, such as `requestSignatures` or `submitSignatureReplies` |
-| RPC response | Coordinator answers that call, correlated by the protobuf `request_id` |
+| RPC response | Coordinator answers on the opposite direction of the same QUIC bidi stream |
 | Domain `Event` | Coordinator delivers protocol information to one or more participant sessions, independently of an outstanding RPC at those recipients |
 | `ClientEvent` | Local client reports the outcome of protocol processing or a local action to its consumer |
 | `NoosphereWorkerEvent` | Local worker exposes public fields to the Flutter host through a Dart isolate port |
 
-The RPC `request_id` identifies one network call. A signing request's
-`SignaturesRequestId` identifies the signing operation across calls, events and
-reconnection. Neither is a generic delivery ID or acknowledgment for an event.
+The QUIC stream identifies one network call; there is no protobuf request ID. A
+signing request's `SignaturesRequestId` identifies the signing operation across
+calls, events and reconnection. It is not a generic delivery ID or
+acknowledgment for an event.
 The worker's `generation` is another separate identifier, for an isolate
 lifetime; it is not part of the network `Event` encoding.
 
@@ -108,7 +109,7 @@ There is a typed protobuf conversion followed by one framing step:
 | --- | --- | --- |
 | Domain value | A concrete `Event`, such as `SignaturesRequestEvent` | Coordinator/client protocol code |
 | Protobuf event | A concrete event message selected by `EventMessage.oneof event` | Generated protobuf code plus the domain/protobuf converters |
-| Application frame | Four-byte big-endian envelope length, then protobuf envelope bytes | `encodeEnvelope` / `decodeEnvelopes` |
+| Application frame | QUIC-varint message length, then `EventMessage` bytes | `encodeLengthPrefixedMessage` / `decodeLengthPrefixedMessages` |
 | Transport | Bytes on the server-to-client half of the Iroh session QUIC stream | Iroh; it does not interpret the event's fields |
 
 The singular protobuf `EventMessage` contains exactly one event. Its `oneof`
@@ -121,17 +122,15 @@ For a signing proposal the nesting is:
 
 ```text
 Iroh session stream bytes
-  length prefix: sizeof(protobuf Envelope), unsigned 32-bit big-endian
-  Envelope:
-    wire_version: current Iroh wire version
-    event:                           protobuf field 28
-      signatures_request:            EventMessage oneof field 8
-        signed_details:               canonical Signed<...> bytes
-        creator_id:                   32-byte participant identifier
-        progress:
-          threshold:                  uint32
-          contributing_participant_ids: repeated 32-byte identifiers
-          stage:                      protobuf enum
+  length: sizeof(EventMessage), QUIC varint
+  EventMessage:
+    signatures_request:              oneof field 8
+      signed_details:                canonical Signed<...> bytes
+      creator_id:                    32-byte participant identifier
+      progress:
+        threshold:                   uint32
+        contributing_participant_ids: repeated 32-byte identifiers
+        stage:                       protobuf enum
 ```
 
 This is a structural illustration, not JSON sent over the wire. The signed
@@ -146,16 +145,16 @@ The implementation path is explicit:
 1. [`ClientSession.sendEvent`](../packages/noosphere_server/lib/src/server/state/client_session.dart)
    enqueues a domain object for that recipient's session.
 2. [`IrohDispatcher.ready`](../packages/noosphere_server/lib/src/iroh/dispatcher.dart)
-   maps the session stream into envelopes with the `encodeEvent` conversion
+   maps the session stream into `EventMessage` values with `encodeEvent`
    exported by [`wire.dart`](../packages/noosphere/lib/wire.dart) and implemented
    in [`event_wire.dart`](../packages/noosphere/lib/src/event_wire.dart).
 3. [`_handleStartSession`](../packages/noosphere_server/lib/src/iroh/connection_handler.dart)
-   writes those envelopes sequentially after `Ready`. Its `_write` method uses
-   [`encodeEnvelope`](../packages/noosphere/lib/src/framing.dart), then
-   `SendStream.writeAll`. Socket writes do not hold the group's dispatch lane.
+   writes those messages sequentially after `SessionStarted`, using
+   [`encodeLengthPrefixedMessage`](../packages/noosphere/lib/src/framing.dart)
+   and `SendStream.writeAll`. Socket writes do not hold the group's dispatch lane.
 4. [`IrohClientApi`](../packages/noosphere_client/lib/src/iroh/client_api.dart)
-   reads native chunks and runs `decodeEnvelopes`. Its `_pumpEvents` checks the
-   wire version and session-envelope kind, and shared `decodeEvent`
+   reads native chunks and runs `decodeLengthPrefixedMessages`. After the first
+   `SessionStarted` record, `_pumpEvents` parses `EventMessage`, and shared `decodeEvent`
    reconstructs the domain value from the selected protobuf `oneof` message.
 5. The resulting `Stream<Event>` is attached to `LoginCompleteResponse.events`.
    [`Client._handleEvent`](../packages/noosphere_client/lib/src/client/client_events.dart)
@@ -164,10 +163,10 @@ The implementation path is explicit:
 
 QUIC read chunks are not event boundaries: one read can contain several frames,
 and one frame can span several reads. The frame limit applies to the entire
-protobuf envelope body, including its wrapper overhead. A decoder accepting
+protobuf message body. A decoder accepting
 protobuf only proves that it parsed the structure; it has not yet validated
 nested domain values or authorized a protocol action. See
-[protobuf and framing](protobuf-and-framing.md#the-events-payload) for the
+[protobuf and framing](protobuf-and-framing.md#persistent-event-stream) for the
 schema and the separate validation stages.
 
 ## Worked example: a signing proposal reaches another participant
@@ -187,7 +186,7 @@ sequenceDiagram
     S->>S: Validate, create coordination state, await persistence
     S->>T: B's session: SignaturesRequestEvent
     Note over S,T: A receives its RPC result on a separate stream
-    T->>T: Domain Event -> typed EventMessage -> framed Envelope
+    T->>T: Domain Event -> typed, length-prefixed EventMessage
     T-->>B: B's persistent session stream
     B->>B: Decode and check creator signature, expiry, keys and state
     B-->>H: SignaturesRequestClientEvent (waiting proposal)
@@ -359,27 +358,25 @@ uses the same pattern with `WorkerDkgStatus`.
 
 ## Delivery guarantees and limits
 
-The network handshake is `StartSession -> SessionStarted(snapshot) -> Ready`
-on the persistent stream. The server creates the session and captures its
-snapshot through the group's dispatch lane. It can enqueue subsequent domain
-events while the snapshot is being delivered; it starts writing their envelopes
-after `Ready`. This closes the snapshot/subscription gap during normal session
-establishment without turning the snapshot into an event-history replay.
+The client opens the persistent stream with `StartSession` and finishes its
+sending half. The server creates the session, captures its snapshot, and
+subscribes to queued/live events through the group's dispatch lane before it
+writes `SessionStarted(snapshot)`. It then writes event records on the same
+response direction. This closes the snapshot/subscription gap without a
+separate `Ready` control message or event-history replay.
 
 [`LoginCompleteResponse`](../packages/noosphere/lib/api/responses/login_complete.dart)
 reuses concrete event types in some of its collections: pending DKGs, signing
 proposals, pending signing rounds and encrypted recovery shares. These are
 embedded domain records inside `SessionStarted.snapshot`, not individual
-`Envelope.event` frames. Completed results use `CompletedSignaturesRequest`,
+`EventMessage` records. Completed results use `CompletedSignaturesRequest`,
 which includes the original signed proposal as well as signatures, so they can
 be verified without relying on an earlier live proposal event. The Dart
 `events` stream itself is not serialized; the client adapter supplies it when
 decoding the snapshot.
 
-`Ready` acknowledges transport readiness, not completion of application
-processing or consent to any proposal. The client adapter sends it after
-installing the event pump, before the high-level `Client.login` finishes
-restoration. Transport delivery on one session stream is ordered; asynchronous
+Transport readiness does not imply completion of application processing or
+consent to any proposal. Transport delivery on one session stream is ordered; asynchronous
 client handlers use their relevant operation/key locks. There is no global
 promise that every asynchronous application callback completes before the next
 event arrives, nor a transaction covering the application's database.

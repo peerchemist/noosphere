@@ -11,9 +11,11 @@ transport, not part of the protocol semantics.
 
 The [architecture guide](../../../architecture.md) describes authentication,
 sessions, DKG, signing, expiry, reconnect, replay and error handling in the
-current implementation. Both enrollment and ROAST use protobuf `Envelope`
-messages with the shared big-endian length prefix, on separate Iroh ALPNs.
-Canonical domain encodings define signed payloads inside those messages.
+current implementation. Enrollment and ROAST use operation-prefixed QUIC
+streams with concrete protobuf request/response bodies on separate versioned
+Iroh ALPNs. FIN delimits single-message bodies; only persistent multi-message
+streams use QUIC-varint lengths. Canonical domain encodings define signed
+payloads inside those messages.
 
 ## Message signing
 

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:noosphere/wire.dart';
 import 'package:noosphere/domain.dart';
+import 'package:protobuf/protobuf.dart';
 
 import '../server/api_handler.dart';
 import 'connection_context.dart';
@@ -23,11 +24,13 @@ final class ConnectionGroupMismatchException implements Exception {
 
 /// A state transition result plus messages that may be written afterwards.
 final class IrohDispatchResult<T> {
-  IrohDispatchResult(this.value, {Iterable<Envelope> outgoing = const []})
-    : outgoing = List.unmodifiable(outgoing);
+  IrohDispatchResult(
+    this.value, {
+    Iterable<GeneratedMessage> outgoing = const [],
+  }) : outgoing = List.unmodifiable(outgoing);
 
   final T value;
-  final List<Envelope> outgoing;
+  final List<GeneratedMessage> outgoing;
 }
 
 /// Serializes state mutations independently for each configured group.
@@ -148,7 +151,7 @@ final class IrohDispatcher {
   }
 
   /// Completes snapshot initialization and exposes queued/live session events.
-  Future<Stream<Envelope>> ready({
+  Future<Stream<EventMessage>> ready({
     required List<int> groupFingerprint,
     required ConnectionContext connection,
   }) async {
@@ -166,12 +169,7 @@ final class IrohDispatcher {
         final session = handler.getSession(sessionId);
         connection.markReady();
         return IrohDispatchResult(
-          session.eventController.stream.map(
-            (event) => Envelope(
-              wireVersion: noosphereIrohWireVersion,
-              event: encodeEvent(event),
-            ),
-          ),
+          session.eventController.stream.map(encodeEvent),
         );
       },
     );
@@ -260,7 +258,7 @@ final class IrohDispatcher {
       ConnectionContext connection,
     )
     operation,
-    required Future<void> Function(List<Envelope> outgoing) send,
+    required Future<void> Function(List<GeneratedMessage> outgoing) send,
   }) async {
     final result = await invoke(
       groupFingerprint: groupFingerprint,

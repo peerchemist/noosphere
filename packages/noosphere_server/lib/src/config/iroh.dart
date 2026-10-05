@@ -27,7 +27,7 @@ final class IrohConfig {
     this.authTimeout = defaultAuthTimeout,
     this.rpcTimeout = defaultRpcTimeout,
     this.shutdownTimeout = defaultShutdownTimeout,
-    this.maxEnvelopeLength = defaultMaxEnvelopeLength,
+    this.maxMessageLength = defaultMaxMessageLength,
     this.maxConnections = defaultMaxConnections,
     this.maxStreamsPerConnection = defaultMaxStreamsPerConnection,
     this.nativeLibraryPath,
@@ -42,8 +42,8 @@ final class IrohConfig {
     if (shutdownTimeout <= Duration.zero) {
       throw ArgumentError.value(shutdownTimeout, 'shutdownTimeout');
     }
-    if (maxEnvelopeLength < 1 || maxEnvelopeLength > 0xffffffff) {
-      throw RangeError.range(maxEnvelopeLength, 1, 0xffffffff);
+    if (maxMessageLength < 1 || maxMessageLength > 0xffffffff) {
+      throw RangeError.range(maxMessageLength, 1, 0xffffffff);
     }
     if (maxConnections < 1) {
       throw RangeError.range(maxConnections, 1, null);
@@ -59,7 +59,7 @@ final class IrohConfig {
   final Duration authTimeout;
   final Duration rpcTimeout;
   final Duration shutdownTimeout;
-  final int maxEnvelopeLength;
+  final int maxMessageLength;
   final int maxConnections;
   final int maxStreamsPerConnection;
   final String? nativeLibraryPath;

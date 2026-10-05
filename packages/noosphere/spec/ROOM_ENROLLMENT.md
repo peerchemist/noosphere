@@ -49,8 +49,10 @@ existing coinlib Schnorr `Signed<T>` primitive. Challenges are kept only in
 memory, have a short TTL, and are removed before proof validation, making every
 nonce one-shot even when validation fails.
 
-Enrollment uses `noosphere/roast-enrollment/1`; ordinary protocol traffic
-continues on `noosphere/roast/1`. `IrohServer` binds both ALPNs to the same
+The signed transcript retains the `noosphere/roast-enrollment/1` domain
+separator and version 1. Transport uses the `noosphere/roast-enrollment/2`
+ALPN; ordinary protocol traffic uses `noosphere/roast/2`. `IrohServer` binds
+both ALPNs to the same
 long-lived endpoint and dispatches on the negotiated ALPN. Freezing does not
 rebind the endpoint or generate a new coordinator identity.
 

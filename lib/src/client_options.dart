@@ -23,7 +23,7 @@ final class ClientNodeOptions({
       IrohClientTransportConfig.defaultConnectTimeout,
   final Duration authTimeout = IrohClientTransportConfig.defaultAuthTimeout,
   final Duration rpcTimeout = IrohClientTransportConfig.defaultRpcTimeout,
-  final int maxEnvelopeLength = defaultMaxEnvelopeLength,
+  final int maxMessageLength = defaultMaxMessageLength,
   final int maxConcurrentStreams = defaultClientMaxConcurrentStreams,
   final IrohReconnectConfig reconnect = const IrohReconnectConfig(),
 }) {
@@ -39,7 +39,7 @@ final class ClientNodeOptions({
     connectTimeout: connectTimeout,
     authTimeout: authTimeout,
     rpcTimeout: rpcTimeout,
-    maxEnvelopeLength: maxEnvelopeLength,
+    maxMessageLength: maxMessageLength,
     maxConcurrentStreams: maxConcurrentStreams,
     reconnect: reconnect,
   );
@@ -52,7 +52,7 @@ final class ClientNodeOptions({
     connectTimeout: connectTimeout,
     authTimeout: authTimeout,
     rpcTimeout: rpcTimeout,
-    maxEnvelopeLength: maxEnvelopeLength,
+    maxMessageLength: maxMessageLength,
     maxConcurrentStreams: maxConcurrentStreams,
   );
 }

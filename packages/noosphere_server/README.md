@@ -146,5 +146,5 @@ by replacing
 `GrpcClientApi`/`GrpcConfig` with `IrohClientApi`/`IrohConfig`, pinning the
 server endpoint ID and persisting the server identity key. Canonical domain
 bytes are carried inside protobuf messages; the transport and session semantics
-are breaking changes. Enrollment and ROAST share the protobuf envelope and
-framing on separate ALPNs.
+are breaking changes. Enrollment and ROAST use separate versioned ALPNs,
+operation-prefixed QUIC streams, concrete protobuf bodies, and FIN boundaries.
