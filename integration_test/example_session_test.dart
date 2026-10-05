@@ -77,11 +77,11 @@ void main() {
       expect(clients[0].storage, isNot(same(clients[1].storage)));
       expect(
         cl.bytesToHex((await clients[0].getPrivateKey(KeyPurpose.login)).data),
-        'b5ea942912b223b0cb7f6f536e69c29a4a77c7963ea1a1e30621e274942ff0fc',
+        '360f40de77ab64305c14694fc6cae299212d983cc560735875df77ebda3a5001',
       );
       expect(
         cl.bytesToHex((await clients[1].getPrivateKey(KeyPurpose.login)).data),
-        'e9e175f955f812e432377cf33650393f70db1973c88f3e8031e86bb02d444db8',
+        '76a5d16187785b18cf6a7d63707235004581a029375f60e187697acada069971',
       );
       expect(workers[1].server, isNull);
       final firstIrohKey = (await workers[0].server!.getIrohSecretKey())
@@ -90,7 +90,7 @@ void main() {
           .toBytes();
       expect(
         cl.bytesToHex(firstIrohKey),
-        '2514d14689dad166915be9142bd43b118654171a681aaf2955bb191ba2858447',
+        'e477d4694160a384b28ee2f72b54edcf0822fd6e1ee1780447455cdbed8f8c45',
       );
       expect(restartedIrohKey, orderedEquals(firstIrohKey));
       expect(demoParticipantDerivationPaths, [

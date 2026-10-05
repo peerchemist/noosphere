@@ -9,6 +9,7 @@ environment:
 resolution: workspace
 
 dependencies:
+  bip39_mnemonic: 4.1.0
   coinlib: 6.0.1
   flutter:
     sdk: flutter
