@@ -311,6 +311,12 @@ For multisig minting, that command is the stake finder's authenticated
 limits, candidate identity/signature and basic request structure before routing
 the event. Recipients then perform their own chain-dependent validation.
 
+The request handler derives the finder identity from the authenticated
+connection/session. It never accepts `finder_id` as independent proof of who
+called it. If the payload includes `finder_id`, it must equal the participant
+bound to the session. The login-to-session binding is described in
+[Iroh transport](iroh-transport.md#how-a-request-is-attributed-to-a-participant).
+
 ## Multisig minting flow
 
 The proposed extension composes with the existing signing protocol rather than
@@ -344,6 +350,47 @@ metadata so a signature request cannot be substituted between two stake finds.
 Duplicate candidate IDs are idempotent; conflicting payloads under one ID are a
 protocol error. Expired candidates and candidates for an unknown group key are
 rejected without starting ROAST.
+
+### Signed candidate and trust boundary
+
+The finder's signature is end-to-end evidence for the other participants. Its
+canonical signed statement should bind at least:
+
+```text
+extension ID and version
+room/group fingerprint
+finder participant ID
+shared group key
+stake input and canonical candidate bytes
+minting time
+candidate/event ID
+```
+
+Domain separation must distinguish this statement from login challenges and
+other Noosphere signatures. Binding the room, key and extension version
+prevents a correctly signed candidate from being replayed in another room or
+interpreted under different extension rules.
+
+The two checks serve different audiences:
+
+1. The authenticated session proves to the coordinator which room participant
+   submitted `announceMintingOpportunity`.
+2. The finder signature proves to every receiving participant who authored the
+   candidate and that its protected fields were not changed in transit.
+
+Recipients authenticate the event's transport as the pinned coordinator, but
+they do not need to trust the coordinator's word about the candidate's author
+or contents. They verify the finder signature with the public key from the room
+roster, then validate the stake opportunity against their own trusted chain
+view. The event is still only a proposal and never constitutes approval to
+sign.
+
+This does not eliminate all trust in the coordinator. It remains responsible
+for routing and can omit, delay, replay or deliver the event to only part of the
+room. The candidate/event ID, expiry and receiver-side deduplication limit
+replay effects, but cannot force an uncooperative coordinator to deliver. The
+coordinator cannot forge a valid finder signature, modify signed fields without
+detection or force participants to enter ROAST.
 
 ## Client validation and effects
 

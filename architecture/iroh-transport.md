@@ -89,6 +89,53 @@ attaches.
 The session ID in a domain RPC must match the ID bound to the connection.
 It is not a standalone bearer token that can be used on any connection.
 
+### How a request is attributed to a participant
+
+The `participant_id` in the initial `Login` request is only a claim. It becomes
+authenticated through the following chain:
+
+```text
+public key in the room roster
+  -> verifies the signature over the fresh login challenge
+  -> binds the participant ID and group fingerprint to this connection
+  -> StartSession binds a fresh session ID to the same connection
+  -> every later RPC must carry that exact session ID on that connection
+```
+
+Consequently, a domain or extension handler obtains the caller from the
+connection/session binding. It must not trust a `participant_id`, `sender` or
+`finder_id` supplied inside the RPC payload. If an Alice-bound connection
+submits a payload claiming to be from Bob, the request is rejected or Bob's
+claim is ignored in favor of the authenticated Alice identity.
+
+The Iroh endpoint ID and Noosphere participant identity prove different
+things. The client pins the coordinator's Iroh endpoint ID to authenticate the
+transport peer. The coordinator authenticates a room participant with the
+participant's secp256k1 roster key and the signed challenge. Merely knowing a
+client's Iroh endpoint ID does not prove that it is a particular room member.
+
+### What recipients trust when receiving an event
+
+An event arrives over a transport connection authenticated as the pinned
+coordinator, not over a direct participant-to-participant connection. The
+recipient therefore knows that the coordinator delivered the bytes. That fact
+alone does not prove which participant originally created their contents.
+
+Where participant authorship matters, the event must retain a participant-
+signed canonical domain object. The recipient verifies that inner signature
+with the author's roster key and independently validates the object. This
+separates two claims:
+
+- the authenticated session tells the coordinator who submitted an RPC;
+- the inner signature tells every recipient who authored the protected content
+  and that the coordinator did not alter it.
+
+Without the inner signature, recipients necessarily trust the coordinator's
+sender attribution. Even with it, they still depend on the coordinator for
+delivery: a malicious coordinator can omit, delay, replay or selectively send
+events. It cannot forge a valid participant signature or make another
+participant approve a signing request.
+
 ## RPC streams and session stream
 
 Each `_rpc` call opens a new bidirectional stream, writes an operation QUIC

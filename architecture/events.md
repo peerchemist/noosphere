@@ -101,6 +101,43 @@ recipient-encrypted shares travel through the coordinator. Routing determines
 who receives the event; the share's inner ciphertext determines who can read
 its secret content.
 
+## Event authorship and coordinator trust
+
+A participant does not normally emit a network `Event` directly. It submits an
+authenticated RPC; the coordinator validates the request, changes protocol
+state where appropriate, constructs the domain event and writes it to selected
+session streams:
+
+```text
+participant A
+  -> authenticated RPC
+  -> coordinator validation and routing
+  -> coordinator-created Event
+  -> participant B, participant C, ...
+```
+
+There are therefore two distinct authors at different layers:
+
+| Layer | What is authenticated | What it proves |
+| --- | --- | --- |
+| Event transport | Pinned coordinator Iroh endpoint | The event bytes were delivered by the expected coordinator |
+| Submitted protocol object | Participant identity signature, when the event carries one | The signed content was created by that participant and was not modified |
+
+The coordinator identifies an RPC caller from the authenticated connection and
+its bound session, not from a sender field chosen by the request. The complete
+binding is described in [Iroh transport](iroh-transport.md#how-a-request-is-attributed-to-a-participant).
+
+A receiving participant must still verify any embedded participant signature,
+group/key binding, expiry, replay protection and protocol state. Receiving an
+event is neither proof that its application-level claim is true nor approval to
+sign. If an event contains no participant-signed object, recipients trust the
+coordinator for its claimed participant attribution.
+
+Participant signatures do not make the coordinator trustless. The coordinator
+controls routing and can omit, delay, replay or selectively deliver an event.
+It cannot alter signed content undetectably, forge a participant's signature or
+force a recipient to approve a signing operation.
+
 ## From a Dart event to Iroh bytes, and back
 
 There is a typed protobuf conversion followed by one framing step:

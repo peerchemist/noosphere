@@ -20,6 +20,17 @@ The coordinator does not need a participant's private share. Cryptographic
 primitives come from `frosty` and `coinlib`; Noosphere supplies the protocol,
 state machines, persistence contracts, transport adapters, and lifecycle APIs.
 
+Participants send authenticated RPCs to the coordinator; they do not normally
+broadcast network events directly to one another. The coordinator derives the
+caller from the login-bound connection and session, then creates and routes an
+event to other sessions. Recipients authenticate the transport as the pinned
+coordinator, but verify participant-signed contents with roster keys and apply
+their own protocol/application checks. This prevents the coordinator from
+forging or silently modifying signed participant content, although it remains
+trusted for availability and can omit, delay, replay or selectively deliver
+events. See [Iroh transport](architecture/iroh-transport.md#how-a-request-is-attributed-to-a-participant)
+and [event authorship](architecture/events.md#event-authorship-and-coordinator-trust).
+
 The importing application owns its application state, durable storage, identity
 key custody, approval policy, and interpretation of signed data. Noosphere is
 not a wallet database or application state-management framework. It **does**
