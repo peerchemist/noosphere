@@ -190,7 +190,7 @@ sequenceDiagram
     Note over S,T: A receives its RPC result on a separate stream
     T->>T: Domain Event -> typed EventMessage -> framed Envelope
     T-->>B: B's persistent session stream
-    B->>B: Decode; check creator signature, expiry, keys and state
+    B->>B: Decode and check creator signature, expiry, keys and state
     B-->>H: SignaturesRequestClientEvent (waiting proposal)
     Note over B,H: Worker users receive WorkerSigningRequestEvent
     H->>B: Explicit accept or reject of the reviewed proposal
