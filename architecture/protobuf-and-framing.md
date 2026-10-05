@@ -7,6 +7,38 @@ The canonical network schema is
 messages and enums. There is no gRPC service definition: current RPCs are
 implemented directly over Iroh bidirectional QUIC streams.
 
+## Why this layered design
+
+Noosphere deliberately separates its domain model, protobuf transport model
+and stream framing:
+
+| Layer | Responsibility | Design reason |
+| --- | --- | --- |
+| Domain objects | Protocol meaning, invariants and cryptographic operations | Server and client state machines work with types such as `Event`, `Identifier` and `Signed<T>`, without depending on generated transport classes |
+| Protobuf messages | Typed network representation, variant discrimination and stable field numbers | `oneof` fields make RPC and event variants explicit and provide generated cross-language codecs |
+| Canonical domain bytes | Exact representation of signed and Frosty-owned nested values | Signatures and hashes must bind a specified stable encoding rather than incidental protobuf serialization order |
+| Length-prefixed frames | Boundaries between protobuf envelopes on a session stream | Iroh uses reliable QUIC streams, which deliver an ordered byte stream but do not preserve individual write or read boundaries |
+
+The domain/protobuf conversion is intentional. Using generated protobuf
+classes directly as the domain model would couple protocol state and validation
+to transport-generated types. Replacing protobuf with one custom binary format
+would remove that conversion, but would also give up the explicit schema,
+generated codecs and protobuf evolution rules. Encoding every nested
+cryptographic value as protobuf would require a separate canonical signing
+specification; raw protobuf serialization is not used as a signature preimage.
+
+This separation costs conversion code, allocations and round-trip tests. That
+tradeoff is accepted for clarity and interoperability. Performance-sensitive
+changes should be driven by profiling; protobuf overhead is not assumed to be
+significant compared with network and cryptographic work.
+
+Framing is required independently of protobuf. A stream read can contain part
+of one envelope, exactly one envelope, or several envelopes, regardless of how
+the sender grouped its writes. The four-byte length prefix lets the receiver
+buffer exactly one complete protobuf body, reject an oversized advertised body
+before allocating it, and then pass that body to the protobuf decoder. This
+would still be necessary with a different non-self-framing message codec.
+
 ## Envelope structure
 
 Every ROAST or enrollment frame contains one `Envelope`:
@@ -157,10 +189,11 @@ The receiving path has separate checks:
 Nested domain `fromBytes` readers enforce bounded whole-value decoding,
 including trailing-data checks. A missing event oneof is rejected, and
 `KeepaliveEvent` is represented by an explicit empty protobuf message. There is
-no general signature over the protobuf `EventMessage` wrapper: signed proposals and
-other attestations bind their specified domain hashes, while Iroh authenticates
-the transport endpoints. For example, proposal progress is checked as a
-coordinator report, not as part of the requester's proposal signature.
+no general signature over the protobuf `EventMessage` wrapper: signed proposals
+and other attestations bind their specified domain hashes, while Iroh
+authenticates the transport endpoints. For example, proposal progress is
+checked as a coordinator report, not as part of the requester's proposal
+signature.
 
 A framing, envelope or domain-decoding failure in `_pumpEvents` is reported
 as a stream error and closes that event stream. A protocol-validation failure
