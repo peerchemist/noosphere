@@ -95,29 +95,38 @@ cryptographic values without redefining their signed representation.
 
 ```proto
 message Events {
-  EventType type = 1;
-  bytes data = 2;
+  oneof event {
+    ParticipantStatusEvent participant_status = 1;
+    NewDkgEvent new_dkg = 2;
+    // ...one typed field for every supported event...
+    SignaturesProgressEvent signatures_progress = 15;
+  }
 }
 ```
 
 Despite its plural name, one `Events` message represents one domain event.
-For example, `SIG_REQ_EVENT` selects `SignaturesRequestEvent.fromBytes(data)`.
-`data` is a binary domain payload, not protobuf JSON, a serialized Dart object
-graph, or an automatically understood arbitrary map.
+The `oneof` discriminator and selected generated message replace the former
+type-enum-plus-opaque-bytes representation. For example,
+`signatures_request` contains `signed_details`, `creator_id` and a typed
+`SignaturesProgress` message.
 
 The server's [event encoder](../packages/noosphere_server/lib/src/iroh/messages.dart)
-sets the enum and writes `event.toBytes()`. The client decoder selects the
-corresponding constructor. These explicit switches define the supported
-application protocol. A new enum value and new bytes require matching codecs
-and handlers; a byte field alone does not supply extensibility.
+and the client decoder use the shared converters in
+[`event_wire.dart`](../packages/noosphere/lib/event_wire.dart). These explicit,
+exhaustive switches define the supported application protocol. A new oneof
+message requires matching domain conversion and handling; protobuf does not
+supply protocol behavior by itself.
 
 For a concrete `SignaturesRequestEvent event`, the server's mapping is
 conceptually this code (the real `encodeEvent` handles every supported variant):
 
 ```dart
 final message = protocol.Events(
-  type: protocol.EventType.SIG_REQ_EVENT,
-  data: event.toBytes(),
+  signaturesRequest: protocol.SignaturesRequestEvent(
+    signedDetails: event.details.toBytes(),
+    creatorId: event.creator.toBytes(),
+    progress: encodeProgress(event.progress),
+  ),
 );
 final envelope = protocol.Envelope(
   wireVersion: noosphereIrohWireVersion,
@@ -127,13 +136,13 @@ final frame = encodeEnvelope(envelope);
 // The connection handler awaits send.writeAll(frame).
 ```
 
-`Events.type` chooses the payload codec. For `SIG_REQ_EVENT`, `data` is the
-concatenation written by `SignaturesRequestEvent.write`: signed proposal,
-creator identifier, then progress. Protobuf describes only the wrapper's enum
-and bytes; there is no generated protobuf schema for those inner event fields.
-Changing their binary order or meaning changes the protocol even if
-`noosphere.proto` itself is untouched. Conversely, regenerating protobuf cannot
-repair a mismatch between a domain writer and its reader.
+Every event's own fields are now described in `noosphere.proto`. Nested
+cryptographic objects such as `Signed<SignaturesRequestDetails>`, FROST
+commitments, ACKs and ciphertexts remain `bytes` containing their canonical
+domain encoding. Their signatures and hashes bind those encodings, so the
+protobuf transport must not redefine them. Identifiers, request IDs, public
+keys and signatures are also byte strings with lengths enforced while
+constructing the domain value.
 
 The receiving path has separate checks:
 
@@ -141,13 +150,13 @@ The receiving path has separate checks:
 | --- | --- |
 | Frame decoder | Enforces envelope size, gathers a complete length-prefixed body, parses protobuf and requires a recognized envelope payload |
 | Session adapter | Checks wire version and accepts event/error envelopes on the established session stream |
-| Event mapping | Selects the concrete reader from `Events.type`; decodes domain `data` with that reader |
+| Event mapping | Requires a selected `Events.event` variant, converts its typed fields, and decodes canonical nested values |
 | Participant state machine | Checks identities, signed contents, expiry, round/request context and cryptographic contributions as appropriate to the event |
 | Host approval | Decides whether a valid proposal should be accepted for the application's purposes |
 
-Domain `fromBytes` readers enforce bounded whole-value decoding, including
-trailing-data checks. The empty `KEEPALIVE_EVENT` is a special case: the current
-client constructs `KeepaliveEvent()` directly and ignores its `data`. There is
+Nested domain `fromBytes` readers enforce bounded whole-value decoding,
+including trailing-data checks. A missing event oneof is rejected, and
+`KeepaliveEvent` is represented by an explicit empty protobuf message. There is
 no general signature over the protobuf `Events` wrapper: signed proposals and
 other attestations bind their specified domain hashes, while Iroh authenticates
 the transport endpoints. For example, proposal progress is checked as a

@@ -1190,14 +1190,1333 @@ class ConstructedKey extends $pb.GeneratedMessage {
   void clearConstructedKey() => $_clearField(2);
 }
 
-class Events extends $pb.GeneratedMessage {
-  factory Events({
-    EventType? type,
-    $core.List<$core.int>? data,
+class ParticipantStatusEvent extends $pb.GeneratedMessage {
+  factory ParticipantStatusEvent({
+    $core.List<$core.int>? participantId,
+    $core.bool? loggedIn,
   }) {
     final result = create();
-    if (type != null) result.type = type;
-    if (data != null) result.data = data;
+    if (participantId != null) result.participantId = participantId;
+    if (loggedIn != null) result.loggedIn = loggedIn;
+    return result;
+  }
+
+  ParticipantStatusEvent._();
+
+  factory ParticipantStatusEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ParticipantStatusEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ParticipantStatusEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'participantId', $pb.PbFieldType.OY)
+    ..aOB(2, _omitFieldNames ? '' : 'loggedIn')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ParticipantStatusEvent clone() =>
+      ParticipantStatusEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ParticipantStatusEvent copyWith(
+          void Function(ParticipantStatusEvent) updates) =>
+      super.copyWith((message) => updates(message as ParticipantStatusEvent))
+          as ParticipantStatusEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ParticipantStatusEvent create() => ParticipantStatusEvent._();
+  @$core.override
+  ParticipantStatusEvent createEmptyInstance() => create();
+  static $pb.PbList<ParticipantStatusEvent> createRepeated() =>
+      $pb.PbList<ParticipantStatusEvent>();
+  @$core.pragma('dart2js:noInline')
+  static ParticipantStatusEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ParticipantStatusEvent>(create);
+  static ParticipantStatusEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get participantId => $_getN(0);
+  @$pb.TagNumber(1)
+  set participantId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasParticipantId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearParticipantId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get loggedIn => $_getBF(1);
+  @$pb.TagNumber(2)
+  set loggedIn($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLoggedIn() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLoggedIn() => $_clearField(2);
+}
+
+class DkgEventCommitment extends $pb.GeneratedMessage {
+  factory DkgEventCommitment({
+    $core.List<$core.int>? participantId,
+    $core.List<$core.int>? commitment,
+  }) {
+    final result = create();
+    if (participantId != null) result.participantId = participantId;
+    if (commitment != null) result.commitment = commitment;
+    return result;
+  }
+
+  DkgEventCommitment._();
+
+  factory DkgEventCommitment.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory DkgEventCommitment.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DkgEventCommitment',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'participantId', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'commitment', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgEventCommitment clone() => DkgEventCommitment()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgEventCommitment copyWith(void Function(DkgEventCommitment) updates) =>
+      super.copyWith((message) => updates(message as DkgEventCommitment))
+          as DkgEventCommitment;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static DkgEventCommitment create() => DkgEventCommitment._();
+  @$core.override
+  DkgEventCommitment createEmptyInstance() => create();
+  static $pb.PbList<DkgEventCommitment> createRepeated() =>
+      $pb.PbList<DkgEventCommitment>();
+  @$core.pragma('dart2js:noInline')
+  static DkgEventCommitment getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DkgEventCommitment>(create);
+  static DkgEventCommitment? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get participantId => $_getN(0);
+  @$pb.TagNumber(1)
+  set participantId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasParticipantId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearParticipantId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get commitment => $_getN(1);
+  @$pb.TagNumber(2)
+  set commitment($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCommitment() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCommitment() => $_clearField(2);
+}
+
+class NewDkgEvent extends $pb.GeneratedMessage {
+  factory NewDkgEvent({
+    $core.List<$core.int>? signedDetails,
+    $core.List<$core.int>? creatorId,
+    $core.Iterable<DkgEventCommitment>? commitments,
+  }) {
+    final result = create();
+    if (signedDetails != null) result.signedDetails = signedDetails;
+    if (creatorId != null) result.creatorId = creatorId;
+    if (commitments != null) result.commitments.addAll(commitments);
+    return result;
+  }
+
+  NewDkgEvent._();
+
+  factory NewDkgEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory NewDkgEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'NewDkgEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'signedDetails', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'creatorId', $pb.PbFieldType.OY)
+    ..pc<DkgEventCommitment>(
+        3, _omitFieldNames ? '' : 'commitments', $pb.PbFieldType.PM,
+        subBuilder: DkgEventCommitment.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NewDkgEvent clone() => NewDkgEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NewDkgEvent copyWith(void Function(NewDkgEvent) updates) =>
+      super.copyWith((message) => updates(message as NewDkgEvent))
+          as NewDkgEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static NewDkgEvent create() => NewDkgEvent._();
+  @$core.override
+  NewDkgEvent createEmptyInstance() => create();
+  static $pb.PbList<NewDkgEvent> createRepeated() => $pb.PbList<NewDkgEvent>();
+  @$core.pragma('dart2js:noInline')
+  static NewDkgEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<NewDkgEvent>(create);
+  static NewDkgEvent? _defaultInstance;
+
+  /// Canonically serialized Signed<NewDkgDetails>.
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get signedDetails => $_getN(0);
+  @$pb.TagNumber(1)
+  set signedDetails($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSignedDetails() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSignedDetails() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get creatorId => $_getN(1);
+  @$pb.TagNumber(2)
+  set creatorId($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCreatorId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCreatorId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $pb.PbList<DkgEventCommitment> get commitments => $_getList(2);
+}
+
+class DkgCommitmentEvent extends $pb.GeneratedMessage {
+  factory DkgCommitmentEvent({
+    $core.String? name,
+    $core.List<$core.int>? participantId,
+    $core.List<$core.int>? commitment,
+  }) {
+    final result = create();
+    if (name != null) result.name = name;
+    if (participantId != null) result.participantId = participantId;
+    if (commitment != null) result.commitment = commitment;
+    return result;
+  }
+
+  DkgCommitmentEvent._();
+
+  factory DkgCommitmentEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory DkgCommitmentEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DkgCommitmentEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'participantId', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        3, _omitFieldNames ? '' : 'commitment', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgCommitmentEvent clone() => DkgCommitmentEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgCommitmentEvent copyWith(void Function(DkgCommitmentEvent) updates) =>
+      super.copyWith((message) => updates(message as DkgCommitmentEvent))
+          as DkgCommitmentEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static DkgCommitmentEvent create() => DkgCommitmentEvent._();
+  @$core.override
+  DkgCommitmentEvent createEmptyInstance() => create();
+  static $pb.PbList<DkgCommitmentEvent> createRepeated() =>
+      $pb.PbList<DkgCommitmentEvent>();
+  @$core.pragma('dart2js:noInline')
+  static DkgCommitmentEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DkgCommitmentEvent>(create);
+  static DkgCommitmentEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get participantId => $_getN(1);
+  @$pb.TagNumber(2)
+  set participantId($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasParticipantId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearParticipantId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get commitment => $_getN(2);
+  @$pb.TagNumber(3)
+  set commitment($core.List<$core.int> value) => $_setBytes(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCommitment() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCommitment() => $_clearField(3);
+}
+
+class DkgRejectEvent extends $pb.GeneratedMessage {
+  factory DkgRejectEvent({
+    $core.String? name,
+    $core.List<$core.int>? participantId,
+  }) {
+    final result = create();
+    if (name != null) result.name = name;
+    if (participantId != null) result.participantId = participantId;
+    return result;
+  }
+
+  DkgRejectEvent._();
+
+  factory DkgRejectEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory DkgRejectEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DkgRejectEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'participantId', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgRejectEvent clone() => DkgRejectEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgRejectEvent copyWith(void Function(DkgRejectEvent) updates) =>
+      super.copyWith((message) => updates(message as DkgRejectEvent))
+          as DkgRejectEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static DkgRejectEvent create() => DkgRejectEvent._();
+  @$core.override
+  DkgRejectEvent createEmptyInstance() => create();
+  static $pb.PbList<DkgRejectEvent> createRepeated() =>
+      $pb.PbList<DkgRejectEvent>();
+  @$core.pragma('dart2js:noInline')
+  static DkgRejectEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DkgRejectEvent>(create);
+  static DkgRejectEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get participantId => $_getN(1);
+  @$pb.TagNumber(2)
+  set participantId($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasParticipantId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearParticipantId() => $_clearField(2);
+}
+
+class DkgRound2ShareEvent extends $pb.GeneratedMessage {
+  factory DkgRound2ShareEvent({
+    $core.String? name,
+    $core.List<$core.int>? commitmentSetSignature,
+    $core.List<$core.int>? senderId,
+    $core.List<$core.int>? encryptedSecret,
+  }) {
+    final result = create();
+    if (name != null) result.name = name;
+    if (commitmentSetSignature != null)
+      result.commitmentSetSignature = commitmentSetSignature;
+    if (senderId != null) result.senderId = senderId;
+    if (encryptedSecret != null) result.encryptedSecret = encryptedSecret;
+    return result;
+  }
+
+  DkgRound2ShareEvent._();
+
+  factory DkgRound2ShareEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory DkgRound2ShareEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DkgRound2ShareEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'commitmentSetSignature', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        3, _omitFieldNames ? '' : 'senderId', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        4, _omitFieldNames ? '' : 'encryptedSecret', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgRound2ShareEvent clone() => DkgRound2ShareEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgRound2ShareEvent copyWith(void Function(DkgRound2ShareEvent) updates) =>
+      super.copyWith((message) => updates(message as DkgRound2ShareEvent))
+          as DkgRound2ShareEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static DkgRound2ShareEvent create() => DkgRound2ShareEvent._();
+  @$core.override
+  DkgRound2ShareEvent createEmptyInstance() => create();
+  static $pb.PbList<DkgRound2ShareEvent> createRepeated() =>
+      $pb.PbList<DkgRound2ShareEvent>();
+  @$core.pragma('dart2js:noInline')
+  static DkgRound2ShareEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DkgRound2ShareEvent>(create);
+  static DkgRound2ShareEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get commitmentSetSignature => $_getN(1);
+  @$pb.TagNumber(2)
+  set commitmentSetSignature($core.List<$core.int> value) =>
+      $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCommitmentSetSignature() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCommitmentSetSignature() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get senderId => $_getN(2);
+  @$pb.TagNumber(3)
+  set senderId($core.List<$core.int> value) => $_setBytes(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSenderId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSenderId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.List<$core.int> get encryptedSecret => $_getN(3);
+  @$pb.TagNumber(4)
+  set encryptedSecret($core.List<$core.int> value) => $_setBytes(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasEncryptedSecret() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearEncryptedSecret() => $_clearField(4);
+}
+
+class DkgAckEvent extends $pb.GeneratedMessage {
+  factory DkgAckEvent({
+    $core.Iterable<$core.List<$core.int>>? acks,
+  }) {
+    final result = create();
+    if (acks != null) result.acks.addAll(acks);
+    return result;
+  }
+
+  DkgAckEvent._();
+
+  factory DkgAckEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory DkgAckEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DkgAckEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..p<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'acks', $pb.PbFieldType.PY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgAckEvent clone() => DkgAckEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgAckEvent copyWith(void Function(DkgAckEvent) updates) =>
+      super.copyWith((message) => updates(message as DkgAckEvent))
+          as DkgAckEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static DkgAckEvent create() => DkgAckEvent._();
+  @$core.override
+  DkgAckEvent createEmptyInstance() => create();
+  static $pb.PbList<DkgAckEvent> createRepeated() => $pb.PbList<DkgAckEvent>();
+  @$core.pragma('dart2js:noInline')
+  static DkgAckEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DkgAckEvent>(create);
+  static DkgAckEvent? _defaultInstance;
+
+  /// Canonically serialized SignedDkgAck values.
+  @$pb.TagNumber(1)
+  $pb.PbList<$core.List<$core.int>> get acks => $_getList(0);
+}
+
+class DkgAckRequestEvent extends $pb.GeneratedMessage {
+  factory DkgAckRequestEvent({
+    $core.Iterable<$core.List<$core.int>>? requests,
+  }) {
+    final result = create();
+    if (requests != null) result.requests.addAll(requests);
+    return result;
+  }
+
+  DkgAckRequestEvent._();
+
+  factory DkgAckRequestEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory DkgAckRequestEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DkgAckRequestEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..p<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'requests', $pb.PbFieldType.PY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgAckRequestEvent clone() => DkgAckRequestEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DkgAckRequestEvent copyWith(void Function(DkgAckRequestEvent) updates) =>
+      super.copyWith((message) => updates(message as DkgAckRequestEvent))
+          as DkgAckRequestEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static DkgAckRequestEvent create() => DkgAckRequestEvent._();
+  @$core.override
+  DkgAckRequestEvent createEmptyInstance() => create();
+  static $pb.PbList<DkgAckRequestEvent> createRepeated() =>
+      $pb.PbList<DkgAckRequestEvent>();
+  @$core.pragma('dart2js:noInline')
+  static DkgAckRequestEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DkgAckRequestEvent>(create);
+  static DkgAckRequestEvent? _defaultInstance;
+
+  /// Canonically serialized DkgAckRequest values.
+  @$pb.TagNumber(1)
+  $pb.PbList<$core.List<$core.int>> get requests => $_getList(0);
+}
+
+class SignaturesProgress extends $pb.GeneratedMessage {
+  factory SignaturesProgress({
+    $core.int? threshold,
+    $core.Iterable<$core.List<$core.int>>? contributingParticipantIds,
+    SignaturesProgressStage? stage,
+  }) {
+    final result = create();
+    if (threshold != null) result.threshold = threshold;
+    if (contributingParticipantIds != null)
+      result.contributingParticipantIds.addAll(contributingParticipantIds);
+    if (stage != null) result.stage = stage;
+    return result;
+  }
+
+  SignaturesProgress._();
+
+  factory SignaturesProgress.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SignaturesProgress.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignaturesProgress',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.int>(1, _omitFieldNames ? '' : 'threshold', $pb.PbFieldType.OU3)
+    ..p<$core.List<$core.int>>(2,
+        _omitFieldNames ? '' : 'contributingParticipantIds', $pb.PbFieldType.PY)
+    ..e<SignaturesProgressStage>(
+        3, _omitFieldNames ? '' : 'stage', $pb.PbFieldType.OE,
+        defaultOrMaker: SignaturesProgressStage.SIGNATURES_PROGRESS_COLLECTING,
+        valueOf: SignaturesProgressStage.valueOf,
+        enumValues: SignaturesProgressStage.values)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesProgress clone() => SignaturesProgress()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesProgress copyWith(void Function(SignaturesProgress) updates) =>
+      super.copyWith((message) => updates(message as SignaturesProgress))
+          as SignaturesProgress;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SignaturesProgress create() => SignaturesProgress._();
+  @$core.override
+  SignaturesProgress createEmptyInstance() => create();
+  static $pb.PbList<SignaturesProgress> createRepeated() =>
+      $pb.PbList<SignaturesProgress>();
+  @$core.pragma('dart2js:noInline')
+  static SignaturesProgress getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignaturesProgress>(create);
+  static SignaturesProgress? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get threshold => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set threshold($core.int value) => $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasThreshold() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearThreshold() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.List<$core.int>> get contributingParticipantIds =>
+      $_getList(1);
+
+  @$pb.TagNumber(3)
+  SignaturesProgressStage get stage => $_getN(2);
+  @$pb.TagNumber(3)
+  set stage(SignaturesProgressStage value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasStage() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearStage() => $_clearField(3);
+}
+
+class SignaturesRequestEvent extends $pb.GeneratedMessage {
+  factory SignaturesRequestEvent({
+    $core.List<$core.int>? signedDetails,
+    $core.List<$core.int>? creatorId,
+    SignaturesProgress? progress,
+  }) {
+    final result = create();
+    if (signedDetails != null) result.signedDetails = signedDetails;
+    if (creatorId != null) result.creatorId = creatorId;
+    if (progress != null) result.progress = progress;
+    return result;
+  }
+
+  SignaturesRequestEvent._();
+
+  factory SignaturesRequestEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SignaturesRequestEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignaturesRequestEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'signedDetails', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'creatorId', $pb.PbFieldType.OY)
+    ..aOM<SignaturesProgress>(3, _omitFieldNames ? '' : 'progress',
+        subBuilder: SignaturesProgress.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesRequestEvent clone() =>
+      SignaturesRequestEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesRequestEvent copyWith(
+          void Function(SignaturesRequestEvent) updates) =>
+      super.copyWith((message) => updates(message as SignaturesRequestEvent))
+          as SignaturesRequestEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SignaturesRequestEvent create() => SignaturesRequestEvent._();
+  @$core.override
+  SignaturesRequestEvent createEmptyInstance() => create();
+  static $pb.PbList<SignaturesRequestEvent> createRepeated() =>
+      $pb.PbList<SignaturesRequestEvent>();
+  @$core.pragma('dart2js:noInline')
+  static SignaturesRequestEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignaturesRequestEvent>(create);
+  static SignaturesRequestEvent? _defaultInstance;
+
+  /// Canonically serialized Signed<SignaturesRequestDetails>.
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get signedDetails => $_getN(0);
+  @$pb.TagNumber(1)
+  set signedDetails($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSignedDetails() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSignedDetails() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get creatorId => $_getN(1);
+  @$pb.TagNumber(2)
+  set creatorId($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCreatorId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCreatorId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  SignaturesProgress get progress => $_getN(2);
+  @$pb.TagNumber(3)
+  set progress(SignaturesProgress value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasProgress() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearProgress() => $_clearField(3);
+  @$pb.TagNumber(3)
+  SignaturesProgress ensureProgress() => $_ensure(2);
+}
+
+class SignatureRoundStart extends $pb.GeneratedMessage {
+  factory SignatureRoundStart({
+    $core.int? signatureIndex,
+    $core.List<$core.int>? commitmentSet,
+  }) {
+    final result = create();
+    if (signatureIndex != null) result.signatureIndex = signatureIndex;
+    if (commitmentSet != null) result.commitmentSet = commitmentSet;
+    return result;
+  }
+
+  SignatureRoundStart._();
+
+  factory SignatureRoundStart.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SignatureRoundStart.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignatureRoundStart',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.int>(
+        1, _omitFieldNames ? '' : 'signatureIndex', $pb.PbFieldType.OU3)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'commitmentSet', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignatureRoundStart clone() => SignatureRoundStart()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignatureRoundStart copyWith(void Function(SignatureRoundStart) updates) =>
+      super.copyWith((message) => updates(message as SignatureRoundStart))
+          as SignatureRoundStart;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SignatureRoundStart create() => SignatureRoundStart._();
+  @$core.override
+  SignatureRoundStart createEmptyInstance() => create();
+  static $pb.PbList<SignatureRoundStart> createRepeated() =>
+      $pb.PbList<SignatureRoundStart>();
+  @$core.pragma('dart2js:noInline')
+  static SignatureRoundStart getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignatureRoundStart>(create);
+  static SignatureRoundStart? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get signatureIndex => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set signatureIndex($core.int value) => $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSignatureIndex() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSignatureIndex() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get commitmentSet => $_getN(1);
+  @$pb.TagNumber(2)
+  set commitmentSet($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCommitmentSet() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCommitmentSet() => $_clearField(2);
+}
+
+class SignatureNewRoundsEvent extends $pb.GeneratedMessage {
+  factory SignatureNewRoundsEvent({
+    $core.List<$core.int>? requestId,
+    $core.Iterable<SignatureRoundStart>? rounds,
+  }) {
+    final result = create();
+    if (requestId != null) result.requestId = requestId;
+    if (rounds != null) result.rounds.addAll(rounds);
+    return result;
+  }
+
+  SignatureNewRoundsEvent._();
+
+  factory SignatureNewRoundsEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SignatureNewRoundsEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignatureNewRoundsEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'requestId', $pb.PbFieldType.OY)
+    ..pc<SignatureRoundStart>(
+        2, _omitFieldNames ? '' : 'rounds', $pb.PbFieldType.PM,
+        subBuilder: SignatureRoundStart.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignatureNewRoundsEvent clone() =>
+      SignatureNewRoundsEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignatureNewRoundsEvent copyWith(
+          void Function(SignatureNewRoundsEvent) updates) =>
+      super.copyWith((message) => updates(message as SignatureNewRoundsEvent))
+          as SignatureNewRoundsEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SignatureNewRoundsEvent create() => SignatureNewRoundsEvent._();
+  @$core.override
+  SignatureNewRoundsEvent createEmptyInstance() => create();
+  static $pb.PbList<SignatureNewRoundsEvent> createRepeated() =>
+      $pb.PbList<SignatureNewRoundsEvent>();
+  @$core.pragma('dart2js:noInline')
+  static SignatureNewRoundsEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignatureNewRoundsEvent>(create);
+  static SignatureNewRoundsEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get requestId => $_getN(0);
+  @$pb.TagNumber(1)
+  set requestId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRequestId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<SignatureRoundStart> get rounds => $_getList(1);
+}
+
+class SignaturesCompleteEvent extends $pb.GeneratedMessage {
+  factory SignaturesCompleteEvent({
+    $core.List<$core.int>? requestId,
+    $core.Iterable<$core.List<$core.int>>? signatures,
+  }) {
+    final result = create();
+    if (requestId != null) result.requestId = requestId;
+    if (signatures != null) result.signatures.addAll(signatures);
+    return result;
+  }
+
+  SignaturesCompleteEvent._();
+
+  factory SignaturesCompleteEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SignaturesCompleteEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignaturesCompleteEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'requestId', $pb.PbFieldType.OY)
+    ..p<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'signatures', $pb.PbFieldType.PY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesCompleteEvent clone() =>
+      SignaturesCompleteEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesCompleteEvent copyWith(
+          void Function(SignaturesCompleteEvent) updates) =>
+      super.copyWith((message) => updates(message as SignaturesCompleteEvent))
+          as SignaturesCompleteEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SignaturesCompleteEvent create() => SignaturesCompleteEvent._();
+  @$core.override
+  SignaturesCompleteEvent createEmptyInstance() => create();
+  static $pb.PbList<SignaturesCompleteEvent> createRepeated() =>
+      $pb.PbList<SignaturesCompleteEvent>();
+  @$core.pragma('dart2js:noInline')
+  static SignaturesCompleteEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignaturesCompleteEvent>(create);
+  static SignaturesCompleteEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get requestId => $_getN(0);
+  @$pb.TagNumber(1)
+  set requestId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRequestId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.List<$core.int>> get signatures => $_getList(1);
+}
+
+class SignaturesFailureEvent extends $pb.GeneratedMessage {
+  factory SignaturesFailureEvent({
+    $core.List<$core.int>? requestId,
+  }) {
+    final result = create();
+    if (requestId != null) result.requestId = requestId;
+    return result;
+  }
+
+  SignaturesFailureEvent._();
+
+  factory SignaturesFailureEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SignaturesFailureEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignaturesFailureEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'requestId', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesFailureEvent clone() =>
+      SignaturesFailureEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesFailureEvent copyWith(
+          void Function(SignaturesFailureEvent) updates) =>
+      super.copyWith((message) => updates(message as SignaturesFailureEvent))
+          as SignaturesFailureEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SignaturesFailureEvent create() => SignaturesFailureEvent._();
+  @$core.override
+  SignaturesFailureEvent createEmptyInstance() => create();
+  static $pb.PbList<SignaturesFailureEvent> createRepeated() =>
+      $pb.PbList<SignaturesFailureEvent>();
+  @$core.pragma('dart2js:noInline')
+  static SignaturesFailureEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignaturesFailureEvent>(create);
+  static SignaturesFailureEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get requestId => $_getN(0);
+  @$pb.TagNumber(1)
+  set requestId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRequestId() => $_clearField(1);
+}
+
+class KeepaliveEvent extends $pb.GeneratedMessage {
+  factory KeepaliveEvent() => create();
+
+  KeepaliveEvent._();
+
+  factory KeepaliveEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory KeepaliveEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'KeepaliveEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  KeepaliveEvent clone() => KeepaliveEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  KeepaliveEvent copyWith(void Function(KeepaliveEvent) updates) =>
+      super.copyWith((message) => updates(message as KeepaliveEvent))
+          as KeepaliveEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static KeepaliveEvent create() => KeepaliveEvent._();
+  @$core.override
+  KeepaliveEvent createEmptyInstance() => create();
+  static $pb.PbList<KeepaliveEvent> createRepeated() =>
+      $pb.PbList<KeepaliveEvent>();
+  @$core.pragma('dart2js:noInline')
+  static KeepaliveEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<KeepaliveEvent>(create);
+  static KeepaliveEvent? _defaultInstance;
+}
+
+class SecretShareEvent extends $pb.GeneratedMessage {
+  factory SecretShareEvent({
+    $core.List<$core.int>? senderId,
+    $core.List<$core.int>? groupKey,
+    $core.List<$core.int>? encryptedKeyShare,
+  }) {
+    final result = create();
+    if (senderId != null) result.senderId = senderId;
+    if (groupKey != null) result.groupKey = groupKey;
+    if (encryptedKeyShare != null) result.encryptedKeyShare = encryptedKeyShare;
+    return result;
+  }
+
+  SecretShareEvent._();
+
+  factory SecretShareEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SecretShareEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SecretShareEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'senderId', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'groupKey', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        3, _omitFieldNames ? '' : 'encryptedKeyShare', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SecretShareEvent clone() => SecretShareEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SecretShareEvent copyWith(void Function(SecretShareEvent) updates) =>
+      super.copyWith((message) => updates(message as SecretShareEvent))
+          as SecretShareEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SecretShareEvent create() => SecretShareEvent._();
+  @$core.override
+  SecretShareEvent createEmptyInstance() => create();
+  static $pb.PbList<SecretShareEvent> createRepeated() =>
+      $pb.PbList<SecretShareEvent>();
+  @$core.pragma('dart2js:noInline')
+  static SecretShareEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SecretShareEvent>(create);
+  static SecretShareEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get senderId => $_getN(0);
+  @$pb.TagNumber(1)
+  set senderId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSenderId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSenderId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get groupKey => $_getN(1);
+  @$pb.TagNumber(2)
+  set groupKey($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasGroupKey() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearGroupKey() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get encryptedKeyShare => $_getN(2);
+  @$pb.TagNumber(3)
+  set encryptedKeyShare($core.List<$core.int> value) => $_setBytes(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasEncryptedKeyShare() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearEncryptedKeyShare() => $_clearField(3);
+}
+
+class ConstructedKeyEvent extends $pb.GeneratedMessage {
+  factory ConstructedKeyEvent({
+    $core.List<$core.int>? participantId,
+    $core.List<$core.int>? signedConstructedKey,
+  }) {
+    final result = create();
+    if (participantId != null) result.participantId = participantId;
+    if (signedConstructedKey != null)
+      result.signedConstructedKey = signedConstructedKey;
+    return result;
+  }
+
+  ConstructedKeyEvent._();
+
+  factory ConstructedKeyEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ConstructedKeyEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ConstructedKeyEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'participantId', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'signedConstructedKey', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ConstructedKeyEvent clone() => ConstructedKeyEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ConstructedKeyEvent copyWith(void Function(ConstructedKeyEvent) updates) =>
+      super.copyWith((message) => updates(message as ConstructedKeyEvent))
+          as ConstructedKeyEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ConstructedKeyEvent create() => ConstructedKeyEvent._();
+  @$core.override
+  ConstructedKeyEvent createEmptyInstance() => create();
+  static $pb.PbList<ConstructedKeyEvent> createRepeated() =>
+      $pb.PbList<ConstructedKeyEvent>();
+  @$core.pragma('dart2js:noInline')
+  static ConstructedKeyEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ConstructedKeyEvent>(create);
+  static ConstructedKeyEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get participantId => $_getN(0);
+  @$pb.TagNumber(1)
+  set participantId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasParticipantId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearParticipantId() => $_clearField(1);
+
+  /// Canonically serialized Signed<KeyWasConstructed>.
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get signedConstructedKey => $_getN(1);
+  @$pb.TagNumber(2)
+  set signedConstructedKey($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSignedConstructedKey() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSignedConstructedKey() => $_clearField(2);
+}
+
+class SignaturesProgressEvent extends $pb.GeneratedMessage {
+  factory SignaturesProgressEvent({
+    $core.List<$core.int>? requestId,
+    SignaturesProgress? progress,
+  }) {
+    final result = create();
+    if (requestId != null) result.requestId = requestId;
+    if (progress != null) result.progress = progress;
+    return result;
+  }
+
+  SignaturesProgressEvent._();
+
+  factory SignaturesProgressEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SignaturesProgressEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignaturesProgressEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'requestId', $pb.PbFieldType.OY)
+    ..aOM<SignaturesProgress>(2, _omitFieldNames ? '' : 'progress',
+        subBuilder: SignaturesProgress.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesProgressEvent clone() =>
+      SignaturesProgressEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesProgressEvent copyWith(
+          void Function(SignaturesProgressEvent) updates) =>
+      super.copyWith((message) => updates(message as SignaturesProgressEvent))
+          as SignaturesProgressEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SignaturesProgressEvent create() => SignaturesProgressEvent._();
+  @$core.override
+  SignaturesProgressEvent createEmptyInstance() => create();
+  static $pb.PbList<SignaturesProgressEvent> createRepeated() =>
+      $pb.PbList<SignaturesProgressEvent>();
+  @$core.pragma('dart2js:noInline')
+  static SignaturesProgressEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignaturesProgressEvent>(create);
+  static SignaturesProgressEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get requestId => $_getN(0);
+  @$pb.TagNumber(1)
+  set requestId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRequestId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  SignaturesProgress get progress => $_getN(1);
+  @$pb.TagNumber(2)
+  set progress(SignaturesProgress value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasProgress() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearProgress() => $_clearField(2);
+  @$pb.TagNumber(2)
+  SignaturesProgress ensureProgress() => $_ensure(1);
+}
+
+enum Events_Event {
+  participantStatus,
+  newDkg,
+  dkgCommitment,
+  dkgReject,
+  dkgRound2Share,
+  dkgAck,
+  dkgAckRequest,
+  signaturesRequest,
+  signatureNewRounds,
+  signaturesComplete,
+  signaturesFailure,
+  keepalive,
+  secretShare,
+  constructedKey,
+  signaturesProgress,
+  notSet
+}
+
+/// Despite the plural legacy name, each message contains exactly one event.
+class Events extends $pb.GeneratedMessage {
+  factory Events({
+    ParticipantStatusEvent? participantStatus,
+    NewDkgEvent? newDkg,
+    DkgCommitmentEvent? dkgCommitment,
+    DkgRejectEvent? dkgReject,
+    DkgRound2ShareEvent? dkgRound2Share,
+    DkgAckEvent? dkgAck,
+    DkgAckRequestEvent? dkgAckRequest,
+    SignaturesRequestEvent? signaturesRequest,
+    SignatureNewRoundsEvent? signatureNewRounds,
+    SignaturesCompleteEvent? signaturesComplete,
+    SignaturesFailureEvent? signaturesFailure,
+    KeepaliveEvent? keepalive,
+    SecretShareEvent? secretShare,
+    ConstructedKeyEvent? constructedKey,
+    SignaturesProgressEvent? signaturesProgress,
+  }) {
+    final result = create();
+    if (participantStatus != null) result.participantStatus = participantStatus;
+    if (newDkg != null) result.newDkg = newDkg;
+    if (dkgCommitment != null) result.dkgCommitment = dkgCommitment;
+    if (dkgReject != null) result.dkgReject = dkgReject;
+    if (dkgRound2Share != null) result.dkgRound2Share = dkgRound2Share;
+    if (dkgAck != null) result.dkgAck = dkgAck;
+    if (dkgAckRequest != null) result.dkgAckRequest = dkgAckRequest;
+    if (signaturesRequest != null) result.signaturesRequest = signaturesRequest;
+    if (signatureNewRounds != null)
+      result.signatureNewRounds = signatureNewRounds;
+    if (signaturesComplete != null)
+      result.signaturesComplete = signaturesComplete;
+    if (signaturesFailure != null) result.signaturesFailure = signaturesFailure;
+    if (keepalive != null) result.keepalive = keepalive;
+    if (secretShare != null) result.secretShare = secretShare;
+    if (constructedKey != null) result.constructedKey = constructedKey;
+    if (signaturesProgress != null)
+      result.signaturesProgress = signaturesProgress;
     return result;
   }
 
@@ -1210,16 +2529,63 @@ class Events extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
+  static const $core.Map<$core.int, Events_Event> _Events_EventByTag = {
+    1: Events_Event.participantStatus,
+    2: Events_Event.newDkg,
+    3: Events_Event.dkgCommitment,
+    4: Events_Event.dkgReject,
+    5: Events_Event.dkgRound2Share,
+    6: Events_Event.dkgAck,
+    7: Events_Event.dkgAckRequest,
+    8: Events_Event.signaturesRequest,
+    9: Events_Event.signatureNewRounds,
+    10: Events_Event.signaturesComplete,
+    11: Events_Event.signaturesFailure,
+    12: Events_Event.keepalive,
+    13: Events_Event.secretShare,
+    14: Events_Event.constructedKey,
+    15: Events_Event.signaturesProgress,
+    0: Events_Event.notSet
+  };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Events',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
       createEmptyInstance: create)
-    ..e<EventType>(1, _omitFieldNames ? '' : 'type', $pb.PbFieldType.OE,
-        defaultOrMaker: EventType.PARTICIPANT_STATUS_EVENT,
-        valueOf: EventType.valueOf,
-        enumValues: EventType.values)
-    ..a<$core.List<$core.int>>(
-        2, _omitFieldNames ? '' : 'data', $pb.PbFieldType.OY)
+    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+    ..aOM<ParticipantStatusEvent>(1, _omitFieldNames ? '' : 'participantStatus',
+        subBuilder: ParticipantStatusEvent.create)
+    ..aOM<NewDkgEvent>(2, _omitFieldNames ? '' : 'newDkg',
+        subBuilder: NewDkgEvent.create)
+    ..aOM<DkgCommitmentEvent>(3, _omitFieldNames ? '' : 'dkgCommitment',
+        subBuilder: DkgCommitmentEvent.create)
+    ..aOM<DkgRejectEvent>(4, _omitFieldNames ? '' : 'dkgReject',
+        subBuilder: DkgRejectEvent.create)
+    ..aOM<DkgRound2ShareEvent>(5, _omitFieldNames ? '' : 'dkgRound2Share',
+        subBuilder: DkgRound2ShareEvent.create)
+    ..aOM<DkgAckEvent>(6, _omitFieldNames ? '' : 'dkgAck',
+        subBuilder: DkgAckEvent.create)
+    ..aOM<DkgAckRequestEvent>(7, _omitFieldNames ? '' : 'dkgAckRequest',
+        subBuilder: DkgAckRequestEvent.create)
+    ..aOM<SignaturesRequestEvent>(8, _omitFieldNames ? '' : 'signaturesRequest',
+        subBuilder: SignaturesRequestEvent.create)
+    ..aOM<SignatureNewRoundsEvent>(
+        9, _omitFieldNames ? '' : 'signatureNewRounds',
+        subBuilder: SignatureNewRoundsEvent.create)
+    ..aOM<SignaturesCompleteEvent>(
+        10, _omitFieldNames ? '' : 'signaturesComplete',
+        subBuilder: SignaturesCompleteEvent.create)
+    ..aOM<SignaturesFailureEvent>(
+        11, _omitFieldNames ? '' : 'signaturesFailure',
+        subBuilder: SignaturesFailureEvent.create)
+    ..aOM<KeepaliveEvent>(12, _omitFieldNames ? '' : 'keepalive',
+        subBuilder: KeepaliveEvent.create)
+    ..aOM<SecretShareEvent>(13, _omitFieldNames ? '' : 'secretShare',
+        subBuilder: SecretShareEvent.create)
+    ..aOM<ConstructedKeyEvent>(14, _omitFieldNames ? '' : 'constructedKey',
+        subBuilder: ConstructedKeyEvent.create)
+    ..aOM<SignaturesProgressEvent>(
+        15, _omitFieldNames ? '' : 'signaturesProgress',
+        subBuilder: SignaturesProgressEvent.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1241,23 +2607,175 @@ class Events extends $pb.GeneratedMessage {
       _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Events>(create);
   static Events? _defaultInstance;
 
+  Events_Event whichEvent() => _Events_EventByTag[$_whichOneof(0)]!;
+  void clearEvent() => $_clearField($_whichOneof(0));
+
   @$pb.TagNumber(1)
-  EventType get type => $_getN(0);
+  ParticipantStatusEvent get participantStatus => $_getN(0);
   @$pb.TagNumber(1)
-  set type(EventType value) => $_setField(1, value);
+  set participantStatus(ParticipantStatusEvent value) => $_setField(1, value);
   @$pb.TagNumber(1)
-  $core.bool hasType() => $_has(0);
+  $core.bool hasParticipantStatus() => $_has(0);
   @$pb.TagNumber(1)
-  void clearType() => $_clearField(1);
+  void clearParticipantStatus() => $_clearField(1);
+  @$pb.TagNumber(1)
+  ParticipantStatusEvent ensureParticipantStatus() => $_ensure(0);
 
   @$pb.TagNumber(2)
-  $core.List<$core.int> get data => $_getN(1);
+  NewDkgEvent get newDkg => $_getN(1);
   @$pb.TagNumber(2)
-  set data($core.List<$core.int> value) => $_setBytes(1, value);
+  set newDkg(NewDkgEvent value) => $_setField(2, value);
   @$pb.TagNumber(2)
-  $core.bool hasData() => $_has(1);
+  $core.bool hasNewDkg() => $_has(1);
   @$pb.TagNumber(2)
-  void clearData() => $_clearField(2);
+  void clearNewDkg() => $_clearField(2);
+  @$pb.TagNumber(2)
+  NewDkgEvent ensureNewDkg() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  DkgCommitmentEvent get dkgCommitment => $_getN(2);
+  @$pb.TagNumber(3)
+  set dkgCommitment(DkgCommitmentEvent value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasDkgCommitment() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearDkgCommitment() => $_clearField(3);
+  @$pb.TagNumber(3)
+  DkgCommitmentEvent ensureDkgCommitment() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  DkgRejectEvent get dkgReject => $_getN(3);
+  @$pb.TagNumber(4)
+  set dkgReject(DkgRejectEvent value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasDkgReject() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearDkgReject() => $_clearField(4);
+  @$pb.TagNumber(4)
+  DkgRejectEvent ensureDkgReject() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  DkgRound2ShareEvent get dkgRound2Share => $_getN(4);
+  @$pb.TagNumber(5)
+  set dkgRound2Share(DkgRound2ShareEvent value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasDkgRound2Share() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearDkgRound2Share() => $_clearField(5);
+  @$pb.TagNumber(5)
+  DkgRound2ShareEvent ensureDkgRound2Share() => $_ensure(4);
+
+  @$pb.TagNumber(6)
+  DkgAckEvent get dkgAck => $_getN(5);
+  @$pb.TagNumber(6)
+  set dkgAck(DkgAckEvent value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasDkgAck() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearDkgAck() => $_clearField(6);
+  @$pb.TagNumber(6)
+  DkgAckEvent ensureDkgAck() => $_ensure(5);
+
+  @$pb.TagNumber(7)
+  DkgAckRequestEvent get dkgAckRequest => $_getN(6);
+  @$pb.TagNumber(7)
+  set dkgAckRequest(DkgAckRequestEvent value) => $_setField(7, value);
+  @$pb.TagNumber(7)
+  $core.bool hasDkgAckRequest() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearDkgAckRequest() => $_clearField(7);
+  @$pb.TagNumber(7)
+  DkgAckRequestEvent ensureDkgAckRequest() => $_ensure(6);
+
+  @$pb.TagNumber(8)
+  SignaturesRequestEvent get signaturesRequest => $_getN(7);
+  @$pb.TagNumber(8)
+  set signaturesRequest(SignaturesRequestEvent value) => $_setField(8, value);
+  @$pb.TagNumber(8)
+  $core.bool hasSignaturesRequest() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearSignaturesRequest() => $_clearField(8);
+  @$pb.TagNumber(8)
+  SignaturesRequestEvent ensureSignaturesRequest() => $_ensure(7);
+
+  @$pb.TagNumber(9)
+  SignatureNewRoundsEvent get signatureNewRounds => $_getN(8);
+  @$pb.TagNumber(9)
+  set signatureNewRounds(SignatureNewRoundsEvent value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasSignatureNewRounds() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearSignatureNewRounds() => $_clearField(9);
+  @$pb.TagNumber(9)
+  SignatureNewRoundsEvent ensureSignatureNewRounds() => $_ensure(8);
+
+  @$pb.TagNumber(10)
+  SignaturesCompleteEvent get signaturesComplete => $_getN(9);
+  @$pb.TagNumber(10)
+  set signaturesComplete(SignaturesCompleteEvent value) =>
+      $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasSignaturesComplete() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearSignaturesComplete() => $_clearField(10);
+  @$pb.TagNumber(10)
+  SignaturesCompleteEvent ensureSignaturesComplete() => $_ensure(9);
+
+  @$pb.TagNumber(11)
+  SignaturesFailureEvent get signaturesFailure => $_getN(10);
+  @$pb.TagNumber(11)
+  set signaturesFailure(SignaturesFailureEvent value) => $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasSignaturesFailure() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearSignaturesFailure() => $_clearField(11);
+  @$pb.TagNumber(11)
+  SignaturesFailureEvent ensureSignaturesFailure() => $_ensure(10);
+
+  @$pb.TagNumber(12)
+  KeepaliveEvent get keepalive => $_getN(11);
+  @$pb.TagNumber(12)
+  set keepalive(KeepaliveEvent value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasKeepalive() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearKeepalive() => $_clearField(12);
+  @$pb.TagNumber(12)
+  KeepaliveEvent ensureKeepalive() => $_ensure(11);
+
+  @$pb.TagNumber(13)
+  SecretShareEvent get secretShare => $_getN(12);
+  @$pb.TagNumber(13)
+  set secretShare(SecretShareEvent value) => $_setField(13, value);
+  @$pb.TagNumber(13)
+  $core.bool hasSecretShare() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearSecretShare() => $_clearField(13);
+  @$pb.TagNumber(13)
+  SecretShareEvent ensureSecretShare() => $_ensure(12);
+
+  @$pb.TagNumber(14)
+  ConstructedKeyEvent get constructedKey => $_getN(13);
+  @$pb.TagNumber(14)
+  set constructedKey(ConstructedKeyEvent value) => $_setField(14, value);
+  @$pb.TagNumber(14)
+  $core.bool hasConstructedKey() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearConstructedKey() => $_clearField(14);
+  @$pb.TagNumber(14)
+  ConstructedKeyEvent ensureConstructedKey() => $_ensure(13);
+
+  @$pb.TagNumber(15)
+  SignaturesProgressEvent get signaturesProgress => $_getN(14);
+  @$pb.TagNumber(15)
+  set signaturesProgress(SignaturesProgressEvent value) =>
+      $_setField(15, value);
+  @$pb.TagNumber(15)
+  $core.bool hasSignaturesProgress() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearSignaturesProgress() => $_clearField(15);
+  @$pb.TagNumber(15)
+  SignaturesProgressEvent ensureSignaturesProgress() => $_ensure(14);
 }
 
 class ProtocolError extends $pb.GeneratedMessage {
@@ -2329,7 +3847,7 @@ class SubmitSignatureRepliesResponse extends $pb.GeneratedMessage {
 
 class ShareSecretShareResponse extends $pb.GeneratedMessage {
   factory ShareSecretShareResponse({
-    $core.Iterable<$core.List<$core.int>>? constructedKeyEvents,
+    $core.Iterable<ConstructedKeyEvent>? constructedKeyEvents,
   }) {
     final result = create();
     if (constructedKeyEvents != null)
@@ -2350,8 +3868,9 @@ class ShareSecretShareResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'ShareSecretShareResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
       createEmptyInstance: create)
-    ..p<$core.List<$core.int>>(
-        1, _omitFieldNames ? '' : 'constructedKeyEvents', $pb.PbFieldType.PY)
+    ..pc<ConstructedKeyEvent>(
+        1, _omitFieldNames ? '' : 'constructedKeyEvents', $pb.PbFieldType.PM,
+        subBuilder: ConstructedKeyEvent.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2377,9 +3896,8 @@ class ShareSecretShareResponse extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<ShareSecretShareResponse>(create);
   static ShareSecretShareResponse? _defaultInstance;
 
-  /// Serialized ConstructedKeyEvent domain objects.
   @$pb.TagNumber(1)
-  $pb.PbList<$core.List<$core.int>> get constructedKeyEvents => $_getList(0);
+  $pb.PbList<ConstructedKeyEvent> get constructedKeyEvents => $_getList(0);
 }
 
 class AckKeyConstructedResponse extends $pb.GeneratedMessage {

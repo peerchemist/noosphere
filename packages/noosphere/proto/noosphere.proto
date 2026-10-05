@@ -90,27 +90,128 @@ message ConstructedKey {
   bytes constructed_key = 2;
 }
 
-enum EventType {
-  PARTICIPANT_STATUS_EVENT = 0;
-  NEW_DKG_EVENT = 1;
-  DKG_COMMITMENT_EVENT = 2;
-  DKG_REJECT_EVENT = 3;
-  DKG_ROUND2_SHARE_EVENT = 4;
-  DKG_ACK_EVENT = 5;
-  DKG_ACK_REQUEST_EVENT = 6;
-  SIG_REQ_EVENT = 7;
-  SIG_NEW_ROUNDS_EVENT = 8;
-  SIG_COMPLETE_EVENT = 9;
-  SIG_FAILURE_EVENT = 10;
-  KEEPALIVE_EVENT = 11;
-  SECRET_SHARE_EVENT = 12;
-  CONSTRUCTED_KEY_EVENT = 13;
-  SIG_PROGRESS_EVENT = 14;
+message ParticipantStatusEvent {
+  bytes participant_id = 1;
+  bool logged_in = 2;
 }
 
+message DkgEventCommitment {
+  bytes participant_id = 1;
+  bytes commitment = 2;
+}
+
+message NewDkgEvent {
+  // Canonically serialized Signed<NewDkgDetails>.
+  bytes signed_details = 1;
+  bytes creator_id = 2;
+  repeated DkgEventCommitment commitments = 3;
+}
+
+message DkgCommitmentEvent {
+  string name = 1;
+  bytes participant_id = 2;
+  bytes commitment = 3;
+}
+
+message DkgRejectEvent {
+  string name = 1;
+  bytes participant_id = 2;
+}
+
+message DkgRound2ShareEvent {
+  string name = 1;
+  bytes commitment_set_signature = 2;
+  bytes sender_id = 3;
+  bytes encrypted_secret = 4;
+}
+
+message DkgAckEvent {
+  // Canonically serialized SignedDkgAck values.
+  repeated bytes acks = 1;
+}
+
+message DkgAckRequestEvent {
+  // Canonically serialized DkgAckRequest values.
+  repeated bytes requests = 1;
+}
+
+enum SignaturesProgressStage {
+  SIGNATURES_PROGRESS_COLLECTING = 0;
+  SIGNATURES_PROGRESS_SIGNING = 1;
+  SIGNATURES_PROGRESS_COMPLETED = 2;
+  SIGNATURES_PROGRESS_FAILED = 3;
+}
+
+message SignaturesProgress {
+  uint32 threshold = 1;
+  repeated bytes contributing_participant_ids = 2;
+  optional SignaturesProgressStage stage = 3;
+}
+
+message SignaturesRequestEvent {
+  // Canonically serialized Signed<SignaturesRequestDetails>.
+  bytes signed_details = 1;
+  bytes creator_id = 2;
+  SignaturesProgress progress = 3;
+}
+
+message SignatureRoundStart {
+  uint32 signature_index = 1;
+  bytes commitment_set = 2;
+}
+
+message SignatureNewRoundsEvent {
+  bytes request_id = 1;
+  repeated SignatureRoundStart rounds = 2;
+}
+
+message SignaturesCompleteEvent {
+  bytes request_id = 1;
+  repeated bytes signatures = 2;
+}
+
+message SignaturesFailureEvent {
+  bytes request_id = 1;
+}
+
+message KeepaliveEvent {}
+
+message SecretShareEvent {
+  bytes sender_id = 1;
+  bytes group_key = 2;
+  bytes encrypted_key_share = 3;
+}
+
+message ConstructedKeyEvent {
+  bytes participant_id = 1;
+  // Canonically serialized Signed<KeyWasConstructed>.
+  bytes signed_constructed_key = 2;
+}
+
+message SignaturesProgressEvent {
+  bytes request_id = 1;
+  SignaturesProgress progress = 2;
+}
+
+// Despite the plural legacy name, each message contains exactly one event.
 message Events {
-  EventType type = 1;
-  bytes data = 2;
+  oneof event {
+    ParticipantStatusEvent participant_status = 1;
+    NewDkgEvent new_dkg = 2;
+    DkgCommitmentEvent dkg_commitment = 3;
+    DkgRejectEvent dkg_reject = 4;
+    DkgRound2ShareEvent dkg_round2_share = 5;
+    DkgAckEvent dkg_ack = 6;
+    DkgAckRequestEvent dkg_ack_request = 7;
+    SignaturesRequestEvent signatures_request = 8;
+    SignatureNewRoundsEvent signature_new_rounds = 9;
+    SignaturesCompleteEvent signatures_complete = 10;
+    SignaturesFailureEvent signatures_failure = 11;
+    KeepaliveEvent keepalive = 12;
+    SecretShareEvent secret_share = 13;
+    ConstructedKeyEvent constructed_key = 14;
+    SignaturesProgressEvent signatures_progress = 15;
+  }
 }
 
 enum ProtocolErrorCode {
@@ -204,8 +305,7 @@ message SubmitSignatureRepliesResponse {
 }
 
 message ShareSecretShareResponse {
-  // Serialized ConstructedKeyEvent domain objects.
-  repeated bytes constructed_key_events = 1;
+  repeated ConstructedKeyEvent constructed_key_events = 1;
 }
 
 message AckKeyConstructedResponse {

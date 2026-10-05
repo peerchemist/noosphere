@@ -107,8 +107,8 @@ the signed transcript encoding is independent of protobuf serialization.
 Protobuf describes message structure; it does not encrypt data, persist state,
 or turn arbitrary Dart objects into transferable values. The network
 [`Events`](packages/noosphere/proto/noosphere.proto) message contains a type
-discriminator and a byte payload. Both peers must understand the payload's
-codec and meaning.
+discriminator as a `oneof` and a typed protobuf message for every event. Both
+peers must still understand each event's protocol meaning.
 
 ## Events and application data
 
@@ -117,12 +117,12 @@ proposals to review, contributions to verify, signing rounds to process and
 results to apply. The same shared model is consumed by the participant state
 machine whether the request API is connected directly or through Iroh.
 
-On Iroh, the server serializes each concrete event with its domain writer,
-places those bytes and an `EventType` discriminator inside protobuf `Events`,
-wraps that in `Envelope.event`, and writes a length-prefixed frame on the
-recipient's persistent session stream. The client reverses those steps and
-validates the reconstructed event before acting on it. Protobuf supplies the
-outer message structure; the domain codec defines the event's actual contents.
+On Iroh, the server converts each concrete event to its typed protobuf message
+inside the `Events.event` oneof, wraps that in `Envelope.event`, and writes a
+length-prefixed frame on the recipient's persistent session stream. The client
+reverses those steps and validates the reconstructed event before acting on
+it. Canonical domain bytes remain nested only for cryptographic values whose
+signed representation must remain stable.
 
 The later `ClientEvent` and `NoosphereWorkerEvent` APIs expose local outcomes to
 the application. They are not the protobuf event payload and do not have a

@@ -17,7 +17,7 @@ Noosphere has three primary event APIs plus local room-manager streams.
 ```mermaid
 flowchart LR
     S["Server state transition"] --> E["Domain Event"]
-    E --> P["Protobuf Events: type + bytes"]
+    E --> P["Protobuf Events: typed oneof"]
     P --> N["Envelope on Iroh session stream"]
     N --> D["Decoded domain Event"]
     D --> C["Client validates and updates protocol state"]
@@ -31,8 +31,10 @@ flowchart LR
 
 [`Event`](../packages/noosphere/lib/api/events.dart) is a sealed family of
 protocol messages, rather than a single record with arbitrary application
-fields. Each variant defines its own fields, binary writer and, except for the
-empty keepalive, reader. Examples illustrate the different jobs they perform:
+fields. Each variant also retains a domain binary writer and, except for the
+empty keepalive, reader for persistence and snapshots. Live event transport
+uses the corresponding typed protobuf message. Examples illustrate the
+different jobs they perform:
 
 - `NewDkgEvent` and `SignaturesRequestEvent` announce proposals for review.
 - `DkgCommitmentEvent` and `DkgRound2ShareEvent` deliver cryptographic inputs.
@@ -100,20 +102,20 @@ its secret content.
 
 ## From a Dart event to Iroh bytes, and back
 
-There are two encodings and one framing step. They serve different purposes:
+There is a typed protobuf conversion followed by one framing step:
 
 | Layer | Representation | What understands it |
 | --- | --- | --- |
 | Domain value | A concrete `Event`, such as `SignaturesRequestEvent` | Coordinator/client protocol code |
-| Domain payload | `event.toBytes()`, defined by that variant's `write` method | The matching variant's `fromBytes` constructor |
-| Protobuf wrapper | `Events(type: SIG_REQ_EVENT, data: payload)` inside `Envelope.event` | Generated protobuf code plus the explicit event-type mapping |
+| Protobuf event | A concrete event message selected by `Events.oneof event` | Generated protobuf code plus the domain/protobuf converters |
 | Application frame | Four-byte big-endian envelope length, then protobuf envelope bytes | `encodeEnvelope` / `decodeEnvelopes` |
 | Transport | Bytes on the server-to-client half of the Iroh session QUIC stream | Iroh; it does not interpret the event's fields |
 
 Despite the plural protobuf name `Events`, each wrapper contains **one** event.
-The enum is outside the domain payload. `Event.toBytes()` does not prepend a
-universal event tag, and the base class has no generic `Event.fromBytes` factory.
-The receiving adapter must select the concrete reader using `Events.type`.
+Its `oneof` discriminator selects a generated message such as
+`SignaturesRequestEvent`. The protobuf message exposes the event's fields;
+canonical domain byte encodings remain only for nested cryptographic values
+whose signed representation must not change.
 
 For a signing proposal the nesting is:
 
@@ -123,22 +125,21 @@ Iroh session stream bytes
   Envelope:
     wire_version: current Iroh wire version
     event:                           protobuf field 28
-      type: SIG_REQ_EVENT            enum value 7
-      data:                          canonical domain bytes
-        signed details:
-          SignaturesRequestDetails   proposal's own binary layout
-          requester signature        64-byte Schnorr signature
-        creator                      32-byte participant identifier
-        SignaturesProgress           threshold, participant IDs, stage
+      signatures_request:            Events oneof field 8
+        signed_details:               canonical Signed<...> bytes
+        creator_id:                   32-byte participant identifier
+        progress:
+          threshold:                  uint32
+          contributing_participant_ids: repeated 32-byte identifiers
+          stage:                      protobuf enum
 ```
 
-This is a structural illustration, not JSON sent over the wire. Within `data`,
-fields are written in the order defined by `SignaturesRequestEvent.write` and
-read in that order by `SignaturesRequestEvent.fromReader`. They are not separate
-protobuf fields. `Signed` writes the proposal followed by its signature; that
-signature verifies the proposal's `sigHash`. The creator selects the roster key
-used to check that signature. Progress is coordinator-reported metadata,
-validated separately from the requester-signed proposal.
+This is a structural illustration, not JSON sent over the wire. The signed
+proposal stays in its canonical domain encoding because its Schnorr signature
+binds the proposal's `sigHash`; protobuf separately describes the creator and
+progress. The creator selects the roster key used to check that signature.
+Progress is coordinator-reported metadata, validated separately from the
+requester-signed proposal.
 
 The implementation path is explicit:
 
@@ -147,15 +148,16 @@ The implementation path is explicit:
 2. [`IrohDispatcher.ready`](../packages/noosphere_server/lib/src/iroh/dispatcher.dart)
    maps the session stream into envelopes.
    [`encodeEvent`](../packages/noosphere_server/lib/src/iroh/messages.dart)
-   selects the `EventType` and places `event.toBytes()` in `Events.data`.
+   delegates to the shared typed conversion in
+   [`event_wire.dart`](../packages/noosphere/lib/event_wire.dart).
 3. [`_handleStartSession`](../packages/noosphere_server/lib/src/iroh/connection_handler.dart)
    writes those envelopes sequentially after `Ready`. Its `_write` method uses
    [`encodeEnvelope`](../packages/noosphere/lib/src/framing.dart), then
    `SendStream.writeAll`. Socket writes do not hold the group's dispatch lane.
 4. [`IrohClientApi`](../packages/noosphere_client/lib/src/iroh/client_api.dart)
    reads native chunks and runs `decodeEnvelopes`. Its `_pumpEvents` checks the
-   wire version and session-envelope kind, and `_decodeEvent` selects the domain
-   constructor using the enum.
+   wire version and session-envelope kind, and `_decodeEvent` reconstructs the
+   domain value from the selected protobuf `oneof` message.
 5. The resulting `Stream<Event>` is attached to `LoginCompleteResponse.events`.
    [`Client._handleEvent`](../packages/noosphere_client/lib/src/client/client_events.dart)
    performs the protocol-specific validation and state work. Selected outcomes
@@ -164,8 +166,8 @@ The implementation path is explicit:
 QUIC read chunks are not event boundaries: one read can contain several frames,
 and one frame can span several reads. The frame limit applies to the entire
 protobuf envelope body, including its wrapper overhead. A decoder accepting
-protobuf only proves that it parsed the outer structure; it has not yet
-validated the domain payload or authorized a protocol action. See
+protobuf only proves that it parsed the structure; it has not yet validated
+nested domain values or authorized a protocol action. See
 [protobuf and framing](protobuf-and-framing.md#the-events-payload) for the
 schema and the separate validation stages.
 
@@ -186,7 +188,7 @@ sequenceDiagram
     S->>S: Validate, create coordination state, await persistence
     S->>T: B's session: SignaturesRequestEvent
     Note over S,T: A receives its RPC result on a separate stream
-    T->>T: Event bytes -> Events(type, data) -> framed Envelope
+    T->>T: Domain Event -> typed Events oneof -> framed Envelope
     T-->>B: B's persistent session stream
     B->>B: Decode; check creator signature, expiry, keys and state
     B-->>H: SignaturesRequestClientEvent (waiting proposal)
@@ -216,26 +218,26 @@ are different protocol stages, not interchangeable meanings of “event”.
 
 ## Wire and domain events
 
-The schema's `EventType` values and the two adapters define this mapping.
-The numbers are explicit protocol enum values, not Dart class identifiers.
+The `Events.event` oneof tags and the shared converter define this mapping.
+The tag numbers are protobuf field numbers, not Dart class identifiers.
 
-| Enum number | Protobuf `EventType` | Domain event | Payload and effect |
+| Oneof tag | Protobuf field | Domain event | Payload and effect |
 | --- | --- | --- | --- |
-| 0 | `PARTICIPANT_STATUS_EVENT` | `ParticipantStatusEvent` | Participant ID and login flag; presence and DKG reset/removal effects |
-| 1 | `NEW_DKG_EVENT` | `NewDkgEvent` | Signed DKG details, creator and commitments already received |
-| 2 | `DKG_COMMITMENT_EVENT` | `DkgCommitmentEvent` | DKG name, participant and public commitment |
-| 3 | `DKG_REJECT_EVENT` | `DkgRejectEvent` | DKG name and rejecting participant |
-| 4 | `DKG_ROUND2_SHARE_EVENT` | `DkgRound2ShareEvent` | Name, commitment-set signature, sender and recipient ciphertext |
-| 5 | `DKG_ACK_EVENT` | `DkgAckEvent` | Nonempty set of signed key ACKs |
-| 6 | `DKG_ACK_REQUEST_EVENT` | `DkgAckRequestEvent` | Nonempty set of missing-ACK requests |
-| 7 | `SIG_REQ_EVENT` | `SignaturesRequestEvent` | Signed signing proposal, creator and current coordinator progress |
-| 8 | `SIG_NEW_ROUNDS_EVENT` | `SignatureNewRoundsEvent` | Request ID and signature-index/commitment-set rounds |
-| 9 | `SIG_COMPLETE_EVENT` | `SignaturesCompleteEvent` | Request ID and ordered final signatures |
-| 10 | `SIG_FAILURE_EVENT` | `SignaturesFailureEvent` | Request ID that can no longer reach threshold |
-| 11 | `KEEPALIVE_EVENT` | `KeepaliveEvent` | No payload; optional stream activity |
-| 12 | `SECRET_SHARE_EVENT` | `SecretShareEvent` | Sender, group key and encrypted recovery share |
-| 13 | `CONSTRUCTED_KEY_EVENT` | `ConstructedKeyEvent` | Participant and signed claim of full-key reconstruction |
-| 14 | `SIG_PROGRESS_EVENT` | `SignaturesProgressEvent` | Request ID, current threshold, contributing participants and stage |
+| 1 | `participant_status` | `ParticipantStatusEvent` | Participant ID and login flag; presence and DKG reset/removal effects |
+| 2 | `new_dkg` | `NewDkgEvent` | Signed DKG details, creator and commitments already received |
+| 3 | `dkg_commitment` | `DkgCommitmentEvent` | DKG name, participant and public commitment |
+| 4 | `dkg_reject` | `DkgRejectEvent` | DKG name and rejecting participant |
+| 5 | `dkg_round2_share` | `DkgRound2ShareEvent` | Name, commitment-set signature, sender and recipient ciphertext |
+| 6 | `dkg_ack` | `DkgAckEvent` | Nonempty set of signed key ACKs |
+| 7 | `dkg_ack_request` | `DkgAckRequestEvent` | Nonempty set of missing-ACK requests |
+| 8 | `signatures_request` | `SignaturesRequestEvent` | Signed signing proposal, creator and current coordinator progress |
+| 9 | `signature_new_rounds` | `SignatureNewRoundsEvent` | Request ID and signature-index/commitment-set rounds |
+| 10 | `signatures_complete` | `SignaturesCompleteEvent` | Request ID and ordered final signatures |
+| 11 | `signatures_failure` | `SignaturesFailureEvent` | Request ID that can no longer reach threshold |
+| 12 | `keepalive` | `KeepaliveEvent` | No payload; optional stream activity |
+| 13 | `secret_share` | `SecretShareEvent` | Sender, group key and encrypted recovery share |
+| 14 | `constructed_key` | `ConstructedKeyEvent` | Participant and signed claim of full-key reconstruction |
+| 15 | `signatures_progress` | `SignaturesProgressEvent` | Request ID, current threshold, contributing participants and stage |
 
 `NewDkgEvent` and `SignaturesRequestEvent` implement `DetailsEvent`, allowing
 common checks of the creator's signature and expiry. They carry authenticated
@@ -410,12 +412,13 @@ event.
 ## Changing or adding a network event
 
 A network event is a protocol change spanning both peers. Define the domain
-variant and its binary layout in `api/events.dart`, assign its enum value in
-`noosphere.proto`, regenerate bindings, and update both `encodeEvent` and
-`_decodeEvent`. Then define when the coordinator emits it, its recipients,
-client-side validation and state effects, and whether it needs a public client
-or worker projection. A new protobuf enum alone does not implement any of those
-behaviors, and existing clients have no generic opaque-event handling path.
+variant in `api/events.dart`, add its typed message and a new `Events.event`
+oneof field in `noosphere.proto`, regenerate bindings, and update the shared
+converter in `event_wire.dart`. Then define when the coordinator emits it, its
+recipients, client-side validation and state effects, and whether it needs a
+public client or worker projection. A new protobuf message alone does not
+implement any of those behaviors, and existing clients have no generic
+opaque-event handling path.
 
 Decide explicitly whether its information belongs in persistence and reconnect
 snapshots. Test the domain round trip, protobuf/framing round trip, actual
@@ -432,7 +435,8 @@ For application-defined messages, see [generic data](generic-data.md).
 `RoomManager.snapshots` publishes public room snapshots for its emitted
 transitions, and `rejectedEnrollments` publishes sanitized diagnostics including
 room/invite IDs, a truncated public-key fingerprint, reason and time.
-They are local broadcast streams, not entries in the ROAST `EventType` enum.
+They are local broadcast streams, not variants of the ROAST `Events.event`
+oneof.
 Do not assume every management method produces a snapshot event: invite issue,
 for example, commits and returns the invite without calling `_emit`.
 

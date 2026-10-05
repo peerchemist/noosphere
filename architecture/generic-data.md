@@ -18,13 +18,13 @@ application action: each is a separate responsibility.
 | Bind opaque migration policy to consent | `GroupTransitionMigrationPolicy.payload` | Bytes inside a transition proposal; delivery/orchestration is host-owned today |
 | Broadcast arbitrary data without a signing operation | No current generic RPC/event API | Requires an explicit protocol extension or a separate application channel |
 
-## Why `Events.data` can contain bytes but is not a generic bus
+## Why event byte fields do not make a generic bus
 
-The protobuf shape is `Events { EventType type; bytes data; }`. Bytes can
-represent JSON, another protobuf message, CBOR, compressed content or a custom
-binary record in principle. In the current implementation, however, `type`
-selects one of the fixed Noosphere domain decoders. Supplying JSON under
-`SIG_REQ_EVENT` will attempt to decode it as `SignaturesRequestEvent` and fail.
+The protobuf `Events` message has a fixed `oneof` containing one typed message
+for every supported Noosphere event. Some fields inside those messages are
+`bytes` because they carry bounded canonical cryptographic/domain values, not
+because they accept arbitrary application payloads. Supplying JSON as a signed
+proposal or commitment field will fail that field's domain decoder.
 
 `Event` and the public event families are sealed. Consumers cannot add an
 arbitrary subclass in a different Dart library and expect existing exhaustive
@@ -97,7 +97,7 @@ application JSON string
   -> SignedMessagePayload + MessageSignatureMetadata
   -> requester-signed SignaturesRequestDetails
   -> requestSignatures RPC
-  -> SignaturesRequestEvent in protobuf Events.data
+  -> protobuf Events.signatures_request
   -> verified client proposal
   -> WorkerSigningRequestEvent.request.proposalBytes
   -> host decodes exact JSON text
@@ -193,8 +193,9 @@ The following is a design outline, not an API already present in this checkout:
 2. Add an authenticated request to `ApiRequestInterface`, protobuf request and
    result variants, and both Iroh RPC adapters. Bind claimed sender and group
    to the authenticated session and enforce recipient membership and limits.
-3. Add a domain event and `EventType` value. Update server encoding and client
-   decoding, then verify the payload before exposing a client event.
+3. Add a domain event, its protobuf message and a new `Events.event` oneof
+   field. Update the shared event converter, then verify the payload before
+   exposing a client event.
 4. Add a public client event and, if needed, a sanitized worker event/command.
    Update message-size accounting and use bytes/DTOs rather than arbitrary
    runtime objects across isolates.

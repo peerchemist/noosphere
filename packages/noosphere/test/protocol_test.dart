@@ -113,8 +113,12 @@ void main() {
         ),
         (
           protocol.Events(
-            type: protocol.EventType.SIG_COMPLETE_EVENT,
-            data: [1, 2],
+            signaturesComplete: protocol.SignaturesCompleteEvent(
+              requestId: [1],
+              signatures: [
+                [2],
+              ],
+            ),
           ),
           protocol.Events.fromBuffer,
         ),
@@ -313,10 +317,7 @@ void main() {
       );
       final event = protocol.Envelope(
         wireVersion: 1,
-        event: protocol.Events(
-          type: protocol.EventType.KEEPALIVE_EVENT,
-          data: [7],
-        ),
+        event: protocol.Events(keepalive: protocol.KeepaliveEvent()),
       );
 
       final decodedStarted = protocol.Envelope.fromBuffer(
@@ -326,7 +327,41 @@ void main() {
 
       expect(decodedStarted.sessionStarted.sessionId, [5]);
       expect(decodedStarted.sessionStarted.snapshot, [6]);
-      expect(decodedEvent.event.type, protocol.EventType.KEEPALIVE_EVENT);
+      expect(decodedEvent.event.whichEvent(), protocol.Events_Event.keepalive);
+    });
+
+    test('covers every typed event variant', () {
+      final events = <protocol.Events>[
+        protocol.Events(participantStatus: protocol.ParticipantStatusEvent()),
+        protocol.Events(newDkg: protocol.NewDkgEvent()),
+        protocol.Events(dkgCommitment: protocol.DkgCommitmentEvent()),
+        protocol.Events(dkgReject: protocol.DkgRejectEvent()),
+        protocol.Events(dkgRound2Share: protocol.DkgRound2ShareEvent()),
+        protocol.Events(dkgAck: protocol.DkgAckEvent()),
+        protocol.Events(dkgAckRequest: protocol.DkgAckRequestEvent()),
+        protocol.Events(signaturesRequest: protocol.SignaturesRequestEvent()),
+        protocol.Events(signatureNewRounds: protocol.SignatureNewRoundsEvent()),
+        protocol.Events(signaturesComplete: protocol.SignaturesCompleteEvent()),
+        protocol.Events(signaturesFailure: protocol.SignaturesFailureEvent()),
+        protocol.Events(keepalive: protocol.KeepaliveEvent()),
+        protocol.Events(secretShare: protocol.SecretShareEvent()),
+        protocol.Events(constructedKey: protocol.ConstructedKeyEvent()),
+        protocol.Events(signaturesProgress: protocol.SignaturesProgressEvent()),
+      ];
+
+      expect(
+        events
+            .map(
+              (event) =>
+                  protocol.Events.fromBuffer(event.writeToBuffer())
+                      .whichEvent(),
+            )
+            .toSet(),
+        protocol.Events_Event.values.where(
+          (event) => event != protocol.Events_Event.notSet,
+        ),
+      );
+      expect(protocol.Events().whichEvent(), protocol.Events_Event.notSet);
     });
 
     test('empty and unknown payloads remain unset', () {

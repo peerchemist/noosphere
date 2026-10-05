@@ -14,37 +14,22 @@ import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
-@$core.Deprecated('Use eventTypeDescriptor instead')
-const EventType$json = {
-  '1': 'EventType',
+@$core.Deprecated('Use signaturesProgressStageDescriptor instead')
+const SignaturesProgressStage$json = {
+  '1': 'SignaturesProgressStage',
   '2': [
-    {'1': 'PARTICIPANT_STATUS_EVENT', '2': 0},
-    {'1': 'NEW_DKG_EVENT', '2': 1},
-    {'1': 'DKG_COMMITMENT_EVENT', '2': 2},
-    {'1': 'DKG_REJECT_EVENT', '2': 3},
-    {'1': 'DKG_ROUND2_SHARE_EVENT', '2': 4},
-    {'1': 'DKG_ACK_EVENT', '2': 5},
-    {'1': 'DKG_ACK_REQUEST_EVENT', '2': 6},
-    {'1': 'SIG_REQ_EVENT', '2': 7},
-    {'1': 'SIG_NEW_ROUNDS_EVENT', '2': 8},
-    {'1': 'SIG_COMPLETE_EVENT', '2': 9},
-    {'1': 'SIG_FAILURE_EVENT', '2': 10},
-    {'1': 'KEEPALIVE_EVENT', '2': 11},
-    {'1': 'SECRET_SHARE_EVENT', '2': 12},
-    {'1': 'CONSTRUCTED_KEY_EVENT', '2': 13},
-    {'1': 'SIG_PROGRESS_EVENT', '2': 14},
+    {'1': 'SIGNATURES_PROGRESS_COLLECTING', '2': 0},
+    {'1': 'SIGNATURES_PROGRESS_SIGNING', '2': 1},
+    {'1': 'SIGNATURES_PROGRESS_COMPLETED', '2': 2},
+    {'1': 'SIGNATURES_PROGRESS_FAILED', '2': 3},
   ],
 };
 
-/// Descriptor for `EventType`. Decode as a `google.protobuf.EnumDescriptorProto`.
-final $typed_data.Uint8List eventTypeDescriptor = $convert.base64Decode(
-    'CglFdmVudFR5cGUSHAoYUEFSVElDSVBBTlRfU1RBVFVTX0VWRU5UEAASEQoNTkVXX0RLR19FVk'
-    'VOVBABEhgKFERLR19DT01NSVRNRU5UX0VWRU5UEAISFAoQREtHX1JFSkVDVF9FVkVOVBADEhoK'
-    'FkRLR19ST1VORDJfU0hBUkVfRVZFTlQQBBIRCg1ES0dfQUNLX0VWRU5UEAUSGQoVREtHX0FDS1'
-    '9SRVFVRVNUX0VWRU5UEAYSEQoNU0lHX1JFUV9FVkVOVBAHEhgKFFNJR19ORVdfUk9VTkRTX0VW'
-    'RU5UEAgSFgoSU0lHX0NPTVBMRVRFX0VWRU5UEAkSFQoRU0lHX0ZBSUxVUkVfRVZFTlQQChITCg'
-    '9LRUVQQUxJVkVfRVZFTlQQCxIWChJTRUNSRVRfU0hBUkVfRVZFTlQQDBIZChVDT05TVFJVQ1RF'
-    'RF9LRVlfRVZFTlQQDRIWChJTSUdfUFJPR1JFU1NfRVZFTlQQDg==');
+/// Descriptor for `SignaturesProgressStage`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List signaturesProgressStageDescriptor = $convert.base64Decode(
+    'ChdTaWduYXR1cmVzUHJvZ3Jlc3NTdGFnZRIiCh5TSUdOQVRVUkVTX1BST0dSRVNTX0NPTExFQ1'
+    'RJTkcQABIfChtTSUdOQVRVUkVTX1BST0dSRVNTX1NJR05JTkcQARIhCh1TSUdOQVRVUkVTX1BS'
+    'T0dSRVNTX0NPTVBMRVRFRBACEh4KGlNJR05BVFVSRVNfUFJPR1JFU1NfRkFJTEVEEAM=');
 
 @$core.Deprecated('Use protocolErrorCodeDescriptor instead')
 const ProtocolErrorCode$json = {
@@ -331,26 +316,501 @@ final $typed_data.Uint8List constructedKeyDescriptor = $convert.base64Decode(
     'Cg5Db25zdHJ1Y3RlZEtleRIQCgNzaWQYASABKAxSA3NpZBInCg9jb25zdHJ1Y3RlZF9rZXkYAi'
     'ABKAxSDmNvbnN0cnVjdGVkS2V5');
 
+@$core.Deprecated('Use participantStatusEventDescriptor instead')
+const ParticipantStatusEvent$json = {
+  '1': 'ParticipantStatusEvent',
+  '2': [
+    {'1': 'participant_id', '3': 1, '4': 1, '5': 12, '10': 'participantId'},
+    {'1': 'logged_in', '3': 2, '4': 1, '5': 8, '10': 'loggedIn'},
+  ],
+};
+
+/// Descriptor for `ParticipantStatusEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List participantStatusEventDescriptor =
+    $convert.base64Decode(
+        'ChZQYXJ0aWNpcGFudFN0YXR1c0V2ZW50EiUKDnBhcnRpY2lwYW50X2lkGAEgASgMUg1wYXJ0aW'
+        'NpcGFudElkEhsKCWxvZ2dlZF9pbhgCIAEoCFIIbG9nZ2VkSW4=');
+
+@$core.Deprecated('Use dkgEventCommitmentDescriptor instead')
+const DkgEventCommitment$json = {
+  '1': 'DkgEventCommitment',
+  '2': [
+    {'1': 'participant_id', '3': 1, '4': 1, '5': 12, '10': 'participantId'},
+    {'1': 'commitment', '3': 2, '4': 1, '5': 12, '10': 'commitment'},
+  ],
+};
+
+/// Descriptor for `DkgEventCommitment`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List dkgEventCommitmentDescriptor = $convert.base64Decode(
+    'ChJEa2dFdmVudENvbW1pdG1lbnQSJQoOcGFydGljaXBhbnRfaWQYASABKAxSDXBhcnRpY2lwYW'
+    '50SWQSHgoKY29tbWl0bWVudBgCIAEoDFIKY29tbWl0bWVudA==');
+
+@$core.Deprecated('Use newDkgEventDescriptor instead')
+const NewDkgEvent$json = {
+  '1': 'NewDkgEvent',
+  '2': [
+    {'1': 'signed_details', '3': 1, '4': 1, '5': 12, '10': 'signedDetails'},
+    {'1': 'creator_id', '3': 2, '4': 1, '5': 12, '10': 'creatorId'},
+    {
+      '1': 'commitments',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.noosphere.DkgEventCommitment',
+      '10': 'commitments'
+    },
+  ],
+};
+
+/// Descriptor for `NewDkgEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List newDkgEventDescriptor = $convert.base64Decode(
+    'CgtOZXdEa2dFdmVudBIlCg5zaWduZWRfZGV0YWlscxgBIAEoDFINc2lnbmVkRGV0YWlscxIdCg'
+    'pjcmVhdG9yX2lkGAIgASgMUgljcmVhdG9ySWQSPwoLY29tbWl0bWVudHMYAyADKAsyHS5ub29z'
+    'cGhlcmUuRGtnRXZlbnRDb21taXRtZW50Ugtjb21taXRtZW50cw==');
+
+@$core.Deprecated('Use dkgCommitmentEventDescriptor instead')
+const DkgCommitmentEvent$json = {
+  '1': 'DkgCommitmentEvent',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'participant_id', '3': 2, '4': 1, '5': 12, '10': 'participantId'},
+    {'1': 'commitment', '3': 3, '4': 1, '5': 12, '10': 'commitment'},
+  ],
+};
+
+/// Descriptor for `DkgCommitmentEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List dkgCommitmentEventDescriptor = $convert.base64Decode(
+    'ChJEa2dDb21taXRtZW50RXZlbnQSEgoEbmFtZRgBIAEoCVIEbmFtZRIlCg5wYXJ0aWNpcGFudF'
+    '9pZBgCIAEoDFINcGFydGljaXBhbnRJZBIeCgpjb21taXRtZW50GAMgASgMUgpjb21taXRtZW50');
+
+@$core.Deprecated('Use dkgRejectEventDescriptor instead')
+const DkgRejectEvent$json = {
+  '1': 'DkgRejectEvent',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'participant_id', '3': 2, '4': 1, '5': 12, '10': 'participantId'},
+  ],
+};
+
+/// Descriptor for `DkgRejectEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List dkgRejectEventDescriptor = $convert.base64Decode(
+    'Cg5Ea2dSZWplY3RFdmVudBISCgRuYW1lGAEgASgJUgRuYW1lEiUKDnBhcnRpY2lwYW50X2lkGA'
+    'IgASgMUg1wYXJ0aWNpcGFudElk');
+
+@$core.Deprecated('Use dkgRound2ShareEventDescriptor instead')
+const DkgRound2ShareEvent$json = {
+  '1': 'DkgRound2ShareEvent',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {
+      '1': 'commitment_set_signature',
+      '3': 2,
+      '4': 1,
+      '5': 12,
+      '10': 'commitmentSetSignature'
+    },
+    {'1': 'sender_id', '3': 3, '4': 1, '5': 12, '10': 'senderId'},
+    {'1': 'encrypted_secret', '3': 4, '4': 1, '5': 12, '10': 'encryptedSecret'},
+  ],
+};
+
+/// Descriptor for `DkgRound2ShareEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List dkgRound2ShareEventDescriptor = $convert.base64Decode(
+    'ChNEa2dSb3VuZDJTaGFyZUV2ZW50EhIKBG5hbWUYASABKAlSBG5hbWUSOAoYY29tbWl0bWVudF'
+    '9zZXRfc2lnbmF0dXJlGAIgASgMUhZjb21taXRtZW50U2V0U2lnbmF0dXJlEhsKCXNlbmRlcl9p'
+    'ZBgDIAEoDFIIc2VuZGVySWQSKQoQZW5jcnlwdGVkX3NlY3JldBgEIAEoDFIPZW5jcnlwdGVkU2'
+    'VjcmV0');
+
+@$core.Deprecated('Use dkgAckEventDescriptor instead')
+const DkgAckEvent$json = {
+  '1': 'DkgAckEvent',
+  '2': [
+    {'1': 'acks', '3': 1, '4': 3, '5': 12, '10': 'acks'},
+  ],
+};
+
+/// Descriptor for `DkgAckEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List dkgAckEventDescriptor =
+    $convert.base64Decode('CgtEa2dBY2tFdmVudBISCgRhY2tzGAEgAygMUgRhY2tz');
+
+@$core.Deprecated('Use dkgAckRequestEventDescriptor instead')
+const DkgAckRequestEvent$json = {
+  '1': 'DkgAckRequestEvent',
+  '2': [
+    {'1': 'requests', '3': 1, '4': 3, '5': 12, '10': 'requests'},
+  ],
+};
+
+/// Descriptor for `DkgAckRequestEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List dkgAckRequestEventDescriptor =
+    $convert.base64Decode(
+        'ChJEa2dBY2tSZXF1ZXN0RXZlbnQSGgoIcmVxdWVzdHMYASADKAxSCHJlcXVlc3Rz');
+
+@$core.Deprecated('Use signaturesProgressDescriptor instead')
+const SignaturesProgress$json = {
+  '1': 'SignaturesProgress',
+  '2': [
+    {'1': 'threshold', '3': 1, '4': 1, '5': 13, '10': 'threshold'},
+    {
+      '1': 'contributing_participant_ids',
+      '3': 2,
+      '4': 3,
+      '5': 12,
+      '10': 'contributingParticipantIds'
+    },
+    {
+      '1': 'stage',
+      '3': 3,
+      '4': 1,
+      '5': 14,
+      '6': '.noosphere.SignaturesProgressStage',
+      '9': 0,
+      '10': 'stage',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_stage'},
+  ],
+};
+
+/// Descriptor for `SignaturesProgress`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signaturesProgressDescriptor = $convert.base64Decode(
+    'ChJTaWduYXR1cmVzUHJvZ3Jlc3MSHAoJdGhyZXNob2xkGAEgASgNUgl0aHJlc2hvbGQSQAocY2'
+    '9udHJpYnV0aW5nX3BhcnRpY2lwYW50X2lkcxgCIAMoDFIaY29udHJpYnV0aW5nUGFydGljaXBh'
+    'bnRJZHMSPQoFc3RhZ2UYAyABKA4yIi5ub29zcGhlcmUuU2lnbmF0dXJlc1Byb2dyZXNzU3RhZ2'
+    'VIAFIFc3RhZ2WIAQFCCAoGX3N0YWdl');
+
+@$core.Deprecated('Use signaturesRequestEventDescriptor instead')
+const SignaturesRequestEvent$json = {
+  '1': 'SignaturesRequestEvent',
+  '2': [
+    {'1': 'signed_details', '3': 1, '4': 1, '5': 12, '10': 'signedDetails'},
+    {'1': 'creator_id', '3': 2, '4': 1, '5': 12, '10': 'creatorId'},
+    {
+      '1': 'progress',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.SignaturesProgress',
+      '10': 'progress'
+    },
+  ],
+};
+
+/// Descriptor for `SignaturesRequestEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signaturesRequestEventDescriptor = $convert.base64Decode(
+    'ChZTaWduYXR1cmVzUmVxdWVzdEV2ZW50EiUKDnNpZ25lZF9kZXRhaWxzGAEgASgMUg1zaWduZW'
+    'REZXRhaWxzEh0KCmNyZWF0b3JfaWQYAiABKAxSCWNyZWF0b3JJZBI5Cghwcm9ncmVzcxgDIAEo'
+    'CzIdLm5vb3NwaGVyZS5TaWduYXR1cmVzUHJvZ3Jlc3NSCHByb2dyZXNz');
+
+@$core.Deprecated('Use signatureRoundStartDescriptor instead')
+const SignatureRoundStart$json = {
+  '1': 'SignatureRoundStart',
+  '2': [
+    {'1': 'signature_index', '3': 1, '4': 1, '5': 13, '10': 'signatureIndex'},
+    {'1': 'commitment_set', '3': 2, '4': 1, '5': 12, '10': 'commitmentSet'},
+  ],
+};
+
+/// Descriptor for `SignatureRoundStart`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signatureRoundStartDescriptor = $convert.base64Decode(
+    'ChNTaWduYXR1cmVSb3VuZFN0YXJ0EicKD3NpZ25hdHVyZV9pbmRleBgBIAEoDVIOc2lnbmF0dX'
+    'JlSW5kZXgSJQoOY29tbWl0bWVudF9zZXQYAiABKAxSDWNvbW1pdG1lbnRTZXQ=');
+
+@$core.Deprecated('Use signatureNewRoundsEventDescriptor instead')
+const SignatureNewRoundsEvent$json = {
+  '1': 'SignatureNewRoundsEvent',
+  '2': [
+    {'1': 'request_id', '3': 1, '4': 1, '5': 12, '10': 'requestId'},
+    {
+      '1': 'rounds',
+      '3': 2,
+      '4': 3,
+      '5': 11,
+      '6': '.noosphere.SignatureRoundStart',
+      '10': 'rounds'
+    },
+  ],
+};
+
+/// Descriptor for `SignatureNewRoundsEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signatureNewRoundsEventDescriptor = $convert.base64Decode(
+    'ChdTaWduYXR1cmVOZXdSb3VuZHNFdmVudBIdCgpyZXF1ZXN0X2lkGAEgASgMUglyZXF1ZXN0SW'
+    'QSNgoGcm91bmRzGAIgAygLMh4ubm9vc3BoZXJlLlNpZ25hdHVyZVJvdW5kU3RhcnRSBnJvdW5k'
+    'cw==');
+
+@$core.Deprecated('Use signaturesCompleteEventDescriptor instead')
+const SignaturesCompleteEvent$json = {
+  '1': 'SignaturesCompleteEvent',
+  '2': [
+    {'1': 'request_id', '3': 1, '4': 1, '5': 12, '10': 'requestId'},
+    {'1': 'signatures', '3': 2, '4': 3, '5': 12, '10': 'signatures'},
+  ],
+};
+
+/// Descriptor for `SignaturesCompleteEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signaturesCompleteEventDescriptor =
+    $convert.base64Decode(
+        'ChdTaWduYXR1cmVzQ29tcGxldGVFdmVudBIdCgpyZXF1ZXN0X2lkGAEgASgMUglyZXF1ZXN0SW'
+        'QSHgoKc2lnbmF0dXJlcxgCIAMoDFIKc2lnbmF0dXJlcw==');
+
+@$core.Deprecated('Use signaturesFailureEventDescriptor instead')
+const SignaturesFailureEvent$json = {
+  '1': 'SignaturesFailureEvent',
+  '2': [
+    {'1': 'request_id', '3': 1, '4': 1, '5': 12, '10': 'requestId'},
+  ],
+};
+
+/// Descriptor for `SignaturesFailureEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signaturesFailureEventDescriptor =
+    $convert.base64Decode(
+        'ChZTaWduYXR1cmVzRmFpbHVyZUV2ZW50Eh0KCnJlcXVlc3RfaWQYASABKAxSCXJlcXVlc3RJZA'
+        '==');
+
+@$core.Deprecated('Use keepaliveEventDescriptor instead')
+const KeepaliveEvent$json = {
+  '1': 'KeepaliveEvent',
+};
+
+/// Descriptor for `KeepaliveEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List keepaliveEventDescriptor =
+    $convert.base64Decode('Cg5LZWVwYWxpdmVFdmVudA==');
+
+@$core.Deprecated('Use secretShareEventDescriptor instead')
+const SecretShareEvent$json = {
+  '1': 'SecretShareEvent',
+  '2': [
+    {'1': 'sender_id', '3': 1, '4': 1, '5': 12, '10': 'senderId'},
+    {'1': 'group_key', '3': 2, '4': 1, '5': 12, '10': 'groupKey'},
+    {
+      '1': 'encrypted_key_share',
+      '3': 3,
+      '4': 1,
+      '5': 12,
+      '10': 'encryptedKeyShare'
+    },
+  ],
+};
+
+/// Descriptor for `SecretShareEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List secretShareEventDescriptor = $convert.base64Decode(
+    'ChBTZWNyZXRTaGFyZUV2ZW50EhsKCXNlbmRlcl9pZBgBIAEoDFIIc2VuZGVySWQSGwoJZ3JvdX'
+    'Bfa2V5GAIgASgMUghncm91cEtleRIuChNlbmNyeXB0ZWRfa2V5X3NoYXJlGAMgASgMUhFlbmNy'
+    'eXB0ZWRLZXlTaGFyZQ==');
+
+@$core.Deprecated('Use constructedKeyEventDescriptor instead')
+const ConstructedKeyEvent$json = {
+  '1': 'ConstructedKeyEvent',
+  '2': [
+    {'1': 'participant_id', '3': 1, '4': 1, '5': 12, '10': 'participantId'},
+    {
+      '1': 'signed_constructed_key',
+      '3': 2,
+      '4': 1,
+      '5': 12,
+      '10': 'signedConstructedKey'
+    },
+  ],
+};
+
+/// Descriptor for `ConstructedKeyEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List constructedKeyEventDescriptor = $convert.base64Decode(
+    'ChNDb25zdHJ1Y3RlZEtleUV2ZW50EiUKDnBhcnRpY2lwYW50X2lkGAEgASgMUg1wYXJ0aWNpcG'
+    'FudElkEjQKFnNpZ25lZF9jb25zdHJ1Y3RlZF9rZXkYAiABKAxSFHNpZ25lZENvbnN0cnVjdGVk'
+    'S2V5');
+
+@$core.Deprecated('Use signaturesProgressEventDescriptor instead')
+const SignaturesProgressEvent$json = {
+  '1': 'SignaturesProgressEvent',
+  '2': [
+    {'1': 'request_id', '3': 1, '4': 1, '5': 12, '10': 'requestId'},
+    {
+      '1': 'progress',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.SignaturesProgress',
+      '10': 'progress'
+    },
+  ],
+};
+
+/// Descriptor for `SignaturesProgressEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signaturesProgressEventDescriptor = $convert.base64Decode(
+    'ChdTaWduYXR1cmVzUHJvZ3Jlc3NFdmVudBIdCgpyZXF1ZXN0X2lkGAEgASgMUglyZXF1ZXN0SW'
+    'QSOQoIcHJvZ3Jlc3MYAiABKAsyHS5ub29zcGhlcmUuU2lnbmF0dXJlc1Byb2dyZXNzUghwcm9n'
+    'cmVzcw==');
+
 @$core.Deprecated('Use eventsDescriptor instead')
 const Events$json = {
   '1': 'Events',
   '2': [
     {
-      '1': 'type',
+      '1': 'participant_status',
       '3': 1,
       '4': 1,
-      '5': 14,
-      '6': '.noosphere.EventType',
-      '10': 'type'
+      '5': 11,
+      '6': '.noosphere.ParticipantStatusEvent',
+      '9': 0,
+      '10': 'participantStatus'
     },
-    {'1': 'data', '3': 2, '4': 1, '5': 12, '10': 'data'},
+    {
+      '1': 'new_dkg',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.NewDkgEvent',
+      '9': 0,
+      '10': 'newDkg'
+    },
+    {
+      '1': 'dkg_commitment',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.DkgCommitmentEvent',
+      '9': 0,
+      '10': 'dkgCommitment'
+    },
+    {
+      '1': 'dkg_reject',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.DkgRejectEvent',
+      '9': 0,
+      '10': 'dkgReject'
+    },
+    {
+      '1': 'dkg_round2_share',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.DkgRound2ShareEvent',
+      '9': 0,
+      '10': 'dkgRound2Share'
+    },
+    {
+      '1': 'dkg_ack',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.DkgAckEvent',
+      '9': 0,
+      '10': 'dkgAck'
+    },
+    {
+      '1': 'dkg_ack_request',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.DkgAckRequestEvent',
+      '9': 0,
+      '10': 'dkgAckRequest'
+    },
+    {
+      '1': 'signatures_request',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.SignaturesRequestEvent',
+      '9': 0,
+      '10': 'signaturesRequest'
+    },
+    {
+      '1': 'signature_new_rounds',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.SignatureNewRoundsEvent',
+      '9': 0,
+      '10': 'signatureNewRounds'
+    },
+    {
+      '1': 'signatures_complete',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.SignaturesCompleteEvent',
+      '9': 0,
+      '10': 'signaturesComplete'
+    },
+    {
+      '1': 'signatures_failure',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.SignaturesFailureEvent',
+      '9': 0,
+      '10': 'signaturesFailure'
+    },
+    {
+      '1': 'keepalive',
+      '3': 12,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.KeepaliveEvent',
+      '9': 0,
+      '10': 'keepalive'
+    },
+    {
+      '1': 'secret_share',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.SecretShareEvent',
+      '9': 0,
+      '10': 'secretShare'
+    },
+    {
+      '1': 'constructed_key',
+      '3': 14,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.ConstructedKeyEvent',
+      '9': 0,
+      '10': 'constructedKey'
+    },
+    {
+      '1': 'signatures_progress',
+      '3': 15,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.SignaturesProgressEvent',
+      '9': 0,
+      '10': 'signaturesProgress'
+    },
+  ],
+  '8': [
+    {'1': 'event'},
   ],
 };
 
 /// Descriptor for `Events`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List eventsDescriptor = $convert.base64Decode(
-    'CgZFdmVudHMSKAoEdHlwZRgBIAEoDjIULm5vb3NwaGVyZS5FdmVudFR5cGVSBHR5cGUSEgoEZG'
-    'F0YRgCIAEoDFIEZGF0YQ==');
+    'CgZFdmVudHMSUgoScGFydGljaXBhbnRfc3RhdHVzGAEgASgLMiEubm9vc3BoZXJlLlBhcnRpY2'
+    'lwYW50U3RhdHVzRXZlbnRIAFIRcGFydGljaXBhbnRTdGF0dXMSMQoHbmV3X2RrZxgCIAEoCzIW'
+    'Lm5vb3NwaGVyZS5OZXdEa2dFdmVudEgAUgZuZXdEa2cSRgoOZGtnX2NvbW1pdG1lbnQYAyABKA'
+    'syHS5ub29zcGhlcmUuRGtnQ29tbWl0bWVudEV2ZW50SABSDWRrZ0NvbW1pdG1lbnQSOgoKZGtn'
+    'X3JlamVjdBgEIAEoCzIZLm5vb3NwaGVyZS5Ea2dSZWplY3RFdmVudEgAUglka2dSZWplY3QSSg'
+    'oQZGtnX3JvdW5kMl9zaGFyZRgFIAEoCzIeLm5vb3NwaGVyZS5Ea2dSb3VuZDJTaGFyZUV2ZW50'
+    'SABSDmRrZ1JvdW5kMlNoYXJlEjEKB2RrZ19hY2sYBiABKAsyFi5ub29zcGhlcmUuRGtnQWNrRX'
+    'ZlbnRIAFIGZGtnQWNrEkcKD2RrZ19hY2tfcmVxdWVzdBgHIAEoCzIdLm5vb3NwaGVyZS5Ea2dB'
+    'Y2tSZXF1ZXN0RXZlbnRIAFINZGtnQWNrUmVxdWVzdBJSChJzaWduYXR1cmVzX3JlcXVlc3QYCC'
+    'ABKAsyIS5ub29zcGhlcmUuU2lnbmF0dXJlc1JlcXVlc3RFdmVudEgAUhFzaWduYXR1cmVzUmVx'
+    'dWVzdBJWChRzaWduYXR1cmVfbmV3X3JvdW5kcxgJIAEoCzIiLm5vb3NwaGVyZS5TaWduYXR1cm'
+    'VOZXdSb3VuZHNFdmVudEgAUhJzaWduYXR1cmVOZXdSb3VuZHMSVQoTc2lnbmF0dXJlc19jb21w'
+    'bGV0ZRgKIAEoCzIiLm5vb3NwaGVyZS5TaWduYXR1cmVzQ29tcGxldGVFdmVudEgAUhJzaWduYX'
+    'R1cmVzQ29tcGxldGUSUgoSc2lnbmF0dXJlc19mYWlsdXJlGAsgASgLMiEubm9vc3BoZXJlLlNp'
+    'Z25hdHVyZXNGYWlsdXJlRXZlbnRIAFIRc2lnbmF0dXJlc0ZhaWx1cmUSOQoJa2VlcGFsaXZlGA'
+    'wgASgLMhkubm9vc3BoZXJlLktlZXBhbGl2ZUV2ZW50SABSCWtlZXBhbGl2ZRJACgxzZWNyZXRf'
+    'c2hhcmUYDSABKAsyGy5ub29zcGhlcmUuU2VjcmV0U2hhcmVFdmVudEgAUgtzZWNyZXRTaGFyZR'
+    'JJCg9jb25zdHJ1Y3RlZF9rZXkYDiABKAsyHi5ub29zcGhlcmUuQ29uc3RydWN0ZWRLZXlFdmVu'
+    'dEgAUg5jb25zdHJ1Y3RlZEtleRJVChNzaWduYXR1cmVzX3Byb2dyZXNzGA8gASgLMiIubm9vc3'
+    'BoZXJlLlNpZ25hdHVyZXNQcm9ncmVzc0V2ZW50SABSEnNpZ25hdHVyZXNQcm9ncmVzc0IHCgVl'
+    'dmVudA==');
 
 @$core.Deprecated('Use protocolErrorDescriptor instead')
 const ProtocolError$json = {
@@ -686,17 +1146,18 @@ const ShareSecretShareResponse$json = {
       '1': 'constructed_key_events',
       '3': 1,
       '4': 3,
-      '5': 12,
+      '5': 11,
+      '6': '.noosphere.ConstructedKeyEvent',
       '10': 'constructedKeyEvents'
     },
   ],
 };
 
 /// Descriptor for `ShareSecretShareResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List shareSecretShareResponseDescriptor =
-    $convert.base64Decode(
-        'ChhTaGFyZVNlY3JldFNoYXJlUmVzcG9uc2USNAoWY29uc3RydWN0ZWRfa2V5X2V2ZW50cxgBIA'
-        'MoDFIUY29uc3RydWN0ZWRLZXlFdmVudHM=');
+final $typed_data.Uint8List shareSecretShareResponseDescriptor = $convert.base64Decode(
+    'ChhTaGFyZVNlY3JldFNoYXJlUmVzcG9uc2USVAoWY29uc3RydWN0ZWRfa2V5X2V2ZW50cxgBIA'
+    'MoCzIeLm5vb3NwaGVyZS5Db25zdHJ1Y3RlZEtleUV2ZW50UhRjb25zdHJ1Y3RlZEtleUV2ZW50'
+    'cw==');
 
 @$core.Deprecated('Use ackKeyConstructedResponseDescriptor instead')
 const AckKeyConstructedResponse$json = {

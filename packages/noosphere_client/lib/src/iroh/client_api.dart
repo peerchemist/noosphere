@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:frosty/frosty.dart';
 import 'package:iroh_quic/iroh_quic.dart';
+import 'package:noosphere/event_wire.dart' as event_wire;
 import 'package:noosphere/noosphere.dart' as protocol;
 import 'package:noosphere/noosphere.dart' show decodeEnvelopes, encodeEnvelope;
 import 'package:noosphere/api/events.dart';
@@ -497,9 +498,7 @@ final class IrohClientApi implements ApiRequestInterface {
       protocol.RpcResponse_Response.shareSecretShare,
     );
     return response.shareSecretShare.constructedKeyEvents
-        .map(
-          (event) => ConstructedKeyEvent.fromBytes(Uint8List.fromList(event)),
-        )
+        .map(event_wire.decodeConstructedKeyEvent)
         .toList();
   }
 
@@ -543,43 +542,7 @@ final class _AsyncSemaphore {
   }
 }
 
-Event _decodeEvent(protocol.Events event) {
-  final bytes = Uint8List.fromList(event.data);
-  return switch (event.type) {
-    protocol.EventType.PARTICIPANT_STATUS_EVENT =>
-      ParticipantStatusEvent.fromBytes(bytes),
-    protocol.EventType.NEW_DKG_EVENT => NewDkgEvent.fromBytes(bytes),
-    protocol.EventType.DKG_COMMITMENT_EVENT => DkgCommitmentEvent.fromBytes(
-      bytes,
-    ),
-    protocol.EventType.DKG_REJECT_EVENT => DkgRejectEvent.fromBytes(bytes),
-    protocol.EventType.DKG_ROUND2_SHARE_EVENT => DkgRound2ShareEvent.fromBytes(
-      bytes,
-    ),
-    protocol.EventType.DKG_ACK_EVENT => DkgAckEvent.fromBytes(bytes),
-    protocol.EventType.DKG_ACK_REQUEST_EVENT => DkgAckRequestEvent.fromBytes(
-      bytes,
-    ),
-    protocol.EventType.SIG_REQ_EVENT => SignaturesRequestEvent.fromBytes(bytes),
-    protocol.EventType.SIG_NEW_ROUNDS_EVENT =>
-      SignatureNewRoundsEvent.fromBytes(bytes),
-    protocol.EventType.SIG_COMPLETE_EVENT => SignaturesCompleteEvent.fromBytes(
-      bytes,
-    ),
-    protocol.EventType.SIG_FAILURE_EVENT => SignaturesFailureEvent.fromBytes(
-      bytes,
-    ),
-    protocol.EventType.SIG_PROGRESS_EVENT => SignaturesProgressEvent.fromBytes(
-      bytes,
-    ),
-    protocol.EventType.SECRET_SHARE_EVENT => SecretShareEvent.fromBytes(bytes),
-    protocol.EventType.CONSTRUCTED_KEY_EVENT => ConstructedKeyEvent.fromBytes(
-      bytes,
-    ),
-    protocol.EventType.KEEPALIVE_EVENT => KeepaliveEvent(),
-    _ => throw IrohProtocolException('unknown event type ${event.type}'),
-  };
-}
+Event _decodeEvent(protocol.Events event) => event_wire.decodeEvent(event);
 
 Stream<List<int>> _readChunks(RecvStream receive) async* {
   while (true) {

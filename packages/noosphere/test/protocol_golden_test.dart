@@ -99,4 +99,22 @@ void main() {
       expect(decoded.rpcRequest.login.groupFingerprint, [0xaa, 0xbb]);
     },
   );
+
+  test('typed participant event retains fixed protobuf wire bytes', () {
+    // Events oneof field 1 contains ParticipantStatusEvent. Its field 1 is an
+    // opaque participant ID and field 2 is the login boolean.
+    const eventHex = '0a060a02aabb1001';
+    final event = wire.Events(
+      participantStatus: wire.ParticipantStatusEvent(
+        participantId: [0xaa, 0xbb],
+        loggedIn: true,
+      ),
+    );
+    expect(cl.bytesToHex(event.writeToBuffer()), eventHex);
+
+    final decoded = wire.Events.fromBuffer(cl.hexToBytes(eventHex));
+    expect(decoded.whichEvent(), wire.Events_Event.participantStatus);
+    expect(decoded.participantStatus.participantId, [0xaa, 0xbb]);
+    expect(decoded.participantStatus.loggedIn, isTrue);
+  });
 }

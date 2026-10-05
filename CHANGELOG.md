@@ -10,6 +10,9 @@
 
 ### Protocol
 
+- Replace the streamed event type/opaque-bytes wrapper with a typed protobuf
+  `oneof` covering every event. This is a coordinated preview wire break;
+  clients and servers must be upgraded together.
 - Split signature metadata codecs behind one supported-type registry while
   preserving wire bytes, authenticated requests and login replay.
 - Mark 0.1.0 as a coordinated protocol preview and add fixed wire fixtures.
