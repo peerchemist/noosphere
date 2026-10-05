@@ -2,8 +2,7 @@
 
 Noosphere uses Protobuf only for typed serialization. QUIC streams provide
 isolation, correlation, and, for single-message directions, the message
-boundary. There is no generic `Envelope`, `RpcRequest`, or `RpcResponse`
-protobuf.
+boundary.
 
 The canonical schema is
 [`noosphere.proto`](../packages/noosphere/proto/noosphere.proto). Generated

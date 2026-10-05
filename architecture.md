@@ -183,6 +183,7 @@ blind retries.
 | [Coordinator server](architecture/server.md) | Dispatch, DKG and ROAST state machines, persistence and group routing |
 | [Events](architecture/events.md) | Event meaning, creation/routing, binary-to-protobuf-to-Iroh flow, worked signing example, validation and delivery semantics |
 | [Generic data](architecture/generic-data.md) | Signed JSON example, hashes, opaque policy bytes and custom-event extension design |
+| [Protocol extensions](architecture/protocol-extensions.md) | Proposed negotiated `ExtensionEvent` envelope, registries, app-defined modules, worker projection and delivery rules |
 | [Flutter and isolates](architecture/flutter-and-isolates.md) | Worker commands, host callbacks, public DTOs, initialization and shutdown |
 | [Rooms and transitions](architecture/rooms-and-transitions.md) | Enrollment proofs, canonical rosters, coordinator rotation and transition models |
 | [Development and verification](architecture/development-and-testing.md) | Configuration, CLI, example, native builds, generation and test map |

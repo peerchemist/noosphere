@@ -213,3 +213,7 @@ owned by the host. That also requires explicit framing, authentication and
 delivery policy, but keeps its lifecycle and events separate from ROAST. The
 current `IrohServer` only routes its implemented ROAST/enrollment protocols;
 registering an arbitrary ALPN there is not an existing plugin hook.
+
+The proposed shared `ExtensionEvent` envelope, capability negotiation and
+application module registry are described in
+[protocol extensions](protocol-extensions.md).

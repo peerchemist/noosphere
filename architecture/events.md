@@ -425,6 +425,8 @@ Current examples are the [domain envelope tests](../packages/noosphere/test/api/
 Apply the [preview version policy](../packages/noosphere/spec/VERSIONING.md);
 compatibility is not established merely by retaining the same outer envelope.
 For application-defined messages, see [generic data](generic-data.md).
+The proposed negotiated extension envelope and registry design is described in
+[protocol extensions](protocol-extensions.md).
 
 ## Room-manager streams
 
