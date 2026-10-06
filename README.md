@@ -38,7 +38,7 @@ decide what the group should authorize.
 
 ## Encrypted peer-to-peer communication
 
-Noosphere uses Iroh as its reference network transport. Iroh provides
+Noosphere uses [Iroh](https://iroh.computer) as its reference network transport. Iroh provides
 authenticated, encrypted peer-to-peer QUIC connections, endpoint identity,
 discovery and direct connectivity with relay fallback. Participants pin the
 coordinator's Iroh identity independently of its changing network addresses.
