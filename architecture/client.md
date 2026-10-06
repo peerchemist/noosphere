@@ -2,183 +2,79 @@
 
 [Architecture overview](../architecture.md)
 
-[`Client`](../packages/noosphere_client/lib/src/client/client.dart) is the
-transport-independent participant state machine. It consumes an
-`ApiRequestInterface`, `ClientConfig`, `ClientStorageInterface`, and
-`GetPrivateKey`. An Iroh adapter supplies the network implementation of the
-request interface; tests can connect the same client to a handler directly.
+`Client` is the transport-independent participant state machine. It consumes
+an `ApiRequestInterface`, configuration, durable storage and an asynchronous
+participant-key provider. The application decides whether to approve a
+proposal; the client validates and performs the protocol work.
 
-The application initiates requests and decides whether to accept incoming
-proposals. The client verifies protocol data and performs cryptographic steps
-under that decision. It does not choose an application's business policy.
+## Login and state
 
-## Login and local restoration
+Login loads one consistent storage snapshot, signs the coordinator's challenge,
+validates the server snapshot, restores safe operation state and attaches the
+event stream. Completed signatures are reverified against local keys. Missing
+DKG ACKs and encrypted recovery shares are then processed.
 
-[`client_session.dart`](../packages/noosphere_client/lib/src/client/client_session.dart)
-performs these steps:
+Session extension normally starts 15 seconds before expiry, with a 10-second
+minimum wait. Extension or event-processing failure ends the session; a
+reconnecting wrapper creates a new `Client`.
 
-1. Request the participant identity key with `KeyPurpose.login`.
-2. Load one consistent client storage snapshot into `ClientCachedStorage`.
-3. Request and sign the coordinator challenge.
-4. Validate the returned snapshot's participant IDs, proposal signatures,
-   thresholds, duplicate names/IDs, round membership and completion metadata.
-5. Construct the client session, attach its event stream and extension timer.
-6. Restore current proposals, process resumable rounds and verify completed
-   signatures against locally stored keys.
-7. Request missing DKG ACKs and process encrypted recovery shares.
+Internal locks serialize work per DKG, signing request and stored key. Public
+getters return projections or reconstructed copies, not substitutes for the
+host store.
 
-Local maximum TTLs constrain received operation state. On login, prepared
-signing records and durable rejections prevent unapproved or ambiguous rounds
-from automatically using stored nonce material.
+## DKG
 
-The session extension timer targets 15 seconds before expiry, with a minimum
-wait of 10 seconds. Extension failures and event-processing errors end the
-client session. The surrounding reconnecting runtime, if used, opens a new
-session.
+1. The initiator signs `NewDkgDetails`, runs Frosty part one and submits its
+   commitment. Initiation counts as local acceptance.
+2. Every other roster member explicitly accepts and submits a commitment.
+   DKG requires the full roster even when the future signing threshold is
+   smaller.
+3. Each participant validates the full commitment set, runs part two, signs
+   the commitment-set binding and encrypts one share per recipient.
+4. Recipients verify authorship, decrypt their shares and run part three.
+5. The client persists the new key before storing and sending its signed ACK.
 
-## Internal state and synchronization
+Invalid proofs, ciphertexts or shares reject the attempt. A logout during round
+two resets the attempt to round one. Temporary DKG secrets are not durable, so
+a restart requires a new attempt rather than resuming old round messages.
 
-`ClientState` contains the session ID/expiry, online participant set, expiring
-DKG/signing maps and extension timer. `ClientDkgState` holds either round-one
-commitments and the local secret, or the round-two secret, commitment set and
-received shares. `ClientSigsState` holds proposal details and pending rounds.
+## Signing
 
-Locks serialize creation of DKG/signing requests, ACK handling, work on each
-operation and updates to each stored key. Persistent per-key lock objects
-remain stable even when a `FrostKeyWithDetails` value is replaced. The event
-listener invokes asynchronous handlers; it is these relevant locks, rather
-than a claim that all callbacks globally await each other, that protect
-overlapping work.
+To create a request, the client validates keys and metadata, signs the proposal,
+generates commitments/nonces and atomically persists the prepared operation
+before sending it.
 
-The public `keys` getter returns reconstructed copies; request/progress getters
-provide public projections. Neither is a replacement for the host store.
+On receipt, it verifies the creator, expiry, metadata, group keys and reported
+progress. Missing keys cause durable rejection; otherwise the application
+accepts or rejects. Acceptance prepares nonces and initial commitments before
+network I/O.
 
-## DKG sequence
+For each ROAST round, the client verifies the signature index, threshold,
+roster members, exact commitment set and local nonces. It creates a share plus
+fresh next-round commitments, then atomically records consumed transcripts and
+replacement nonces before replying. Final signatures are derived and verified
+with any required Taproot tweak. Completion is published only after durable
+request cleanup.
 
-```mermaid
-sequenceDiagram
-    participant A as Requesting participant
-    participant S as Coordinator
-    participant B as Other participants
-    A->>A: Sign NewDkgDetails, run DkgPart1
-    A->>S: requestNewDkg(details, commitment)
-    S-->>B: NewDkgEvent
-    B->>B: Application accepts, run DkgPart1
-    B->>S: submitDkgCommitment
-    S-->>A: DkgCommitmentEvent
-    S-->>B: Other commitments
-    A->>A: Validate full set, run DkgPart2
-    B->>B: Validate full set, run DkgPart2
-    A->>S: Signed commitment-set hash + encrypted recipient shares
-    B->>S: Signed commitment-set hash + encrypted recipient shares
-    S-->>A: Recipient-specific DkgRound2ShareEvent
-    S-->>B: Recipient-specific DkgRound2ShareEvent
-    A->>A: Decrypt, run DkgPart3, durably store key and ACK
-    B->>B: Decrypt, run DkgPart3, durably store key and ACK
-    A->>S: sendDkgAcks
-    B->>S: sendDkgAcks
-```
+The client never broadcasts a blockchain transaction. The host owns transaction
+policy, submission and confirmation tracking.
 
-[`client_dkg.dart`](../packages/noosphere_client/lib/src/client/client_dkg.dart)
-first validates a local request's name/expiry and prevents duplicate active
-names. The initiator signs `NewDkgDetails`, generates `DkgPart1` and sends its
-commitment. Initiating a request also constitutes local acceptance.
+## Keys, recovery and lifetime
 
-Other participants receive the signed proposal and explicitly call
-`acceptDkg`. All roster participants must contribute commitments before
-`DkgPart2` starts, even if the eventual signing threshold is smaller than the
-roster. This DKG is not a threshold-of-online-members enrollment step.
+`KeyPurpose` tells the host why an identity key is requested; returning a key
+does not approve the pending business action. Worker approvals also echo exact
+proposal bytes. Direct API users must provide an equivalent review-to-action
+binding.
 
-Part two validates commitment proofs and produces one share per recipient.
-The participant signs the combined details/commitment-set hash and encrypts
-each share using sender/recipient identity keys. The coordinator forwards each
-recipient only its own ciphertext.
+`shareKeySecret` is an explicit recovery feature: it encrypts FROST shares for
+selected participants until the full private key can be reconstructed. It is
+not routine signing or membership change and is intentionally absent from the
+public worker API.
 
-The recipient verifies the sender's identity signature, decrypts with
-`KeyPurpose.decryptDkgSecret`, and collects all other participants' shares.
-`DkgPart3` verifies those shares and creates `ParticipantKeyInfo`. The client
-awaits key persistence before removing the DKG, storing its signed positive
-ACK and sending that ACK. Proof, ciphertext or share failures reject the DKG
-with a `DkgFault` reason.
+`Client.events` is single-subscription. Protocol faults close the session.
+Logout cancels timers, waits for recorded event work and closes transport.
+Disconnected clients are not reused; direct reconnect users must replace their
+references, while the worker does so internally.
 
-If a participant logs out, round-two DKG state resets to round one, and its
-round-one commitment is removed. Local temporary secrets are not durable;
-restart cannot resume the old DKG merely from a proposal name. Applications
-should observe actual stored key availability/ACKs rather than interpreting
-one round-progress event as a completed key backup.
-
-## Signing and ROAST replies
-
-[`client_signing.dart`](../packages/noosphere_client/lib/src/client/client_signing.dart)
-validates a requested expiry and verifies that every required key exists
-locally. It signs the proposal using `KeyPurpose.signaturesDetails`, derives
-public aggregate key information, generates initial commitments and persists
-the prepared request plus nonces before submitting it.
-
-On a received proposal, the client verifies the creator's signature and the
-metadata, including that coordinator progress references roster participants
-and a threshold belonging to one of the requested keys. Missing keys cause
-durable rejection. Otherwise the application can accept or reject the request.
-Initial acceptance generates commitments and nonces, durably prepares the
-reply operation and sends it. Later progress updates produce
-`SignaturesProgressClientEvent` without changing the local approval status.
-
-When a new round arrives, the client checks:
-
-- the signature index exists and is not duplicated;
-- the commitment set contains valid roster members including this participant;
-- its size matches the required key's threshold;
-- local nonces exist for each included signature index.
-
-`SignPart2` uses those nonces, the exact commitment set, signing details and
-derived participant information to produce a signature share. The client also
-generates new part-one material for a possible next round. The reply contains
-the share and next commitment. The atomic preparation transaction stores next
-nonces and the consumed transcript before sending the reply.
-
-A response can yield more rounds or final signatures. For every final signature,
-the participant derives the requested verification key, applies the Taproot
-tweak when present, and verifies the Schnorr signature. Only after durable
-request cleanup does it publish `SignaturesCompleteClientEvent`.
-
-The client does not broadcast a blockchain transaction. Taproot metadata and
-verified signatures are inputs to an importing wallet's own workflow.
-
-## Approval and key access
-
-`GetPrivateKey` is asynchronous so the host can access secure storage on demand.
-`KeyPurpose` distinguishes login, DKG details/rounds/decryption, ACKs, request
-details, recovery sharing/decryption and room enrollment. Returning an identity
-key is not a generic approval of whatever operation is pending.
-
-Ordinary FROST shares come from the client store; individual identity-key
-callbacks authenticate protocol objects. The worker adds exact-proposal-byte
-checking to approval commands, while the direct client API accepts a name or
-request ID. Direct users must implement their own review-to-action binding.
-
-## Explicit recovery-share exchange
-
-[`client_key_sharing.dart`](../packages/noosphere_client/lib/src/client/client_key_sharing.dart)
-implements `shareKeySecret`. It encrypts the stored FROST private share for
-selected other participants and records where it was sent. A receiver verifies
-the decrypted share against the sender's public share and stores reconstruction
-progress. With enough shares, `KeyConstructionComplete` contains the full
-private key and the client sends a signed reconstruction claim.
-
-This intentionally reveals enough material to reconstruct the full key. It is
-not part of routine signing or membership changes. The public worker facade
-does not expose a `shareKeySecret` command and strips secrets from public key
-events. A direct client's `SecretShareClientEvent` can contain secret-bearing
-key details and needs different handling from worker events.
-
-## Event lifetime and logout
-
-`Client.events` is a single-subscription stream; subscribe promptly and keep
-consuming it. Protocol faults become stream errors, disconnect the client and
-close that session. `logout` cancels the extension timer, expires the session,
-waits for recorded event work, cancels the network-event subscription and closes
-its controller. The Iroh transport's cancellation path closes the connection.
-
-A disconnected `Client` is not reused. Applications using the direct reconnect
-API must subscribe to replacement clients; the worker handles that internally.
-See [events](events.md) for the full conversion map and delivery limits.
+See [events](events.md) and [state and persistence](state-and-persistence.md)
+for delivery and crash-safety details.

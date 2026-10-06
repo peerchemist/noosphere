@@ -2,218 +2,64 @@
 
 [Architecture overview](../architecture.md)
 
-The existing event pipeline can carry application content when that content is
-part of a supported signing proposal. It does not expose an arbitrary
-`publish(topic, object)` API. Distinguish transporting content, authenticating
-its sender, threshold-signing its meaning, and persisting the resulting
-application action: each is a separate responsibility.
+Noosphere can carry data that belongs to a supported signing proposal. It is
+not a generic `publish(topic, object)` bus. Transport, sender authentication,
+threshold authorization and durable application effects are separate concerns.
 
-## Available paths
+## Current choices
 
-| Need | Current path | What recipients receive |
-| --- | --- | --- |
-| Sign a short text or JSON document | `SignaturesRequestDetails.forMessage` | Exact text in metadata, proposal events, then a verified threshold signature |
-| Sign an arbitrary binary/document digest | `SingleSignatureDetails` with suitable `SignDetails` | Digest and supplied supported metadata; the original document needs its own delivery path |
-| Add a human explanation to a signing request | `SignaturesRequestDetails.message` | Requester-authenticated explanation, not an extra threshold-signed message |
-| Bind opaque migration policy to consent | `GroupTransitionMigrationPolicy.payload` | Bytes inside a transition proposal; delivery/orchestration is host-owned today |
-| Broadcast arbitrary data without a signing operation | No current generic RPC/event API | Requires an explicit protocol extension or a separate application channel |
+| Need | Use |
+| --- | --- |
+| Sign short text or JSON | `SignaturesRequestDetails.forMessage` |
+| Sign an arbitrary digest | `SingleSignatureDetails` with an application-defined codec and delivery path |
+| Explain a signing request | `SignaturesRequestDetails.message` |
+| Bind migration policy | `GroupTransitionMigrationPolicy.payload` |
+| Broadcast without signing | Separate application channel or a future extension |
 
-## Why event byte fields do not make a generic bus
+`EventMessage` is a fixed typed `oneof`; nested byte fields hold specific
+canonical values, not arbitrary payloads. Domain/client/worker event families
+are sealed, so adding a Dart subclass does not add wire routing or validation.
 
-The protobuf `EventMessage` has a fixed `oneof` containing one typed message
-for every supported Noosphere event. Some fields inside those messages are
-`bytes` because they carry bounded canonical cryptographic/domain values, not
-because they accept arbitrary application payloads. Supplying JSON as a signed
-proposal or commitment field will fail that field's domain decoder.
+## Signed text and JSON
 
-`Event` and the public event families are sealed. Consumers cannot add an
-arbitrary subclass in a different Dart library and expect existing exhaustive
-switches, authentication, routing and persistence to support it.
+`forMessage` carries exact UTF-8 text in typed metadata and requests one
+untweaked threshold signature over its tagged digest. Recipients inspect that
+text, validate the application schema and policy, then approve the exact
+proposal. The resulting `SignedMessage` is portable and independently
+verifiable.
 
-## A working path: signed JSON as message text
+Text and the separate explanation are each limited to 1,024 UTF-8 bytes. JSON
+whitespace, key order and Unicode representation affect the digest; define a
+canonical application codec when different implementations must reproduce the
+same bytes. Put authorization context such as domain, version, operation ID,
+network, recipient and expiry inside the signed text when it must survive as
+part of the final signature.
 
-For a small application document, encode the exact document as a string and
-use the existing message-signing operation. This example uses only current
-public APIs. It assumes the setup has a stored FROST key and the caller has
-already approved creating this request:
+The coordinator can read the text. Iroh encrypts the connection, not content
+from the coordinator endpoint.
 
-```dart
-import 'dart:convert';
-import 'package:noosphere_flutter/noosphere_flutter.dart';
+## Digests and metadata
 
-Future<void> requestDocumentSignature({
-  required NoosphereWorker worker,
-  required String setupId,
-  required ECCompressedPublicKey groupKey,
-  required String operationId,
-}) async {
-  final text = jsonEncode({
-    'schema': 'example.document-approval',
-    'version': 1,
-    'operationId': operationId,
-    'documentId': 'invoice-1042',
-    'decision': 'approved',
-  });
+Signing a digest does not deliver its preimage. Signers need an authenticated
+way to obtain and recompute the original document. The request explanation is
+only requester-authenticated and can differ from the threshold-signed digest.
 
-  final request = SignaturesRequestDetails.forMessage(
-    text: text,
-    groupKey: groupKey,
-    expiry: Expiry(const Duration(minutes: 10)),
-    message: 'Approve invoice 1042',
-  );
-  await worker.requestSignatures(setupId, request);
-}
+`UnknownSignatureMetadata` is not an extension mechanism: it is rejected when
+embedded in signing requests and has no bounded body framing there. A new
+metadata type needs a type assignment, bounded codec, semantic binding to
+`requiredSigs`, and request/event/snapshot/worker tests.
 
-Map<String, Object?> decodeDocumentProposal(WorkerSigningRequest event) {
-  final proposal = event.decodeProposal();
-  final metadata = proposal.metadata;
-  if (metadata is! MessageSignatureMetadata) {
-    throw const FormatException('Expected a message-signing proposal');
-  }
-  final decoded = jsonDecode(metadata.payload.text);
-  if (decoded is! Map<String, dynamic>) {
-    throw const FormatException('Expected a JSON object');
-  }
-  if (decoded['schema'] != 'example.document-approval' ||
-      decoded['version'] != 1) {
-    throw const FormatException('Unsupported application schema');
-  }
-  return decoded.cast<String, Object?>();
-}
+`GroupTransitionMigrationPolicy` intentionally carries opaque, versioned host
+bytes, but current transition orchestration does not transport them by itself.
 
-SignedMessage verifiedDocumentResult(WorkerSigningResultEvent event) =>
-    event.toSignedMessage();
-```
+## Future application events
 
-The sample schema check is just a starting point. The host validates all fields,
-authorities, intended group/key, operation ID and replay rules before asking
-for approval. After review it calls
-`worker.acceptSignatures(setupId, reviewedRequest)` with the same proposal DTO.
+A general event feature needs a bounded typed payload, authenticated RPC,
+session-bound sender, recipient authorization, event codec, client/worker
+projection and explicit delivery semantics. Durable delivery additionally
+needs storage, acknowledgments and deduplication; current event buffering does
+not supply them.
 
-The payload follows the ordinary signing pipeline:
-
-```text
-application JSON string
-  -> SignedMessagePayload + MessageSignatureMetadata
-  -> requester-signed SignaturesRequestDetails
-  -> requestSignatures RPC
-  -> protobuf EventMessage.signatures_request
-  -> verified client proposal
-  -> WorkerSigningRequestEvent.request.proposalBytes
-  -> host decodes exact JSON text
-  -> accepted ROAST rounds
-  -> WorkerSigningResultEvent.toSignedMessage()
-```
-
-The initiating participant is implicitly accepting its own request; others
-review the proposal independently. This is a signing workflow with signing
-costs, consent and threshold requirements, not a free-form notification channel.
-
-`forMessage` constructs exactly one untweaked, underived signature over the
-tagged digest of the text. `MessageSignatureMetadata.verifyRequiredSigs`
-enforces the association between the text and requested digest. A verified
-`SignedMessage` is portable outside Noosphere and can be exported as JSON.
-
-## Exact bytes, limits and authorization scope
-
-Signed-message text and the separate explanation are each limited to 1,024
-UTF-8 bytes. The 1 MiB network envelope maximum does not enlarge either model
-limit. A JSON document's whitespace, key order and Unicode representation
-affect its signed digest. The receiver verifies the original text, not a
-parse-and-reencode variant.
-
-If several applications must independently reproduce the same document bytes,
-define a canonical application codec. The sample `jsonEncode` call establishes
-one exact representation for this request, not a cross-language canonical JSON
-standard. Version the schema and include an application domain and a unique
-operation identifier inside the signed text when those are part of authorization.
-
-The final threshold signature authenticates the payload text, not all the
-outer signing request fields. In particular, the outer request expiry,
-request ID, creator and human explanation are not automatically covered by
-the text's final signature. If an authorization needs an expiry, intended
-recipient, network or group fingerprint, include that context in the text
-itself and enforce it when consuming the result.
-
-The coordinator sees this text. Transport encryption protects the network
-connection, not confidentiality from the coordinator that receives the request.
-Sensitive application documents need an appropriate additional confidentiality
-design, rather than assuming `bytes` or JSON is encryption.
-
-## Signing arbitrary binary data
-
-The lower-level request can sign a chosen digest using `SingleSignatureDetails`
-and `SignDetails`. The application must define its canonical document bytes,
-domain separation and hash algorithm, and provide enough authenticated context
-for signers to inspect the requested action.
-
-Sending a hash does not send its preimage. The current `EmptySignatureMetadata`
-does not transport an arbitrary document or verify its meaning. Deliver the
-document through an application channel, or implement a supported metadata
-codec that can validate its relation to the digest. Signers must independently
-recompute the hash before accepting.
-
-`SignaturesRequestDetails.message` is also not a substitute. It is bound to
-the requester's identity signature, but can describe an action different from
-the digests in `requiredSigs`. A final threshold signature does not turn the
-explanation into a signed authorization.
-
-## Why not use `UnknownSignatureMetadata` as an extension API?
-
-[`UnknownSignatureMetadata`](../packages/noosphere/lib/api/types/signature_metadata.dart)
-preserves opaque bytes only when decoded as a complete standalone value. Its
-validation method returns false, and embedded decoding rejects unknown types.
-The format has no length for an unknown metadata body, so a reader cannot
-distinguish that body from the expiry and explanation following it in a
-signing request. Unknown metadata therefore cannot authorize signing or serve
-as an application messaging extension.
-
-A supported metadata extension needs an explicit bounded encoding, decoder,
-type assignment and semantic validation tying data to `requiredSigs`. It also
-needs full signed-request, event, snapshot and worker round-trip tests.
-
-## Existing opaque host policy bytes
-
-`GroupTransitionMigrationPolicy` already provides a deliberately opaque
-`kind`, positive `version`, and 1–65,535-byte payload. Those bytes are included
-in the canonical transition proposal and its consent hash. Noosphere does
-not interpret accounts, assets or fee limits inside them; the application does.
-
-This is an example of the intended ownership boundary for generic domain data.
-It does not provide transport automatically: there is currently no transition
-proposal RPC or worker orchestration/event family that distributes it.
-
-## Designing a general application event extension
-
-The following is a design outline, not an API already present in this checkout:
-
-1. Define a bounded application-message model containing schema/type, version,
-   message ID, group context, sender, recipients, expiry and payload bytes.
-   Choose canonical bytes for any identity signature.
-2. Add an authenticated request to `ApiRequestInterface`, protobuf request and
-   result variants, and both Iroh RPC adapters. Bind claimed sender and group
-   to the authenticated session and enforce recipient membership and limits.
-3. Add a domain event, its protobuf message and a new `EventMessage.event` oneof
-   field. Update the shared event converter, then verify the payload before
-   exposing a client event.
-4. Add a public client event and, if needed, a sanitized worker event/command.
-   Update message-size accounting and use bytes/DTOs rather than arbitrary
-   runtime objects across isolates.
-5. Define delivery semantics. For durable delivery, add host persistence,
-   replay/deduplication rules, acknowledgments and ordering. Current transient
-   event buffering supplies none of these automatically.
-6. Specify what the application does with the verified content. Receiving data
-   must not silently change the coordinator pin, approve signing, or execute an
-   application action without the relevant policy.
-7. Test malformed/oversized payloads, authorization, signature binding,
-   duplicate IDs, reconnect, worker conversion and any persistence ambiguity.
-
-An alternative is a separate application protocol/ALPN on an Iroh endpoint
-owned by the host. That also requires explicit framing, authentication and
-delivery policy, but keeps its lifecycle and events separate from ROAST. The
-current `IrohServer` only routes its implemented ROAST/enrollment protocols;
-registering an arbitrary ALPN there is not an existing plugin hook.
-
-The proposed shared `ExtensionEvent` envelope, capability negotiation and
-application module registry are described in
-[protocol extensions](protocol-extensions.md).
+The proposed negotiated envelope and module registry are described in
+[protocol extensions](protocol-extensions.md). A separate host-owned Iroh ALPN
+is another option, but is not an existing `IrohServer` plugin hook.

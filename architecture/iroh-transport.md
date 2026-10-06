@@ -2,244 +2,81 @@
 
 [Architecture overview](../architecture.md)
 
-Iroh supplies the endpoint identity, peer connection establishment, direct/relay
-connectivity and QUIC streams. Noosphere builds authenticated participant
-sessions, framed RPCs and event delivery on top. It does not use Iroh as a
-database, consensus system, generic event broker or signing coordinator.
+Iroh provides authenticated endpoint identities, encrypted QUIC connections,
+discovery and direct/relay connectivity. Noosphere adds participant
+authentication, RPC framing, sessions and event routing.
 
-## Endpoint identity and trust
+This chapter describes remote transport. A signer attached to a matching
+co-located coordinator can use `LocalCoordinatorApi`, which preserves the
+domain protocol while bypassing protobuf and QUIC.
 
-[`IrohServer.start`](../packages/noosphere_server/lib/src/iroh/server.dart)
-requires a host-supplied `SecretKey` and `ServerPersistence`. It initializes
-Iroh and calls `Endpoint.bind` with that key, ALPNs and relay mode. Loading or
-deriving the identity happens in the application before this call. The Flutter
-facade can derive it deterministically from a BIP-39 seed through BIP-85; it
-does not persist an identity secret.
+## Identity and authentication
 
-An `EndpointAddr` contains an endpoint ID plus optional relay URLs and IP
-addresses. The ID is authoritative; the other fields are connection hints.
-The client may supply just the ID and rely on Iroh discovery. Noosphere passes
-these hints to Iroh; it does not implement NAT traversal itself.
+The host supplies the server's Iroh `SecretKey`. Clients connect to an
+`EndpointAddr`, but independently pin its endpoint ID; relay URLs and IPs are
+only hints. The connected remote ID must match the pin.
 
-[`IrohClientEndpoint`](../packages/noosphere_client/lib/src/iroh/endpoint.dart)
-checks the bootstrap address ID against the independently configured
-`pinnedServerId` before connecting. After connection, it checks
-`connection.remoteId` against that pin too. A mismatch closes the connection.
-The application is responsible for obtaining and approving the pin through a
-trusted mechanism.
-
-The Iroh identity and participant identity are separate. The remote endpoint
-ID identifies the transport peer. The signed Noosphere challenge proves that
-the peer controls a secp256k1 participant identity key in the selected roster.
-
-Relay policies map shared `IrohRelayConfig` values to Iroh's default network,
-disabled, staging or custom relay modes. A client endpoint wrapper can own a
-newly bound endpoint or borrow one; closing a borrowed wrapper does not close
-the application-owned endpoint.
-
-## ALPN routing
-
-| ALPN | Protocol |
-| --- | --- |
-| `noosphere/roast/1` | Direct typed protobuf for login, DKG, signing and events |
-| `noosphere/roast-enrollment/1` | Direct typed protobuf for invite enrollment, when room support is enabled |
-
-The server binds both on the same endpoint when a `RoomManager` is provided.
-It routes each accepted connection according to its negotiated ALPN. Freezing
-a room adds its group to the dispatcher; it does not replace or rebind Iroh.
-Both ALPNs dispatch a leading QUIC-varint operation ID directly to concrete
-protobuf request/response types. Each handler accepts only the operations
-exposed on its ALPN.
-
-## Authentication and snapshot handshake
-
-```mermaid
-sequenceDiagram
-    participant C as Participant
-    participant S as Iroh coordinator
-    C->>S: QUIC connection to pinned endpoint, ROAST ALPN
-    C->>S: RPC Login(group fingerprint, participant ID, protocol version)
-    S-->>C: RPC expiring random challenge
-    C->>C: Sign challenge using participant identity key
-    C->>S: RPC RespondToChallenge(challenge, signature)
-    S-->>C: RPC authenticated
-    C->>S: New persistent stream: StartSession
-    S-->>C: SessionStarted(session ID, snapshot)
-    Note over C,S: Client request direction finishes with FIN
-    S-->>C: Length-prefixed EventMessage records
-    C->>S: Independent streams for domain RPCs
-```
-
-[`ConnectionContext`](../packages/noosphere_server/lib/src/iroh/connection_context.dart)
-enforces `connected -> challengeIssued -> authenticated -> sessionAttached ->
-ready -> closed`. The issued challenge is bound to that connection's pending
-group and participant. A challenge signed on another connection cannot simply
-be transplanted into it.
-
-Authentication succeeds before creating the logical session. Only
-`StartSession` replaces a participant's previous session. This prevents merely
-starting authentication from displacing a live signer.
-
-`SessionStarted` carries a snapshot captured through the group's serialized
-dispatcher. The server subscribes to queued/live events before writing that
-snapshot, then sends event records on the same response direction. No `Ready`
-control is required; the stream controller buffers while the high-level client
-attaches.
-
-The session ID in a domain RPC must match the ID bound to the connection.
-It is not a standalone bearer token that can be used on any connection.
-
-### How a request is attributed to a participant
-
-The `participant_id` in the initial `Login` request is only a claim. It becomes
-authenticated through the following chain:
+Iroh identity authenticates the coordinator transport. Participant identity is
+a separate secp256k1 roster key proven by signing a fresh challenge:
 
 ```text
-public key in the room roster
-  -> verifies the signature over the fresh login challenge
-  -> binds the participant ID and group fingerprint to this connection
-  -> StartSession binds a fresh session ID to the same connection
-  -> every later RPC must carry that exact session ID on that connection
+pinned Iroh connection
+  -> Login(group fingerprint, participant ID, version)
+  -> connection-bound challenge and participant signature
+  -> StartSession
+  -> session ID bound to that connection, group and participant
 ```
 
-Consequently, a domain or extension handler obtains the caller from the
-connection/session binding. It must not trust a `participant_id`, `sender` or
-`finder_id` supplied inside the RPC payload. If an Alice-bound connection
-submits a payload claiming to be from Bob, the request is rejected or Bob's
-claim is ignored in favor of the authenticated Alice identity.
+Authentication does not displace an existing signer; `StartSession` does.
+Later RPCs must carry the bound session ID on the same connection. Handlers
+derive the caller from that binding and must not trust sender IDs inside a
+payload.
 
-The Iroh endpoint ID and Noosphere participant identity prove different
-things. The client pins the coordinator's Iroh endpoint ID to authenticate the
-transport peer. The coordinator authenticates a room participant with the
-participant's secp256k1 roster key and the signed challenge. Merely knowing a
-client's Iroh endpoint ID does not prove that it is a particular room member.
+Events come from the pinned coordinator. Participant-signed inner objects prove
+their author's content, but the coordinator still controls delivery and can
+omit, delay or replay events.
 
-### What recipients trust when receiving an event
+## Streams and routing
 
-An event arrives over a transport connection authenticated as the pinned
-coordinator, not over a direct participant-to-participant connection. The
-recipient therefore knows that the coordinator delivered the bytes. That fact
-alone does not prove which participant originally created their contents.
+The server selects ROAST or enrollment by ALPN. Each RPC gets an independent
+bidirectional stream. A separate long-lived stream sends `SessionStarted` and
+length-prefixed events. Participant contributions use RPCs; clients cannot
+publish arbitrary `EventMessage` values.
 
-Where participant authorship matters, the event must retain a participant-
-signed canonical domain object. The recipient verifies that inner signature
-with the author's roster key and independently validates the object. This
-separates two claims:
+Per-group dispatch serializes domain mutations even though QUIC multiplexes
+streams. Socket writes occur after dispatch releases the group lane. A written
+event is not an acknowledgment that the recipient processed, persisted or
+approved it. Reconnect starts a new session and snapshot rather than resuming a
+durable event offset.
 
-- the authenticated session tells the coordinator who submitted an RPC;
-- the inner signature tells every recipient who authored the protected content
-  and that the coordinator did not alter it.
+## Defaults
 
-Without the inner signature, recipients necessarily trust the coordinator's
-sender attribution. Even with it, they still depend on the coordinator for
-delivery: a malicious coordinator can omit, delay, replay or selectively send
-events. It cannot forge a valid participant signature or make another
-participant approve a signing request.
-
-## RPC streams and session stream
-
-Each `_rpc` call opens a new bidirectional stream, writes an operation QUIC
-varint followed by one concrete request protobuf, finishes its sending half,
-and awaits a status varint plus one concrete response protobuf through FIN.
-The stream itself correlates the response, so no request ID is generated or
-echoed. A semaphore bounds concurrent client RPC streams.
-
-The session uses a separate long-lived bidirectional stream. The client sends
-`StartSession` and FIN; the server sends `SessionStarted` followed by event
-records until logout/connection close. A slow RPC does not occupy that same byte
-stream. QUIC's independent streams do not remove the need to serialize
-mutations of a group's domain state.
-
-The server tracks active connections and streams, resets streams over the
-configured limit, and applies read/write and operation timeouts. Network
-writes happen after domain dispatch releases its group lane, so a slow receiver
-does not retain that lane while its bytes are being written.
-
-## Event delivery on the session stream
-
-Each receiving participant has its own server-side `ClientSession` and
-`Stream<Event>`. `sendEventToAll`, `sendEventToOthers`, or an explicit session
-selection determines which streams receive a domain object. That decision is
-made by the coordinator's protocol code; Iroh does not provide the group's
-broadcast or recipient-selection semantics.
-
-`IrohDispatcher` maps each queued/live object through `encodeEvent` into an
-`EventMessage`. The connection handler prefixes each message with its QUIC
-varint length and awaits the write on the server-to-client sending half. The
-client incrementally reads records, selects a domain decoder using the protobuf
-event type, and passes a `Stream<Event>` into the participant client.
-[The complete event path](events.md#from-a-dart-event-to-iroh-bytes-and-back)
-explains the data representations and subsequent validation.
-
-The client finishes the session stream's request direction after `StartSession`.
-Participant contributions such as commitments and signature replies go through
-domain RPCs on separate streams; clients do not publish arbitrary
-`EventMessage` values back to the coordinator. There is no per-event
-request/response pair on the session stream.
-
-The byte stream preserves its own write order, but RPC responses and other
-participants' streams have independent delivery timing. A successful event
-write does not acknowledge that the peer processed, persisted or approved the
-event. Reconnection obtains a new session snapshot instead of continuing from
-a durable event offset.
-
-## Actual default limits
-
-| Setting | Core API default | Flutter option default |
-| --- | --- | --- |
-| Protobuf body maximum | 1 MiB | 1 MiB |
-| Client concurrent RPC streams | 32 | 2 |
-| Server streams per connection, including event stream | 32 | 4 |
+| Setting | Core | Flutter |
+| --- | ---: | ---: |
+| Protobuf body | 1 MiB | 1 MiB |
+| Client concurrent RPCs | 32 | 2 |
+| Server streams/connection | 32 | 4 |
 | Server connections | 128 | 128 |
-| Client connect timeout | 15 seconds | 15 seconds |
-| Authentication timeout | 10 seconds | 10 seconds |
-| RPC timeout | 30 seconds | 30 seconds |
-| Server shutdown timeout | 5 seconds | 5 seconds |
+| Connect timeout | 15 s | 15 s |
+| Authentication timeout | 10 s | 10 s |
+| RPC timeout | 30 s | 30 s |
+| Server shutdown timeout | 5 s | 5 s |
 
-Sources are [client config](../packages/noosphere_client/lib/src/iroh/config.dart),
-[server config](../packages/noosphere_server/lib/src/config/iroh.dart),
-[Flutter client options](../lib/src/client_options.dart) and
-[Flutter server options](../lib/src/server_options.dart). Flutter's four server
-slots accommodate one session stream, two RPC streams and transition headroom.
-The client limit counts RPCs; the server limit counts all accepted streams.
+These are resource bounds, not a complete abuse-prevention system.
 
-These limits bound specific resources. They are not a full application-level
-rate-limiting or abuse-prevention system, and not every underlying controller
-or waiting queue has a hard capacity.
+## Reconnect and shutdown
 
-## Reconnect behavior
+`ReconnectingIrohClient` reuses its endpoint but creates a fresh authenticated
+`Client` after disconnection. Backoff defaults to 250 ms, multiplier 2, jitter
+0.2 and a 30-second cap. Direct callers replace client references from the
+`sessions` stream; the worker handles replacement internally.
 
-[`ReconnectingIrohClient`](../packages/noosphere_client/lib/src/iroh/reconnecting_client.dart)
-owns a sequence of separate `Client`/`IrohClientApi` sessions while reusing its
-root endpoint. Initial connection failure fails `connect`; after a live session
-disconnects, the runtime retries with exponential backoff. Defaults are 250 ms
-initial delay, multiplier 2, jitter 0.2 and a 30-second cap.
+Mutating RPCs are never replayed automatically. A timeout may have followed a
+successful server mutation, so durable prepared records must be reconciled.
+Address hints may change under the same pin; changing coordinator identity
+requires the explicit rotation workflow.
 
-Every successful reconnect performs fresh authentication, reloads client
-storage, receives a fresh snapshot and creates a new `Client`. The initial
-client is `current`; later clients arrive on the broadcast `sessions` stream.
-Direct users must replace retained client references and subscriptions.
-Workers perform this replacement internally and publish replacement/snapshot
-events to the host.
-
-Reconnect never replays an in-flight mutating RPC. The current adapter does
-not implement a server-side request-ID deduplication cache. If a request timed
-out after being accepted, reconnect does not establish whether it committed.
-Use [durable operation records](state-and-persistence.md).
-
-`updateTransportConfig` changes hints for a later connection attempt and rejects
-changing the pin. Flutter's `updateSignerAddress` enforces the same rule.
-Changing coordinator identity uses a separate app-approved
-[rotation workflow](rooms-and-transitions.md).
-
-## Shutdown and confidentiality
-
-Client logout closes the connection and releases its owned endpoint. Server shutdown closes
-the endpoint, waits for connection handlers and then drains the dispatcher
-with configured time bounds. The Flutter node joins its server's serving task.
-
-Iroh protects traffic between connected endpoints. The coordinator is an
-endpoint and can read ordinary proposals and application message text. DKG
-and recovery shares have an additional recipient-specific `ECCiphertext`
-layer using participant identity keys, so their plaintext need not be exposed
-to the coordinator. Protobuf byte fields themselves add no confidentiality.
+Logout closes the client connection. Server shutdown closes its endpoint,
+waits for handlers and drains dispatch with configured bounds. Iroh encrypts
+transport traffic, but the coordinator can read ordinary proposals and message
+text. DKG and recovery shares add recipient-specific encryption.
