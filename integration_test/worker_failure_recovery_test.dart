@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
+import 'package:noosphere_flutter/src/iroh_node.dart' show NoosphereRuntime;
 import 'package:noosphere_flutter/testing.dart';
 
 import 'test_support.dart';
@@ -26,7 +27,7 @@ void main() {
           ids[i]: ECCompressedPublicKey.fromPubkey(keys[i].pubkey),
       },
     );
-    final server = await NoosphereNode.start(
+    final server = await NoosphereRuntime.start(
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
         getIrohSecretKey: freshTestIrohSecretKey(),
@@ -36,7 +37,7 @@ void main() {
     );
     addTearDown(server.close);
     final address = await reachableTestAddress(server.server!);
-    final requester = await NoosphereNode.start(
+    final requester = await NoosphereRuntime.start(
       client: nativeTestClientOptions(
         group: group,
         participant: ids[0],

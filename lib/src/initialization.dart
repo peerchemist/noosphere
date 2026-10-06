@@ -21,10 +21,11 @@ abstract final class NoosphereFlutter {
   static Future<void> Function() _rootPreparer = _prepareRoot;
   static Future<void> Function() _nativeInitializer = _initializeNative;
 
-  /// Preserves the original direct-node initialization contract.
+  /// Prepares the root Flutter isolate and initializes native bindings there.
   ///
   /// Worker isolates use [initializeNative] instead, because Flutter bindings
-  /// may only be prepared by the root isolate.
+  /// may only be prepared by the root isolate. Host code that creates native
+  /// Frosty values can call this method before using those values.
   @RecordUse()
   static Future<void> initialize() => _initialization ??= _initializeAll();
 

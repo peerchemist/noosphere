@@ -11,7 +11,7 @@ import '../server_options.dart';
 abstract interface class WorkerNode {
   EndpointAddr? get serverAddress;
   bool get serverRunning;
-  Future<NoosphereServerTermination>? get serverDone;
+  Future<ServerRuntimeTermination>? get serverDone;
   WorkerClientConnection? get client;
   Future<void> close();
   Future<void> stopServingForTesting();
@@ -37,18 +37,18 @@ Future<WorkerNode> startWorkerNode({
   EmbeddedServerOptions? server,
   ClientNodeOptions? client,
 }) async => _NativeWorkerNode(
-  await NoosphereNode.startInitialized(server: server, client: client),
+  await NoosphereRuntime.startInitialized(server: server, client: client),
 );
 
 final class _NativeWorkerNode(this.node)
     implements WorkerNode, LocalCoordinatorWorkerNode {
-  final NoosphereNode node;
+  final NoosphereRuntime node;
   @override
   EndpointAddr? get serverAddress => node.serverAddress;
   @override
   bool get serverRunning => node.serverRunning;
   @override
-  Future<NoosphereServerTermination>? get serverDone => node.serverDone;
+  Future<ServerRuntimeTermination>? get serverDone => node.serverDone;
   @override
   late final WorkerClientConnection? client = node.client == null
       ? null
@@ -69,7 +69,7 @@ final class _NativeWorkerNode(this.node)
       return null;
     }
     return _NativeWorkerNode(
-      await NoosphereNode.startInitialized(
+      await NoosphereRuntime.startInitialized(
         client: options,
         localCoordinator: server,
       ),
@@ -79,7 +79,7 @@ final class _NativeWorkerNode(this.node)
 
 final class _NativeClientConnection(this.client)
     implements WorkerClientConnection {
-  final NoosphereClientConnection client;
+  final RuntimeClientConnection client;
   @override
   Client get current => client.current;
   @override

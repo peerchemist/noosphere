@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
+import 'package:noosphere_flutter/src/iroh_node.dart' show NoosphereRuntime;
 
 import 'test_support.dart';
 
@@ -39,7 +40,9 @@ void main() {
             relay: IrohRelayConfig.disabled(),
           );
 
-      var direct = await NoosphereNode.start(server: options(directIdentity));
+      var direct = await NoosphereRuntime.start(
+        server: options(directIdentity),
+      );
       NoosphereWorker? worker;
       try {
         final directAddress = await reachableTestAddress(direct.server!);
@@ -116,7 +119,7 @@ void main() {
           ),
           throwsA(isA<NoosphereWorkerException>()),
         );
-        direct = await NoosphereNode.start(server: options(directIdentity));
+        direct = await NoosphereRuntime.start(server: options(directIdentity));
         await worker.updateSignerAddress(
           'reconnect-signer',
           await reachableTestAddress(direct.server!),

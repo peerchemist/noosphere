@@ -14,17 +14,18 @@ import 'server_options.dart';
 
 /// Completion of an embedded server's serving loop.
 ///
-/// [error] is null after normal completion. [NoosphereNode.serverDone] returns
+/// [error] is null after normal completion. [NoosphereRuntime.serverDone] returns
 /// this value without an unhandled error if an application does not observe it.
-final class NoosphereServerTermination {
-  const NoosphereServerTermination({this.error, this.stackTrace});
+final class ServerRuntimeTermination {
+  const ServerRuntimeTermination({this.error, this.stackTrace});
   final Object? error;
   final StackTrace? stackTrace;
 }
 
-/// A running Flutter-owned combination of server and client roles.
-final class NoosphereNode {
-  NoosphereNode._(this._serverRole, this._clientRole) {
+/// Package-internal lifecycle runtime used by [NoosphereWorker].
+@internal
+final class NoosphereRuntime {
+  NoosphereRuntime._(this._serverRole, this._clientRole) {
     if (_serverRole != null) {
       _serverRunning = true;
       _serverDone = _observeServer();
@@ -35,9 +36,10 @@ final class NoosphereNode {
   ///
   /// When [client] targets [localCoordinator], and that server currently hosts
   /// the client's group, the participant uses an in-process session instead of
-  /// opening a second Iroh endpoint and a loopback QUIC connection. A node that
-  /// starts both [server] and [client] performs the same detection automatically.
-  static Future<NoosphereNode> start({
+  /// opening a second Iroh endpoint and a loopback QUIC connection. A runtime
+  /// that starts both [server] and [client] performs the same detection
+  /// automatically.
+  static Future<NoosphereRuntime> start({
     EmbeddedServerOptions? server,
     ClientNodeOptions? client,
     IrohServer? localCoordinator,
@@ -60,7 +62,7 @@ final class NoosphereNode {
   /// calling isolate. Used by the package-owned worker entry point so it never
   /// invokes root-isolate Flutter binding setup.
   @internal
-  static Future<NoosphereNode> startInitialized({
+  static Future<NoosphereRuntime> startInitialized({
     EmbeddedServerOptions? server,
     ClientNodeOptions? client,
     IrohServer? localCoordinator,
@@ -74,13 +76,13 @@ final class NoosphereNode {
   }
 
   @visibleForTesting
-  static Future<NoosphereNode> startForTesting({
+  static Future<NoosphereRuntime> startForTesting({
     required bool server,
     required bool client,
-    required NoosphereNodeBackend backend,
+    required NoosphereRuntimeBackend backend,
   }) {
     if (!server && !client) {
-      throw ArgumentError('At least one Noosphere node role is required.');
+      throw ArgumentError('At least one Noosphere runtime role is required.');
     }
     return _start(startServer: server, startClient: client, backend: backend);
   }
@@ -90,21 +92,21 @@ final class NoosphereNode {
     ClientNodeOptions? client,
   ) {
     if (server == null && client == null) {
-      throw ArgumentError('At least one Noosphere node role is required.');
+      throw ArgumentError('At least one Noosphere runtime role is required.');
     }
   }
 
-  static Future<NoosphereNode> _start({
+  static Future<NoosphereRuntime> _start({
     required bool startServer,
     required bool startClient,
-    required NoosphereNodeBackend backend,
+    required NoosphereRuntimeBackend backend,
   }) async {
-    NoosphereServerRole? serverRole;
-    NoosphereClientRole? clientRole;
+    ServerRuntimeRole? serverRole;
+    ClientRuntimeRole? clientRole;
     try {
       if (startServer) serverRole = await backend.startServer();
       if (startClient) clientRole = await backend.startClient();
-      return NoosphereNode._(serverRole, clientRole);
+      return NoosphereRuntime._(serverRole, clientRole);
     } catch (error, stackTrace) {
       await _ignoreCleanupErrors(clientRole?.close);
       await _ignoreCleanupErrors(serverRole?.close);
@@ -113,32 +115,32 @@ final class NoosphereNode {
     }
   }
 
-  final NoosphereServerRole? _serverRole;
-  final NoosphereClientRole? _clientRole;
+  final ServerRuntimeRole? _serverRole;
+  final ClientRuntimeRole? _clientRole;
   Future<void>? _closing;
   bool _serverRunning = false;
-  Future<NoosphereServerTermination>? _serverDone;
+  Future<ServerRuntimeTermination>? _serverDone;
 
   /// Whether the embedded server is still serving and has not begun closing.
   bool get serverRunning => _serverRunning && _closing == null;
 
   /// Completes as soon as the serving loop ends, including before [close].
-  /// Null for client-only nodes. Inspect the result's error for failure.
-  Future<NoosphereServerTermination>? get serverDone => _serverDone;
+  /// Null for signer-only runtimes. Inspect the result's error for failure.
+  Future<ServerRuntimeTermination>? get serverDone => _serverDone;
 
-  Future<NoosphereServerTermination> _observeServer() async {
+  Future<ServerRuntimeTermination> _observeServer() async {
     try {
       await _serverRole!.waitForServe();
-      return const NoosphereServerTermination();
+      return const ServerRuntimeTermination();
     } catch (error, stackTrace) {
-      return NoosphereServerTermination(error: error, stackTrace: stackTrace);
+      return ServerRuntimeTermination(error: error, stackTrace: stackTrace);
     } finally {
       _serverRunning = false;
     }
   }
 
   IrohServer? get server => _serverRole?.server;
-  NoosphereClientConnection? get client => _clientRole?.client;
+  RuntimeClientConnection? get client => _clientRole?.client;
   EndpointId? get serverId => server?.id;
   EndpointAddr? get serverAddress => server?.address;
 
@@ -179,7 +181,7 @@ Future<void> _ignoreCleanupErrors(Future<void> Function()? operation) async {
   }
 }
 
-final class _NativeBackend implements NoosphereNodeBackend {
+final class _NativeBackend implements NoosphereRuntimeBackend {
   _NativeBackend(
     this.serverOptions,
     this.clientOptions, [
@@ -191,7 +193,7 @@ final class _NativeBackend implements NoosphereNodeBackend {
   IrohServer? _localCoordinator;
 
   @override
-  Future<NoosphereServerRole> startServer() async {
+  Future<ServerRuntimeRole> startServer() async {
     final options = serverOptions!;
     final secretKey = await options.getIrohSecretKey();
     final roomPersistence = options.roomPersistence;
@@ -223,7 +225,7 @@ final class _NativeBackend implements NoosphereNodeBackend {
   }
 
   @override
-  Future<NoosphereClientRole> startClient() async {
+  Future<ClientRuntimeRole> startClient() async {
     final options = clientOptions!;
     final local = _localCoordinator;
     if (local != null &&
@@ -246,7 +248,7 @@ final class _NativeBackend implements NoosphereNodeBackend {
   }
 }
 
-final class _NativeServerRole implements NoosphereServerRole {
+final class _NativeServerRole implements ServerRuntimeRole {
   _NativeServerRole._(this.server);
 
   static _NativeServerRole start(IrohServer server) {
@@ -280,13 +282,13 @@ final class _NativeServerRole implements NoosphereServerRole {
   }
 }
 
-final class _NativeClientRole(@override final NoosphereClientConnection client)
-    implements NoosphereClientRole {
+final class _NativeClientRole(@override final RuntimeClientConnection client)
+    implements ClientRuntimeRole {
   @override
   Future<void> close() => client.close();
 }
 
-final class _IrohClientConnection implements NoosphereClientConnection {
+final class _IrohClientConnection implements RuntimeClientConnection {
   _IrohClientConnection(this._client);
 
   final ReconnectingIrohClient _client;
@@ -314,7 +316,7 @@ final class _IrohClientConnection implements NoosphereClientConnection {
   Future<void> close() => _client.close();
 }
 
-final class _LocalClientConnection implements NoosphereClientConnection {
+final class _LocalClientConnection implements RuntimeClientConnection {
   _LocalClientConnection._(
     this._server,
     this._api,

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
+import 'package:noosphere_flutter/src/iroh_node.dart' show NoosphereRuntime;
 import 'package:noosphere_flutter/testing.dart';
 
 import 'test_support.dart';
@@ -16,7 +17,7 @@ void main() {
     (_) async {
       await NoosphereFlutter.initialize();
       final f = _Fixture();
-      final oldServer = await NoosphereNode.start(
+      final oldServer = await NoosphereRuntime.start(
         server: EmbeddedServerOptions(
           serverConfig: ServerConfig(group: f.group),
           getIrohSecretKey: freshTestIrohSecretKey(),
@@ -25,7 +26,7 @@ void main() {
         ),
       );
       addTearDown(oldServer.close);
-      final newServer = await NoosphereNode.start(
+      final newServer = await NoosphereRuntime.start(
         server: EmbeddedServerOptions(
           serverConfig: ServerConfig(group: f.group),
           getIrohSecretKey: freshTestIrohSecretKey(),

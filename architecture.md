@@ -20,7 +20,7 @@ therefore neither a wallet database nor a stateless signing utility.
 ```mermaid
 flowchart TB
     App["Host: UI, policy, storage, keys"]
-    Flutter["noosphere_flutter: worker or direct node"]
+    Flutter["noosphere_flutter: isolate worker"]
     Client["noosphere_client: participant"]
     Server["noosphere_server: coordinator"]
     Shared["noosphere: domain, protobuf, framing"]
@@ -44,8 +44,9 @@ server's per-group ordering. Remote participants continue to use Iroh.
 
 `NoosphereWorker` keeps protocol objects and synchronous cryptography in one
 long-lived isolate; providers and UI state stay on the host isolate. This is a
-scheduling/ownership boundary, not an OS security boundary. `NoosphereNode`
-runs the same roles directly in its caller's isolate.
+scheduling/ownership boundary, not an OS security boundary. Its internal
+runtime composes embedded roles but is not a public execution mode. Headless
+coordinators use `IrohServer` or the standalone CLI.
 
 | Capability | Status |
 | --- | --- |
@@ -133,6 +134,6 @@ ROAST, recovery and authorization remain coordinated protocol changes.
 | [Events](architecture/events.md) | Meaning, trust, wire mapping, projections and delivery |
 | [Generic data](architecture/generic-data.md) | Text, JSON, digests and the extension boundary |
 | [Extensions](architecture/protocol-extensions.md) | Proposed negotiation, registry and delivery design |
-| [Flutter](architecture/flutter-and-isolates.md) | Direct nodes, workers, providers and shutdown |
+| [Flutter](architecture/flutter-and-isolates.md) | Worker runtime, providers and shutdown |
 | [Rooms](architecture/rooms-and-transitions.md) | Enrollment, coordinator changes and successor groups |
 | [Development](architecture/development-and-testing.md) | Configuration, hosts, platforms and verification |

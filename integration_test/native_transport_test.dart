@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
+import 'package:noosphere_flutter/src/iroh_node.dart' show NoosphereRuntime;
 
 import 'test_support.dart';
 
@@ -34,10 +35,10 @@ void main() {
         relay: IrohRelayConfig.disabled(),
       );
 
-      var serverNode = await NoosphereNode.start(server: serverOptions);
+      var serverNode = await NoosphereRuntime.start(server: serverOptions);
       final initialServerId = serverNode.serverId!;
       final initialAddress = await reachableTestAddress(serverNode.server!);
-      final firstClientNode = await NoosphereNode.start(
+      final firstClientNode = await NoosphereRuntime.start(
         client: nativeTestClientOptions(
           group: group,
           participant: firstId,
@@ -56,7 +57,7 @@ void main() {
         ),
       );
 
-      final secondClientNode = await NoosphereNode.start(
+      final secondClientNode = await NoosphereRuntime.start(
         client: nativeTestClientOptions(
           group: group,
           participant: secondId,
@@ -97,7 +98,7 @@ void main() {
         throwsA(anything),
       );
 
-      serverNode = await NoosphereNode.start(server: serverOptions);
+      serverNode = await NoosphereRuntime.start(server: serverOptions);
       expect(serverNode.serverId, initialServerId);
       final replacementAddress = await reachableTestAddress(serverNode.server!);
       firstClientNode.client!.updateTransportConfig(

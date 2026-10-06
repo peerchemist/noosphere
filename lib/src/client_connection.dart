@@ -3,7 +3,7 @@ import 'package:noosphere_client/noosphere_client.dart';
 
 /// Active Noosphere participant connection, backed by either Iroh or a
 /// coordinator hosted in the same process.
-abstract interface class NoosphereClientConnection {
+abstract interface class RuntimeClientConnection {
   Client get current;
   Stream<Client> get sessions;
   bool get isConnected;

@@ -2,16 +2,16 @@
 
 [Architecture overview](../architecture.md)
 
-`NoosphereNode` composes participant/server roles in the caller's isolate.
-`NoosphereWorker` runs the same cores in a long-lived isolate and exposes a
-smaller DTO-based API suitable for Flutter UI code.
+`NoosphereWorker` is the Flutter execution API. It runs participant and embedded
+coordinator roles in a long-lived isolate and exposes a DTO-based interface to
+the host. Headless coordinators use `IrohServer` or the standalone CLI instead.
 
-## Direct node versus worker
+## Worker boundary
 
-Direct startup starts the server before the client, cleans up partial failure
-and closes client before server. Combined roles still require an explicit
-trusted coordinator pin. Direct callers handle replacement client sessions and
-run synchronous cryptographic work on their own isolate.
+The package-internal runtime starts the coordinator before the signer, cleans
+up partial failure and closes the signer before the coordinator. Combined roles
+still require an explicit trusted coordinator pin. The runtime is an
+implementation detail of the worker, not a second public lifecycle API.
 
 When the pin and group match a coordinator in the same process, the client uses
 `LocalCoordinatorApi` instead of opening a second Iroh endpoint and loopback

@@ -4,6 +4,8 @@
 
 ### Flutter integration
 
+- Remove the public direct-node lifecycle API. Keep role composition as an
+  internal worker runtime; headless coordinators use `IrohServer` or the CLI.
 - Replace embedded-server identity persistence with an application initializer
   and deterministic BIP-85 derivation from a 64-byte BIP-39 wallet seed.
 - Route a co-located signer directly through its active room coordinator when

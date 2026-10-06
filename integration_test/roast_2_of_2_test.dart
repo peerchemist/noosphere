@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
+import 'package:noosphere_flutter/src/iroh_node.dart' show NoosphereRuntime;
 import 'package:noosphere_flutter/testing.dart';
 
 import 'test_support.dart';
@@ -30,7 +31,7 @@ void main() {
     final stores = [InMemoryClientStorage(), InMemoryClientStorage()];
     final identity = SecretKey.generate();
     final localAddress = EndpointAddr(identity.publicKey);
-    final localNode = await NoosphereNode.start(
+    final localNode = await NoosphereRuntime.start(
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: group),
         getIrohSecretKey: () => identity,
@@ -46,12 +47,12 @@ void main() {
       ),
     );
     final address = await reachableTestAddress(localNode.server!);
-    final clientNodes = <NoosphereNode>[localNode];
+    final clientNodes = <NoosphereRuntime>[localNode];
 
     try {
       expect(localNode.client!.isLocal, isTrue);
       clientNodes.add(
-        await NoosphereNode.start(
+        await NoosphereRuntime.start(
           client: nativeTestClientOptions(
             group: group,
             participant: participantIds[1],

@@ -10,7 +10,7 @@ to the shared protocol package:
 | [`noosphere`](../packages/noosphere) | Domain types, configuration, codecs, protobuf, framing, rooms and transition models |
 | [`noosphere_client`](../packages/noosphere_client) | Participant state machine, storage contract, Iroh client and reconnects |
 | [`noosphere_server`](../packages/noosphere_server) | Coordinator state machine, persistence, Iroh server, rooms and CLI |
-| [`noosphere_flutter`](../lib) | Direct node, isolate worker, initialization and Flutter lifecycle |
+| [`noosphere_flutter`](../lib) | Isolate worker, initialization and Flutter lifecycle |
 | [`example`](../example) | Demonstration UI with intentionally temporary storage |
 
 Client and server depend on `noosphere`; the shared package has no concrete

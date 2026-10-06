@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
+import 'package:noosphere_flutter/src/iroh_node.dart' show NoosphereRuntime;
 import 'package:noosphere_flutter/testing.dart';
 
 import 'test_support.dart';
@@ -27,7 +28,7 @@ void main() {
           ),
       },
     );
-    final serverNode = await NoosphereNode.start(
+    final serverNode = await NoosphereRuntime.start(
       server: EmbeddedServerOptions(
         serverConfig: ServerConfig(group: bootstrapGroup),
         getIrohSecretKey: freshTestIrohSecretKey(),
@@ -57,7 +58,7 @@ void main() {
     }
 
     final enrollmentApis = <IrohRoomEnrollmentApi>[];
-    final clientNodes = <NoosphereNode>[];
+    final clientNodes = <NoosphereRuntime>[];
     try {
       for (var index = 0; index < participantKeys.length; index++) {
         final api = await IrohRoomEnrollmentApi.connect(
@@ -96,7 +97,7 @@ void main() {
             .singleWhere((entry) => entry.value == publicKey)
             .key;
         clientNodes.add(
-          await NoosphereNode.start(
+          await NoosphereRuntime.start(
             client: nativeTestClientOptions(
               group: group,
               participant: participant,

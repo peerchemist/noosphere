@@ -25,9 +25,10 @@ FROST shares are not mnemonic children. They are created jointly by DKG and
 need their own durable storage/recovery. Recovering the mnemonic restores the
 participant and Iroh identities, not a completed threshold key.
 
-For a direct node, the host-derived Iroh key is passed to server startup. For a
-worker, derivation runs on the host and only the 32-byte Iroh secret crosses the
-isolate boundary. The package has no embedded identity store.
+For an embedded coordinator, derivation runs on the host and only the 32-byte
+Iroh secret crosses into the worker isolate. The package has no embedded
+identity store. A headless server obtains the same secret from its own host
+integration.
 
 ## Safety rules
 

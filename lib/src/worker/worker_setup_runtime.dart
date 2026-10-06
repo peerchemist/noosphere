@@ -57,7 +57,7 @@ final class WorkerSetupRuntime {
         // Iroh's reactive-stream cancellation registry is process-wide while
         // Dart library statics are isolate-local. Polling the cheap address
         // snapshot keeps workers on the published Iroh API and avoids sharing
-        // stream tokens with direct-node isolates.
+        // stream tokens across Dart isolates.
         _serverAddressPoll = Timer.periodic(
           const Duration(milliseconds: 100),
           (_) => _refreshServerAddress(node),
@@ -296,7 +296,7 @@ final class WorkerSetupRuntime {
 
   Future<void> _serverTerminated(
     WorkerNode node,
-    NoosphereServerTermination termination,
+    ServerRuntimeTermination termination,
   ) => _synchronized(() async {
     if (!identical(_serverNode, node)) return;
     Object? cleanupError;

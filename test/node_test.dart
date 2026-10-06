@@ -1,15 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noosphere_flutter/src/iroh_node.dart';
-import 'package:noosphere_flutter/src/lifecycle.dart';
 import 'package:noosphere_flutter/src/node_testing.dart';
 
 void main() {
   test('rejects an empty role set', () {
     expect(
-      () => NoosphereNode.startForTesting(
+      () => NoosphereRuntime.startForTesting(
         server: false,
         client: false,
         backend: _Backend(<String>[]),
@@ -20,7 +18,7 @@ void main() {
 
   test('server-only starts, closes, then joins serve', () async {
     final events = <String>[];
-    final node = await NoosphereNode.startForTesting(
+    final node = await NoosphereRuntime.startForTesting(
       server: true,
       client: false,
       backend: _Backend(events),
@@ -36,7 +34,7 @@ void main() {
     () async {
       final events = <String>[];
       final role = _ServerRole(events);
-      final node = await NoosphereNode.startForTesting(
+      final node = await NoosphereRuntime.startForTesting(
         server: true,
         client: false,
         backend: _Backend(events, serverRole: role),
@@ -58,7 +56,7 @@ void main() {
     () async {
       final events = <String>[];
       final role = _ServerRole(events);
-      final node = await NoosphereNode.startForTesting(
+      final node = await NoosphereRuntime.startForTesting(
         server: true,
         client: false,
         backend: _Backend(events, serverRole: role),
@@ -72,7 +70,7 @@ void main() {
 
   test('client-only starts and closes', () async {
     final events = <String>[];
-    final node = await NoosphereNode.startForTesting(
+    final node = await NoosphereRuntime.startForTesting(
       server: false,
       client: true,
       backend: _Backend(events),
@@ -85,7 +83,7 @@ void main() {
 
   test('both starts server first and closes client first', () async {
     final events = <String>[];
-    final node = await NoosphereNode.startForTesting(
+    final node = await NoosphereRuntime.startForTesting(
       server: true,
       client: true,
       backend: _Backend(events),
@@ -110,7 +108,7 @@ void main() {
       final backend = _Backend(events, clientFailure: failure);
 
       await expectLater(
-        NoosphereNode.startForTesting(
+        NoosphereRuntime.startForTesting(
           server: true,
           client: true,
           backend: backend,
@@ -130,7 +128,7 @@ void main() {
     final events = <String>[];
     final barrier = Completer<void>();
     final backend = _Backend(events, clientCloseBarrier: barrier);
-    final node = await NoosphereNode.startForTesting(
+    final node = await NoosphereRuntime.startForTesting(
       server: true,
       client: true,
       backend: backend,
@@ -147,24 +145,6 @@ void main() {
     expect(events.where((event) => event == 'close server'), hasLength(1));
     expect(events.where((event) => event == 'join serve'), hasLength(1));
   });
-
-  test('lifecycle ignores inactive and closes on detached', () async {
-    final events = <String>[];
-    final node = await NoosphereNode.startForTesting(
-      server: true,
-      client: false,
-      backend: _Backend(events),
-    );
-    final observer = NoosphereLifecycleObserver(node);
-
-    observer.didChangeAppLifecycleState(AppLifecycleState.inactive);
-    await Future<void>.delayed(Duration.zero);
-    expect(events, ['start server']);
-
-    observer.didChangeAppLifecycleState(AppLifecycleState.detached);
-    await Future<void>.delayed(Duration.zero);
-    expect(events, ['start server', 'close server', 'join serve']);
-  });
 }
 
 final class _Backend(
@@ -172,27 +152,27 @@ final class _Backend(
   this.clientFailure,
   this.clientCloseBarrier,
   this.serverRole,
-}) implements NoosphereNodeBackend {
+}) implements NoosphereRuntimeBackend {
   final List<String> events;
   final Object? clientFailure;
   final _ServerRole? serverRole;
   final Completer<void>? clientCloseBarrier;
 
   @override
-  Future<NoosphereServerRole> startServer() async {
+  Future<ServerRuntimeRole> startServer() async {
     events.add('start server');
     return serverRole ?? _ServerRole(events);
   }
 
   @override
-  Future<NoosphereClientRole> startClient() async {
+  Future<ClientRuntimeRole> startClient() async {
     events.add('start client');
     if (clientFailure case final failure?) throw failure;
     return _ClientRole(events, clientCloseBarrier);
   }
 }
 
-final class _ServerRole(this.events) implements NoosphereServerRole {
+final class _ServerRole(this.events) implements ServerRuntimeRole {
   final List<String> events;
   final done = Completer<void>();
 
@@ -213,7 +193,7 @@ final class _ServerRole(this.events) implements NoosphereServerRole {
 }
 
 final class _ClientRole(this.events, this.closeBarrier)
-    implements NoosphereClientRole {
+    implements ClientRuntimeRole {
   final List<String> events;
   final Completer<void>? closeBarrier;
 

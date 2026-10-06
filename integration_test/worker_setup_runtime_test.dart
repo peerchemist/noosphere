@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:noosphere_flutter/noosphere_flutter.dart';
+import 'package:noosphere_flutter/src/iroh_node.dart'
+    show ServerRuntimeTermination;
 import 'package:noosphere_flutter/src/worker/node_factory.dart';
 import 'package:noosphere_flutter/src/worker/provider_registry.dart';
 import 'package:noosphere_flutter/src/worker_protocol.dart';
@@ -258,7 +260,7 @@ final class _Host implements WorkerHost {
 
 final class _Node({this.connection}) implements WorkerNode {
   final _Connection? connection;
-  final done = Completer<NoosphereServerTermination>();
+  final done = Completer<ServerRuntimeTermination>();
   int closes = 0;
   bool failClose = false;
   @override
@@ -266,14 +268,14 @@ final class _Node({this.connection}) implements WorkerNode {
   @override
   bool get serverRunning => !done.isCompleted;
   @override
-  Future<NoosphereServerTermination>? get serverDone => done.future;
+  Future<ServerRuntimeTermination>? get serverDone => done.future;
   @override
   WorkerClientConnection? get client => connection;
   @override
   Future<void> close() async {
     closes++;
     if (failClose) throw StateError('close failed');
-    if (!done.isCompleted) done.complete(const NoosphereServerTermination());
+    if (!done.isCompleted) done.complete(const ServerRuntimeTermination());
   }
 
   @override
@@ -284,7 +286,7 @@ final class _LocalServerNode implements WorkerNode, LocalCoordinatorWorkerNode {
   _LocalServerNode(this.localClientNode);
 
   final WorkerNode localClientNode;
-  final done = Completer<NoosphereServerTermination>();
+  final done = Completer<ServerRuntimeTermination>();
   int localStarts = 0;
 
   @override
@@ -292,7 +294,7 @@ final class _LocalServerNode implements WorkerNode, LocalCoordinatorWorkerNode {
   @override
   bool get serverRunning => !done.isCompleted;
   @override
-  Future<NoosphereServerTermination>? get serverDone => done.future;
+  Future<ServerRuntimeTermination>? get serverDone => done.future;
   @override
   WorkerClientConnection? get client => null;
 
@@ -304,7 +306,7 @@ final class _LocalServerNode implements WorkerNode, LocalCoordinatorWorkerNode {
 
   @override
   Future<void> close() async {
-    if (!done.isCompleted) done.complete(const NoosphereServerTermination());
+    if (!done.isCompleted) done.complete(const ServerRuntimeTermination());
   }
 
   @override
