@@ -52,5 +52,5 @@ request ID. Changing it invalidates that signature, but does not change the
 individual payloads being threshold-signed. Request events, login replay and
 completed requests carry the message as part of the signed details.
 
-This revises the development wire format in place under `VERSIONING.md`;
-participants and coordinators must use the same build.
+Participants and coordinators must use compatible implementations of this
+wire format.

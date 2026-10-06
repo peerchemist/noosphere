@@ -1,9 +1,5 @@
 # Noosphere Server for ROAST Threshold Signatures
 
-**Coordinated public preview.** Deploy matching tested package versions across
-all peers. Protocol v1 does not promise compatibility between preview builds;
-see the [version policy](../noosphere/spec/VERSIONING.md).
-
 This package is an Iroh-native fork of the original `noosphere_server`
 package. It retains the coordinator role for FROST distributed key generation
 and ROAST threshold signatures, while replacing the original gRPC transport

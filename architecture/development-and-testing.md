@@ -172,8 +172,8 @@ to isolated serialization.
 
 ## Reading specifications accurately
 
-The shared [specifications](../packages/noosphere/spec) describe protocol rules,
-security boundaries and version policy. Group-transition orchestration is
+The shared [specifications](../packages/noosphere/spec) describe protocol rules
+and security boundaries. Group-transition orchestration is
 explicitly a proposed workflow despite implemented proposal/approval models.
 
 ## Standalone consumer check

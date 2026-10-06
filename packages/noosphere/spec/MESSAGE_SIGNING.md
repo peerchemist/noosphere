@@ -155,4 +155,3 @@ shares, or signing transcript.
 - [BIP-340](https://bips.dev/340/), particularly domain separation, x-only keys,
   and signature verification.
 - [Protocol semantics](PROTOCOL.md).
-- [Development versioning](VERSIONING.md).

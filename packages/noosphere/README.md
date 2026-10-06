@@ -1,9 +1,5 @@
 # Noosphere protocol
 
-**Coordinated public preview.** Deploy matching tested package versions across
-all peers. Protocol v1 does not promise compatibility between preview builds;
-see the [version policy](spec/VERSIONING.md).
-
 Canonical ROAST domain types, group configuration, protobuf messages and
 transport-independent framing for the Noosphere protocol. Client, server and
 Flutter implementations consume this package directly; transport adapter

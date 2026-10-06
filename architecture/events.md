@@ -459,8 +459,8 @@ routing, invalid input, state effects and restoration behavior where relevant.
 Current examples are the [domain envelope tests](../packages/noosphere/test/api/types/metadata_envelope_test.dart),
 [protobuf tests](../packages/noosphere/test/protocol_test.dart), and
 [Iroh session tests](../packages/noosphere_server/test/iroh_client_api_test.dart).
-Apply the [preview version policy](../packages/noosphere/spec/VERSIONING.md);
-compatibility is not established merely by retaining the same outer envelope.
+Coordinate the change across protocol implementations; compatibility is not
+established merely by retaining the same outer envelope.
 For application-defined messages, see [generic data](generic-data.md).
 The proposed negotiated extension envelope and registry design is described in
 [protocol extensions](protocol-extensions.md).
