@@ -35,8 +35,9 @@ loads YAML, a filesystem Iroh identity and file-backed coordinator snapshots.
 It writes through temporary files and rename, but is neither an encrypted store
 nor a multi-process database. It does not expose room management.
 
-The Containerfile builds that host and its native dependencies. Deployments
-must still provide durable identity/state paths and real group configuration.
+The root [`Containerfile`](../Containerfile) builds that host and its native
+dependencies from the monorepository workspace. Deployments must still provide
+durable identity/state paths and real group configuration.
 
 The workspace targets Dart `^3.13.0`, Flutter `>=3.47.0`, Linux and macOS. The
 current repository does not support Android, iOS, Windows or web. The example
@@ -67,8 +68,11 @@ flutter test integration_test/native_transport_test.dart -d linux
 flutter test integration_test/worker_roast_test.dart -d linux
 ```
 
-CI defines the complete scheduled matrix, including macOS, server packages,
-examples and containers. Protocol changes should test codecs plus complete
+CI verifies the complete Linux workspace in one job: the shared protocol,
+client, server, Flutter facade, native end-to-end flows, release consumer,
+and example application. Native integration tests run directly through Flutter
+on Linux; the root container is a deployment artifact and is not used as the
+test environment. Protocol changes should test codecs plus complete
 request/event/snapshot paths. Documentation-only changes need link and
 source-claim validation, not native rebuilds.
 

@@ -24,10 +24,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
-COPY packages/noosphere_server/container/workspace_pubspec.yaml ./pubspec.yaml
-COPY packages/noosphere packages/noosphere
-COPY packages/noosphere_client packages/noosphere_client
-COPY packages/noosphere_server packages/noosphere_server
+COPY container/pubspec.yaml ./pubspec.yaml
+COPY pubspec.lock ./pubspec.lock
+COPY packages packages
 RUN dart pub get
 
 WORKDIR /workspace/packages/noosphere_server

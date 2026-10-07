@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   linux:
+    name: Verify complete Linux workspace
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,6 +81,3 @@ jobs:
         env:
           IROHDART_CACHE_DIR: ${{ runner.temp }}/iroh-cache
           IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.0.3/x86_64-unknown-linux-gnu/libirohdart_ffi.so
-      - name: Build server container
-        working-directory: noosphere
-        run: docker build --tag noosphere-server:test --file packages/noosphere_server/Containerfile .

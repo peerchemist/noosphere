@@ -1,0 +1,11 @@
+# Dart-only workspace used to build the standalone server image from the
+# monorepository. The root workspace also contains Flutter targets, which are
+# tested by CI but are not runtime dependencies of the server image.
+name: noosphere_container_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+workspace:
+  - packages/*

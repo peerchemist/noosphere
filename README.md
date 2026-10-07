@@ -123,3 +123,38 @@ Further detail is available in the
 [event model](architecture/events.md),
 [protocol extension design](architecture/protocol-extensions.md) and
 [security model](packages/noosphere/spec/SECURITY.md).
+
+## Standalone coordinator container
+
+The root [`Containerfile`](Containerfile) builds the standalone Linux
+coordinator from the `noosphere`, `noosphere_client` and `noosphere_server`
+packages at the same workspace revision. The Flutter facade and example are
+development hosts rather than server-image runtime dependencies; CI analyzes
+and tests them directly on Linux as part of the complete workspace
+verification. The container is a deployment artifact, not the integration-test
+environment.
+
+Build the image from the repository root so the complete package workspace is
+available as the build context:
+
+```sh
+podman build --file Containerfile --tag noosphere-server .
+```
+
+Docker can be used with the same arguments by replacing `podman` with
+`docker`. Copy
+[`packages/noosphere_server/config/iroh-server.example.yaml`](packages/noosphere_server/config/iroh-server.example.yaml),
+replace the example group and participant keys, and run the image with the
+configuration mounted read-only:
+
+```sh
+podman run --rm \
+  --volume noosphere-data:/var/lib/noosphere \
+  --volume "$PWD/config.yaml:/config/server.yaml:ro,Z" \
+  noosphere-server
+```
+
+The `/var/lib/noosphere` volume preserves both the Iroh identity and protocol
+state. No fixed port is exposed because Iroh uses dynamic UDP sockets and can
+fall back to the configured relay. A direct-only deployment must publish the
+actual UDP socket through its own container-network configuration.

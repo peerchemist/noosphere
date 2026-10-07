@@ -55,20 +55,19 @@ installs Iroh's signed upstream prebuilt, and bundles the AOT-compiled CLI with
 all three required native libraries.
 
 ```sh
-podman build -f packages/noosphere_server/Containerfile -t noosphere-server .
+podman build -f Containerfile -t noosphere-server .
 podman run --rm \
-  -v noosphere-identity:/var/lib/noosphere \
+  -v noosphere-data:/var/lib/noosphere \
   -v "$PWD/config.yaml:/config/server.yaml:ro,Z" \
   noosphere-server
 ```
 
-The named `/var/lib/noosphere` volume preserves the server identity. No fixed
-inbound port is exposed because Iroh binds dynamic UDP sockets and can use the
-configured relay. Direct-only container deployments must publish the actual
-UDP socket through deployment-specific networking.
+The root [container documentation](../../README.md#standalone-coordinator-container)
+explains the build context, persisted data and networking model. The named
+`/var/lib/noosphere` volume preserves the server identity and protocol state.
 
 Run the build from the monorepository root so all local package sources are in
-the Docker build context.
+the container build context.
 
 ## Native development setup
 
