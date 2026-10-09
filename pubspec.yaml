@@ -1,6 +1,6 @@
 name: noosphere_flutter
 description: Flutter isolate-worker facade for Noosphere ROAST signers and embedded coordinators.
-version: 0.1.0
+version: 0.1.1
 repository: https://github.com/peercoin/noosphere_roast_flutter
 
 platforms:
