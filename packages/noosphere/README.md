@@ -14,6 +14,11 @@ The public libraries separate the semantic and wire layers:
 - `config.dart` and `common.dart` contain shared configuration and utilities.
 - `iroh.dart` contains the shared ALPN and relay-policy value objects, without
   implementing an Iroh endpoint.
+- `room.dart` exports `NoosphereRoomInvite`, a clickable-link wrapper around a
+  participant-bound `RoomInvite`. It adds an application prefix (for example,
+  `sygnature-roast-v1:`) to the invite's existing unpadded Base64URL encoding;
+  it does not duplicate enrollment or wallet metadata. Applications enforce
+  the full link size limit.
 
 The canonical schema is `proto/noosphere.proto`. Regenerate the checked-in
 Dart message classes with:
