@@ -36,6 +36,12 @@ Events come from the pinned coordinator. Participant-signed inner objects prove
 their author's content, but the coordinator still controls delivery and can
 omit, delay or replay events.
 
+Room enrollment links contain only the pinned coordinator endpoint ID, not a
+snapshot of its IP or relay locations. `IrohRoomEnrollmentApi.joinRoom` creates
+an `EndpointAddr` from that ID and lets Iroh discovery resolve the current
+route before opening the enrollment ALPN. This keeps changing network
+locations out of canonical room models and invite encodings.
+
 ## Streams and routing
 
 The server selects ROAST or enrollment by ALPN. Each RPC gets an independent

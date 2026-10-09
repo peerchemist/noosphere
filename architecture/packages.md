@@ -29,7 +29,7 @@ import the role packages directly.
 | `package:noosphere/wire.dart` | Protobuf, operation IDs, framing and event conversion |
 | `package:noosphere/config.dart` | `GroupConfig` |
 | `package:noosphere/iroh.dart` | ALPN and relay-policy values |
-| `package:noosphere/room.dart` | Enrollment and room models |
+| `package:noosphere/room.dart` | Room state, participant-bound enrollment invites and clickable invite links |
 | `package:noosphere/group_transition.dart` | Transition proposal and approval models |
 | `package:noosphere_client/noosphere_client.dart` | Transport-independent participant API |
 | `package:noosphere_client/iroh_transport.dart` | Iroh client and reconnecting runtime |

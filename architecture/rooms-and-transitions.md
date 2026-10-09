@@ -12,6 +12,26 @@ A `RoomInvite` binds a secret token, expected participant key, room,
 coordinator ID and expiry. Stored snapshots keep only the token hash. Enrollment
 requires both the token and proof of the expected participant private key.
 
+The host issues one `RoomInvite` per previously collected signer identity
+public key. `NoosphereRoomInvite` is a transport-only UX wrapper that prepends
+an application URI prefix to the invite's canonical, unpadded Base64URL
+encoding. It carries no roster, wallet metadata, JSON payload or second set of
+connection fields.
+
+```text
+creator collects signer public key
+  -> coordinator issues participant-bound RoomInvite
+  -> host creates clickable NoosphereRoomInvite link
+  -> signer decodes link and supplies the matching private key
+  -> Iroh discovers the pinned coordinator endpoint ID
+  -> BeginEnrollment challenge
+  -> signer proof and RedeemRoomInvite
+```
+
+Room and invite models retain only the stable Iroh coordinator endpoint ID.
+They neither persist nor distribute coordinator IP addresses or relay URLs;
+Iroh discovery owns resolution of the current route.
+
 ```text
 enrolling --issue/revoke/redeem--> enrolling
 enrolling --freeze complete roster--> frozen

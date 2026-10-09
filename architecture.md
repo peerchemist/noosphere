@@ -52,7 +52,7 @@ coordinators use `IrohServer` or the standalone CLI.
 | --- | --- |
 | FROST DKG and ROAST signing | Implemented |
 | Transaction and text-message signing metadata | Implemented |
-| Invite-based room enrollment | Implemented through direct server/client APIs |
+| Invite-based room enrollment | Implemented with participant-bound clickable links and Iroh discovery |
 | Single-signer coordinator switching helper | Implemented; not a group vote |
 | Membership-transition values | Implemented; end-to-end orchestration is proposed |
 | Negotiated protocol extensions | Proposed, not implemented |

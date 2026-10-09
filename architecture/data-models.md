@@ -83,8 +83,11 @@ and BIP-340 signature for offline verification.
 - `ServerStateSnapshot` is opaque versioned JSON containing attempts,
   completed results and encrypted recovery shares. It cannot resume live
   cryptographic rounds after restart.
-- Room and transition models encode enrollment, rosters, successor plans and
-  opaque host policy. See [rooms and transitions](rooms-and-transitions.md).
+- `RoomInvite` is the participant-bound enrollment credential;
+  `NoosphereRoomInvite` only adds an application URI prefix for clickable
+  delivery. Room models retain the coordinator endpoint ID, not changing IP or
+  relay locations. Transition models encode successor plans and opaque host
+  policy. See [rooms and transitions](rooms-and-transitions.md).
 - Worker snapshots are public runtime projections, not durable client backups.
 
 Threshold HD paths use unhardened `[86, coinType, account, change,

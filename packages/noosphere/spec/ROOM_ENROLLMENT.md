@@ -9,9 +9,12 @@ signers' identity public keys, see
 
 ## Public API
 
-The shared package exports `RoomInvite`, `EnrollmentTranscript`,
-`EnrollmentChallenge`, `RoomSnapshot` and `RoomEnrollmentApi` from
-`package:noosphere/room.dart`.
+The shared package exports `RoomInvite`, `NoosphereRoomInvite`,
+`EnrollmentTranscript`, `EnrollmentChallenge`, `RoomSnapshot` and
+`RoomEnrollmentApi` from `package:noosphere/room.dart`. `RoomInvite` is the
+participant-bound credential. `NoosphereRoomInvite` only adds an
+application-owned URI prefix for clickable delivery and decodes back to the
+same credential.
 
 The coordinator package provides `RoomManager` with `createRoom`, `getRoom`,
 `issueRoomInvite`, `revokeRoomInvite`, `beginEnrollment`,
@@ -33,6 +36,8 @@ verifies the complete server transcript and signs it through
 contains the room/invite IDs, a random 32-byte token, expected compressed
 secp256k1 participant key, 32-byte pinned Iroh coordinator ID and expiry. The
 participant key is independent of wallet, FROST group, and Iroh endpoint keys.
+The invite contains no IP or relay locations; the enrollment client resolves
+the endpoint ID through Iroh discovery.
 
 The server persists only `SHA256(token)`. The signed transcript is encoded as
 length-delimited/fixed-width binary fields in this order:

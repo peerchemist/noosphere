@@ -93,6 +93,27 @@ Applications see later client or worker projections of selected outcomes;
 those local notifications are not the network events themselves and the event
 stream is not a durable application log.
 
+## Room enrollment links
+
+A room creator collects each signer's identity public key and issues a separate
+`RoomInvite` for that signer. The invite binds a random secret token to the
+room, the expected signer public key, the pinned Iroh coordinator endpoint ID
+and an expiry. The coordinator stores only the token hash. Redeeming the invite
+also requires a fresh challenge signature from the matching private key, so
+possession of a copied link is insufficient to enroll a different signer.
+
+`NoosphereRoomInvite` is only the clickable-link representation. It prepends an
+application-owned URI prefix such as `sygnature-roast-v1:` to the existing
+unpadded Base64URL `RoomInvite` encoding. It does not introduce JSON, another
+credential or wallet metadata. Applications should register the URI scheme and
+must not log the complete link because it contains the enrollment token.
+
+After decoding the link, the participant calls
+`IrohRoomEnrollmentApi.joinRoom(invite, getPrivateKey)`. Room models carry only
+the coordinator's stable Iroh endpoint ID; Iroh discovery resolves its current
+network route. IP addresses and relay locations are not part of the invite or
+persisted room state.
+
 ## Protocol extensions
 
 Security-critical behavior such as login, DKG, ROAST, signature results and
