@@ -38,22 +38,16 @@ final class RoomInvite with cl.Writable, NoosphereWritable {
     required Uint8List token,
     required this.expectedParticipantPublicKey,
     required Uint8List coordinatorEndpointId,
-    Iterable<String> relayUrls = const [],
-    Iterable<String> ipAddrs = const [],
     required this.expiresAt,
   }) : _token = _copyExact(token, 32, 'token'),
        _coordinatorEndpointId = _copyExact(
          coordinatorEndpointId,
          32,
          'coordinatorEndpointId',
-       ),
-       relayUrls = List.unmodifiable(relayUrls),
-       ipAddrs = List.unmodifiable(ipAddrs) {
+       ) {
     _checkVersion(version);
     _checkId(roomId, 'roomId');
     _checkId(inviteId, 'inviteId');
-    _checkStrings(this.relayUrls, 'relayUrls');
-    _checkStrings(this.ipAddrs, 'ipAddrs');
   }
 
   factory RoomInvite.fromBytes(Uint8List bytes) {
@@ -71,8 +65,6 @@ final class RoomInvite with cl.Writable, NoosphereWritable {
       token: reader.readSlice(32),
       expectedParticipantPublicKey: reader.readPubKey(),
       coordinatorEndpointId: reader.readSlice(32),
-      relayUrls: _readStrings(reader),
-      ipAddrs: _readStrings(reader),
       expiresAt: reader.readTime(),
     );
     if (!reader.atEnd) throw const FormatException('trailing invite data');
@@ -97,8 +89,6 @@ final class RoomInvite with cl.Writable, NoosphereWritable {
   final Uint8List _token;
   final cl.ECCompressedPublicKey expectedParticipantPublicKey;
   final Uint8List _coordinatorEndpointId;
-  final List<String> relayUrls;
-  final List<String> ipAddrs;
   final DateTime expiresAt;
 
   Uint8List get token => Uint8List.fromList(_token);
@@ -132,10 +122,8 @@ final class RoomInvite with cl.Writable, NoosphereWritable {
       ..writeString(inviteId)
       ..writeSlice(_token)
       ..writePubKey(expectedParticipantPublicKey)
-      ..writeSlice(_coordinatorEndpointId);
-    _writeStrings(writer, relayUrls);
-    _writeStrings(writer, ipAddrs);
-    writer.writeTime(expiresAt);
+      ..writeSlice(_coordinatorEndpointId)
+      ..writeTime(expiresAt);
   }
 }
 
@@ -152,29 +140,9 @@ void _checkId(String value, String name) {
   }
 }
 
-void _checkStrings(List<String> values, String name) {
-  if (values.length > 0xffff) throw ArgumentError.value(values, name);
-  for (final value in values) {
-    if (utf8.encode(value).length > 0xffff) {
-      throw ArgumentError.value(value, name, 'entry is too long');
-    }
-  }
-}
-
 Uint8List _copyExact(Uint8List bytes, int length, String name) {
   if (bytes.length != length) {
     throw ArgumentError.value(bytes.length, name, 'must contain $length bytes');
   }
   return Uint8List.fromList(bytes);
 }
-
-void _writeStrings(cl.Writer writer, List<String> values) {
-  writer.writeUInt16(values.length);
-  for (final value in values) {
-    writer.writeString(value);
-  }
-}
-
-List<String> _readStrings(cl.BytesReader reader) => List.unmodifiable(
-  List.generate(reader.readUInt16(), (_) => reader.readString()),
-);

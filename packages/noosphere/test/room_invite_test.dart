@@ -18,8 +18,6 @@ void main() {
           key.pubkey,
         ),
         coordinatorEndpointId: Uint8List(32)..[0] = 42,
-        relayUrls: const ['https://relay.example'],
-        ipAddrs: const ['127.0.0.1:4433'],
         expiresAt: DateTime.utc(2030, 1, 2, 3, 4, 5),
       );
 

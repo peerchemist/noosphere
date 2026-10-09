@@ -20,7 +20,6 @@ void main() {
       await RoomManager.open(
         coordinatorEndpointId: endpointId,
         persistence: persistence,
-        relayUrls: const ['https://relay.example'],
       ),
       persistence,
     );

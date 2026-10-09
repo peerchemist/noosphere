@@ -186,6 +186,28 @@ void main() {
       );
     });
 
+    test('discovers and joins the coordinator from the invite ID', () async {
+      final endpoint = await Endpoint.bindWithAddressLookup(
+        relayMode: RelayMode.disabled,
+        resolve: (endpointId) =>
+            endpointId == server.id ? _address(server.endpoint) : null,
+      );
+      addTearDown(endpoint.close);
+
+      final snapshot = await IrohRoomEnrollmentApi.joinRoom(
+        invite,
+        (_) async => getPrivkey(0),
+        endpoint: IrohClientEndpoint.borrowed(endpoint),
+        nativeLibraryPath: nativeLibrary,
+      );
+
+      expect(snapshot.participants, hasLength(1));
+      expect(
+        snapshot.participants.single.publicKey,
+        invite.expectedParticipantPublicKey,
+      );
+    });
+
     test(
       'rejects oversized outgoing requests before opening a stream',
       () async {

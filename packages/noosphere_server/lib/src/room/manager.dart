@@ -85,21 +85,15 @@ final class RoomManager implements RoomEnrollmentApi {
     required Uint8List coordinatorEndpointId,
     required this.persistence,
     required this.challengeTtl,
-    required Iterable<String> relayUrls,
-    required Iterable<String> ipAddrs,
   }) : _coordinatorEndpointId = _copy32(
          coordinatorEndpointId,
          'coordinatorEndpointId',
-       ),
-       _relayUrls = List.unmodifiable(relayUrls),
-       _ipAddrs = List.unmodifiable(ipAddrs);
+       );
 
   static Future<RoomManager> open({
     required Uint8List coordinatorEndpointId,
     required RoomPersistence persistence,
     Duration challengeTtl = const Duration(seconds: 20),
-    Iterable<String> relayUrls = const [],
-    Iterable<String> ipAddrs = const [],
   }) async {
     if (challengeTtl <= Duration.zero) {
       throw ArgumentError.value(challengeTtl, 'challengeTtl');
@@ -108,8 +102,6 @@ final class RoomManager implements RoomEnrollmentApi {
       coordinatorEndpointId: coordinatorEndpointId,
       persistence: persistence,
       challengeTtl: challengeTtl,
-      relayUrls: relayUrls,
-      ipAddrs: ipAddrs,
     );
     final records = await manager.persistence.loadAll();
     for (final entry in records.entries) {
@@ -132,20 +124,6 @@ final class RoomManager implements RoomEnrollmentApi {
       Uint8List.fromList(_coordinatorEndpointId);
   final RoomPersistence persistence;
   final Duration challengeTtl;
-  List<String> _relayUrls;
-  List<String> _ipAddrs;
-  List<String> get relayUrls => _relayUrls;
-  List<String> get ipAddrs => _ipAddrs;
-
-  /// Refreshes non-authoritative connection hints. The pinned endpoint ID is
-  /// immutable and remains the trust anchor.
-  void updateBootstrap({
-    required Iterable<String> relayUrls,
-    required Iterable<String> ipAddrs,
-  }) {
-    _relayUrls = List.unmodifiable(relayUrls);
-    _ipAddrs = List.unmodifiable(ipAddrs);
-  }
 
   final Map<String, RoomSnapshot> _rooms = {};
   final Map<String, _PendingChallenge> _challenges = {};
@@ -237,8 +215,6 @@ final class RoomManager implements RoomEnrollmentApi {
       token: token,
       expectedParticipantPublicKey: expectedParticipantPublicKey,
       coordinatorEndpointId: coordinatorEndpointId,
-      relayUrls: relayUrls,
-      ipAddrs: ipAddrs,
       expiresAt: expiresAt,
     );
     final updated = current.copyWith(

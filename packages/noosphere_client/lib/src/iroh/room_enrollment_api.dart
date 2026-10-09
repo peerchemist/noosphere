@@ -59,16 +59,34 @@ final class IrohRoomEnrollmentApi implements RoomEnrollmentApi {
     }
   }
 
-  /// Verifies the participant key before opening an Iroh connection.
+  static Future<IrohClientTransportConfig> _transportForInvite(
+    RoomInvite invite, {
+    String? nativeLibraryPath,
+  }) async {
+    await Iroh.init(libraryPath: nativeLibraryPath);
+    final coordinatorId = EndpointId.fromBytes(invite.coordinatorEndpointId);
+    return IrohClientTransportConfig(
+      bootstrapAddress: EndpointAddr(coordinatorId),
+      pinnedServerId: coordinatorId,
+      nativeLibraryPath: nativeLibraryPath,
+    );
+  }
+
+  /// Finds the pinned coordinator from [invite], then verifies the participant
+  /// key before opening an Iroh connection.
   static Future<RoomSnapshot> joinRoom(
-    IrohClientTransportConfig transport,
     RoomInvite invite,
     GetPrivateKey getPrivateKey, {
     IrohClientEndpoint? endpoint,
+    String? nativeLibraryPath,
   }) async {
     final key = await getPrivateKey(KeyPurpose.roomEnrollment);
     invite.requirePrivateKey(key);
-    final api = await connect(transport, endpoint: endpoint);
+    final config = await _transportForInvite(
+      invite,
+      nativeLibraryPath: nativeLibraryPath,
+    );
+    final api = await connect(config, endpoint: endpoint);
     try {
       return await RoomEnrollmentClient(api).joinRoom(invite, (_) async => key);
     } finally {

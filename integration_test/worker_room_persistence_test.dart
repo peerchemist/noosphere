@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:iroh_flutter/iroh_flutter.dart' show Endpoint, RelayMode;
+import 'package:noosphere_client/iroh_transport.dart' show IrohClientEndpoint;
 import 'package:noosphere_flutter/noosphere_flutter.dart';
 import 'package:noosphere_flutter/testing.dart';
 
@@ -59,12 +61,13 @@ void main() {
       var worker = await NoosphereWorker.start();
       try {
         await worker.startSetup(setupId: 'rooms', server: options);
-        var transport = await _transport(worker);
+        var endpoint = await _discoveryEndpoint(worker);
         final joined = await IrohRoomEnrollmentApi.joinRoom(
-          transport,
           invites[0],
           (_) async => keys[0],
+          endpoint: IrohClientEndpoint.borrowed(endpoint),
         );
+        await endpoint.close();
         expect(joined.participants, hasLength(1));
         expect(
           RoomSnapshot.fromBytes((await storage.loadAll())['room']!)
@@ -75,21 +78,21 @@ void main() {
 
         worker = await NoosphereWorker.start();
         await worker.startSetup(setupId: 'rooms', server: options);
-        transport = await _transport(worker);
-        expect(transport.pinnedServerId, secret.publicKey);
+        endpoint = await _discoveryEndpoint(worker);
         await expectLater(
           IrohRoomEnrollmentApi.joinRoom(
-            transport,
             invites[0],
             (_) async => keys[0],
+            endpoint: IrohClientEndpoint.borrowed(endpoint),
           ),
           throwsA(isA<RoomEnrollmentProtocolException>()),
         );
         final completed = await IrohRoomEnrollmentApi.joinRoom(
-          transport,
           invites[1],
           (_) async => keys[1],
+          endpoint: IrohClientEndpoint.borrowed(endpoint),
         );
+        await endpoint.close();
         expect(completed.participants, hasLength(2));
         expect(
           RoomSnapshot.fromBytes((await storage.loadAll())['room']!)
@@ -103,15 +106,15 @@ void main() {
   );
 }
 
-Future<IrohClientTransportConfig> _transport(NoosphereWorker worker) async {
+Future<Endpoint> _discoveryEndpoint(NoosphereWorker worker) async {
   for (var attempt = 0; attempt < 100; attempt++) {
     final address = (await worker.snapshot('rooms')).coordinator!;
     if (address.ipAddrs.isNotEmpty) {
       final id = PublicKey.fromZ32(address.id);
-      return IrohClientTransportConfig(
-        bootstrapAddress: EndpointAddr(id, ipAddrs: address.ipAddrs),
-        pinnedServerId: id,
-        relay: IrohRelayConfig.disabled(),
+      final resolved = EndpointAddr(id, ipAddrs: address.ipAddrs);
+      return Endpoint.bindWithAddressLookup(
+        relayMode: RelayMode.disabled,
+        resolve: (requested) => requested == id ? resolved : null,
       );
     }
     await Future<void>.delayed(const Duration(milliseconds: 100));

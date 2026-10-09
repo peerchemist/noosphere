@@ -21,17 +21,18 @@ ROAST dispatcher. Frozen rooms restored at startup are registered likewise.
 
 The participant package provides `RoomEnrollmentClient.joinRoom` and
 `IrohRoomEnrollmentApi`. The high-level `IrohRoomEnrollmentApi.joinRoom`
-checks the local private key against the invite before opening the connection.
-It then verifies the complete server transcript and signs it through
+reconstructs and pins the coordinator `EndpointAddr` from the endpoint ID
+carried by the invite; Iroh discovery resolves its current route. It checks the
+local private key against the invite before opening the connection, then
+verifies the complete server transcript and signs it through
 `Signed<EnrollmentTranscript>`.
 
 ## Invite and proof protocol
 
 `RoomInvite` is a base64url-friendly, versioned canonical binary value. It
 contains the room/invite IDs, a random 32-byte token, expected compressed
-secp256k1 participant key, 32-byte pinned Iroh coordinator ID, connection
-hints, and expiry. The participant key is independent of wallet, FROST group,
-and Iroh endpoint keys.
+secp256k1 participant key, 32-byte pinned Iroh coordinator ID and expiry. The
+participant key is independent of wallet, FROST group, and Iroh endpoint keys.
 
 The server persists only `SHA256(token)`. The signed transcript is encoded as
 length-delimited/fixed-width binary fields in this order:
@@ -62,7 +63,9 @@ rebind the endpoint or generate a new coordinator identity.
 `write` method must be atomic and durable. Each record contains room lifecycle,
 coordinator endpoint ID, expected count, threshold, token hashes and invite
 timestamps, accepted public keys, frozen identifiers, canonical `GroupConfig`,
-and its derivable fingerprint. Plaintext invite tokens are never stored.
+and its derivable fingerprint. Plaintext invite tokens and coordinator network
+locations are never stored; Iroh resolves the current route from the endpoint
+ID.
 
 Existing direct-`GroupConfig` servers require no migration. To enable rooms,
 add a `RoomPersistence` implementation while deriving the same Iroh identity
@@ -85,5 +88,5 @@ Room records are integrity-sensitive. `RoomPersistence` does not itself add
 encryption, authentication, rollback protection, or multi-process locking;
 production hosts must provide those properties where their threat model needs
 them. Challenges are deliberately not restored after restart, so an in-flight
-client must request a new challenge. Connection hints are non-authoritative;
-the pinned coordinator endpoint ID remains the trust anchor.
+client must request a new challenge. The pinned coordinator endpoint ID
+remains the trust anchor.

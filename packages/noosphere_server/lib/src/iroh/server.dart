@@ -72,10 +72,6 @@ final class IrohServer {
         handler ??
         ServerApiHandler(config: config.server, persistence: persistence);
     await api.ready;
-    rooms?.updateBootstrap(
-      relayUrls: [for (final relay in endpoint.addr.relayUrls) relay.value],
-      ipAddrs: endpoint.addr.ipAddrs,
-    );
     final dispatcher = IrohDispatcher.single(api);
     if (rooms != null) {
       for (final room in await rooms.getRooms()) {
@@ -148,18 +144,11 @@ final class IrohServer {
     required String roomId,
     required cl.ECCompressedPublicKey expectedParticipantPublicKey,
     required DateTime expiresAt,
-  }) {
-    final manager = _roomManager();
-    manager.updateBootstrap(
-      relayUrls: [for (final relay in address.relayUrls) relay.value],
-      ipAddrs: address.ipAddrs,
-    );
-    return manager.issueRoomInvite(
-      roomId: roomId,
-      expectedParticipantPublicKey: expectedParticipantPublicKey,
-      expiresAt: expiresAt,
-    );
-  }
+  }) => _roomManager().issueRoomInvite(
+    roomId: roomId,
+    expectedParticipantPublicKey: expectedParticipantPublicKey,
+    expiresAt: expiresAt,
+  );
 
   Future<RoomSnapshot> revokeRoomInvite({
     required String roomId,
