@@ -24,7 +24,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
-COPY container/pubspec.yaml ./pubspec.yaml
+COPY container.pubspec.yaml ./pubspec.yaml
 COPY pubspec.lock ./pubspec.lock
 COPY packages packages
 RUN dart pub get
