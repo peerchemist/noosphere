@@ -3,6 +3,7 @@ library;
 
 const String noosphereIrohAlpn = 'noosphere/roast/1';
 const String noosphereEnrollmentAlpn = 'noosphere/roast-enrollment/1';
+const String noospherePublicFeedAlpn = 'noosphere/public-feed/1';
 
 enum IrohRelayPolicy { defaultNetwork, disabled, staging, custom }
 

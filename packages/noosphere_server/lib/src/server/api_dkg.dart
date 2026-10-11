@@ -52,6 +52,12 @@ extension _ServerDkg on ServerApiHandler {
       commitments: commitments,
     );
 
+    _state.persistent.publicFeed?.requested(
+      'dkg:${details.name}',
+      PublicFeedCategory.dkg,
+      details.expiry.time,
+    );
+
     await _persist();
 
     // Broadcast to other participants
@@ -65,6 +71,10 @@ extension _ServerDkg on ServerApiHandler {
     await _prepare();
     final participantId = getSession(sid).participantId;
     if (_state.nameToDkg.remove(name) != null) {
+      _state.persistent.publicFeed?.finish(
+        'dkg:$name',
+        PublicFeedLifecycle.rejected,
+      );
       await _persist();
       // Send an event to all other participants that the DKG was removed
       _state.sendEventToOthers(
@@ -151,6 +161,10 @@ extension _ServerDkg on ServerApiHandler {
     if (round.participantsProvided.length == _participantN - 1) {
       // Remove DKG
       _state.nameToDkg.remove(name);
+      _state.persistent.publicFeed?.finish(
+        'dkg:$name',
+        PublicFeedLifecycle.completed,
+      );
       // No details of the key are stored on the server as only the participants
       // can generate the public information at this point.
     } else {

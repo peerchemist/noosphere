@@ -4,6 +4,9 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere/common.dart';
 import 'package:noosphere/config.dart';
 import 'package:noosphere/domain.dart';
+import 'package:noosphere/public_feed.dart';
+
+import 'public_feed.dart';
 
 class ServerConfig with cl.Writable {
   static const defaultChallengeTTL = Duration(seconds: 20);
@@ -25,6 +28,9 @@ class ServerConfig with cl.Writable {
   final Duration minCompletedSignaturesTTL;
   final Duration ackCacheTTL;
 
+  /// Null disables public access and recording. Each group needs its own ID.
+  final PublicFeedConfig? publicFeed;
+
   /// A [KeepaliveEvent] will be sent to clients periodically.
   final Duration? keepAliveFreq;
 
@@ -39,6 +45,7 @@ class ServerConfig with cl.Writable {
     this.minCompletedSignaturesTTL = defaultMinCompletedSignaturesTTL,
     this.ackCacheTTL = defaultAckCacheTTL,
     this.keepAliveFreq,
+    this.publicFeed,
   });
 
   /// Convenience constructor to construct from serialised [bytes].
@@ -60,6 +67,7 @@ class ServerConfig with cl.Writable {
         minCompletedSignaturesTTL: reader.readDuration(),
         ackCacheTTL: reader.readDuration(),
         keepAliveFreq: reader.readBool() ? reader.readDuration() : null,
+        publicFeed: reader.atEnd ? null : _readPublicFeed(reader),
       );
 
   @override
@@ -80,5 +88,22 @@ class ServerConfig with cl.Writable {
     if (useKeepalive) {
       writer.writeDuration(keepAliveFreq!);
     }
+    if (publicFeed case final feed?) {
+      writer.writeUInt8(1); // Optional server-config extension version.
+      writer.writeSlice(feed.feedId.toBytes());
+      writer.writeUInt32(feed.maxEntries);
+      writer.writeDuration(feed.maxAge);
+    }
   }
+}
+
+PublicFeedConfig _readPublicFeed(cl.BytesReader reader) {
+  if (reader.readUInt8() != 1) {
+    throw const FormatException('Unknown feed config version');
+  }
+  return PublicFeedConfig(
+    feedId: PublicFeedId.fromBytes(reader.readSlice(32)),
+    maxEntries: reader.readUInt32(),
+    maxAge: reader.readDuration(),
+  );
 }

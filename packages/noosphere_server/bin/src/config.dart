@@ -54,6 +54,18 @@ ServerConfig _readServer(_MapReader reader) => ServerConfig(
       ServerConfig.defaultMinCompletedSignaturesTTL,
   ackCacheTTL: reader.getTTL("ack-cache") ?? ServerConfig.defaultAckCacheTTL,
   keepAliveFreq: reader["keep-alive-event-ms"].duration(),
+  publicFeed: reader['public-feed']['enabled'].value<bool>() == true
+      ? PublicFeedConfig(
+          feedId: PublicFeedId(
+            reader['public-feed']['feed-id'].require<String>(),
+          ),
+          maxEntries:
+              reader['public-feed']['max-entries'].value<int>() ?? 10000,
+          maxAge:
+              reader['public-feed']['max-age-ms'].duration() ??
+              const Duration(days: 30),
+        )
+      : null,
 );
 
 IrohConfig _readIroh(_MapReader reader) {

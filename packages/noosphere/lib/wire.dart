@@ -7,7 +7,8 @@ export 'src/event_wire.dart'
         decodeEvent,
         encodeConstructedKeyEvent,
         encodeEvent;
-export 'iroh.dart' show noosphereEnrollmentAlpn, noosphereIrohAlpn;
+export 'iroh.dart'
+    show noosphereEnrollmentAlpn, noosphereIrohAlpn, noospherePublicFeedAlpn;
 export 'src/framing.dart';
 export 'src/generated/noosphere.pb.dart';
 export 'src/generated/noosphere.pbenum.dart';

@@ -36,6 +36,11 @@ that also includes constructing, validating, broadcasting and tracking
 transactions. Noosphere coordinates cryptographic authorization; it does not
 decide what the group should authorize.
 
+Coordinators can explicitly enable a separate unauthenticated, read-only event
+feed for notifications and transparency. See the [public feed and Sygnature
+integration guide](architecture/public-feed.md) for configuration, privacy,
+signed checkpoints, retention, and the lightweight polling client.
+
 ## Encrypted peer-to-peer communication
 
 Noosphere uses [Iroh](https://iroh.computer) as its reference network transport. Iroh provides

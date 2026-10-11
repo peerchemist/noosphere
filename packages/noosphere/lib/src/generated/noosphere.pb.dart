@@ -12,6 +12,7 @@
 
 import 'dart:core' as $core;
 
+import 'package:fixnum/fixnum.dart' as $fixnum;
 import 'package:protobuf/protobuf.dart' as $pb;
 
 import 'noosphere.pbenum.dart';
@@ -4341,6 +4342,455 @@ class SessionStarted extends $pb.GeneratedMessage {
   $core.bool hasSnapshot() => $_has(1);
   @$pb.TagNumber(2)
   void clearSnapshot() => $_clearField(2);
+}
+
+/// Public-feed v1. No protocol request or participant data belongs here.
+class GetPublicFeedRequest extends $pb.GeneratedMessage {
+  factory GetPublicFeedRequest({
+    $core.List<$core.int>? feedId,
+    $fixnum.Int64? afterCursor,
+    $core.int? limit,
+  }) {
+    final result = create();
+    if (feedId != null) result.feedId = feedId;
+    if (afterCursor != null) result.afterCursor = afterCursor;
+    if (limit != null) result.limit = limit;
+    return result;
+  }
+
+  GetPublicFeedRequest._();
+
+  factory GetPublicFeedRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetPublicFeedRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetPublicFeedRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'feedId', $pb.PbFieldType.OY)
+    ..a<$fixnum.Int64>(
+        2, _omitFieldNames ? '' : 'afterCursor', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'limit', $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetPublicFeedRequest clone() =>
+      GetPublicFeedRequest()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetPublicFeedRequest copyWith(void Function(GetPublicFeedRequest) updates) =>
+      super.copyWith((message) => updates(message as GetPublicFeedRequest))
+          as GetPublicFeedRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetPublicFeedRequest create() => GetPublicFeedRequest._();
+  @$core.override
+  GetPublicFeedRequest createEmptyInstance() => create();
+  static $pb.PbList<GetPublicFeedRequest> createRepeated() =>
+      $pb.PbList<GetPublicFeedRequest>();
+  @$core.pragma('dart2js:noInline')
+  static GetPublicFeedRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetPublicFeedRequest>(create);
+  static GetPublicFeedRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get feedId => $_getN(0);
+  @$pb.TagNumber(1)
+  set feedId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasFeedId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearFeedId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get afterCursor => $_getI64(1);
+  @$pb.TagNumber(2)
+  set afterCursor($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAfterCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAfterCursor() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get limit => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set limit($core.int value) => $_setUnsignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasLimit() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearLimit() => $_clearField(3);
+}
+
+class PublicFeedEntry extends $pb.GeneratedMessage {
+  factory PublicFeedEntry({
+    $fixnum.Int64? cursor,
+    $core.List<$core.int>? eventId,
+    $core.String? category,
+    $core.String? state,
+    $fixnum.Int64? observedAtMs,
+    $fixnum.Int64? expiresAtMs,
+  }) {
+    final result = create();
+    if (cursor != null) result.cursor = cursor;
+    if (eventId != null) result.eventId = eventId;
+    if (category != null) result.category = category;
+    if (state != null) result.state = state;
+    if (observedAtMs != null) result.observedAtMs = observedAtMs;
+    if (expiresAtMs != null) result.expiresAtMs = expiresAtMs;
+    return result;
+  }
+
+  PublicFeedEntry._();
+
+  factory PublicFeedEntry.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PublicFeedEntry.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PublicFeedEntry',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'cursor', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'eventId', $pb.PbFieldType.OY)
+    ..aOS(3, _omitFieldNames ? '' : 'category')
+    ..aOS(4, _omitFieldNames ? '' : 'state')
+    ..aInt64(5, _omitFieldNames ? '' : 'observedAtMs')
+    ..aInt64(6, _omitFieldNames ? '' : 'expiresAtMs')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PublicFeedEntry clone() => PublicFeedEntry()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PublicFeedEntry copyWith(void Function(PublicFeedEntry) updates) =>
+      super.copyWith((message) => updates(message as PublicFeedEntry))
+          as PublicFeedEntry;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PublicFeedEntry create() => PublicFeedEntry._();
+  @$core.override
+  PublicFeedEntry createEmptyInstance() => create();
+  static $pb.PbList<PublicFeedEntry> createRepeated() =>
+      $pb.PbList<PublicFeedEntry>();
+  @$core.pragma('dart2js:noInline')
+  static PublicFeedEntry getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PublicFeedEntry>(create);
+  static PublicFeedEntry? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get cursor => $_getI64(0);
+  @$pb.TagNumber(1)
+  set cursor($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCursor() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCursor() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get eventId => $_getN(1);
+  @$pb.TagNumber(2)
+  set eventId($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasEventId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearEventId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get category => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set category($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCategory() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCategory() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get state => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set state($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasState() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearState() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $fixnum.Int64 get observedAtMs => $_getI64(4);
+  @$pb.TagNumber(5)
+  set observedAtMs($fixnum.Int64 value) => $_setInt64(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasObservedAtMs() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearObservedAtMs() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get expiresAtMs => $_getI64(5);
+  @$pb.TagNumber(6)
+  set expiresAtMs($fixnum.Int64 value) => $_setInt64(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasExpiresAtMs() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearExpiresAtMs() => $_clearField(6);
+}
+
+/// Re-encode known fields in field order, omitting proto3 defaults. No maps or
+/// unknown fields are allowed in the canonical v1 representation.
+class PublicFeedPage extends $pb.GeneratedMessage {
+  factory PublicFeedPage({
+    $core.int? schemaVersion,
+    $core.List<$core.int>? feedId,
+    $core.Iterable<PublicFeedEntry>? entries,
+    $fixnum.Int64? oldestAvailableCursor,
+    $fixnum.Int64? latestCursor,
+    $fixnum.Int64? nextCursor,
+    $core.bool? hasMore,
+    $core.bool? historyGap,
+    $fixnum.Int64? generatedAtMs,
+    $fixnum.Int64? afterCursor,
+  }) {
+    final result = create();
+    if (schemaVersion != null) result.schemaVersion = schemaVersion;
+    if (feedId != null) result.feedId = feedId;
+    if (entries != null) result.entries.addAll(entries);
+    if (oldestAvailableCursor != null)
+      result.oldestAvailableCursor = oldestAvailableCursor;
+    if (latestCursor != null) result.latestCursor = latestCursor;
+    if (nextCursor != null) result.nextCursor = nextCursor;
+    if (hasMore != null) result.hasMore = hasMore;
+    if (historyGap != null) result.historyGap = historyGap;
+    if (generatedAtMs != null) result.generatedAtMs = generatedAtMs;
+    if (afterCursor != null) result.afterCursor = afterCursor;
+    return result;
+  }
+
+  PublicFeedPage._();
+
+  factory PublicFeedPage.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PublicFeedPage.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PublicFeedPage',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.int>(
+        1, _omitFieldNames ? '' : 'schemaVersion', $pb.PbFieldType.OU3)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'feedId', $pb.PbFieldType.OY)
+    ..pc<PublicFeedEntry>(
+        3, _omitFieldNames ? '' : 'entries', $pb.PbFieldType.PM,
+        subBuilder: PublicFeedEntry.create)
+    ..a<$fixnum.Int64>(
+        4, _omitFieldNames ? '' : 'oldestAvailableCursor', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        5, _omitFieldNames ? '' : 'latestCursor', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        6, _omitFieldNames ? '' : 'nextCursor', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOB(7, _omitFieldNames ? '' : 'hasMore')
+    ..aOB(8, _omitFieldNames ? '' : 'historyGap')
+    ..aInt64(9, _omitFieldNames ? '' : 'generatedAtMs')
+    ..a<$fixnum.Int64>(
+        10, _omitFieldNames ? '' : 'afterCursor', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PublicFeedPage clone() => PublicFeedPage()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PublicFeedPage copyWith(void Function(PublicFeedPage) updates) =>
+      super.copyWith((message) => updates(message as PublicFeedPage))
+          as PublicFeedPage;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PublicFeedPage create() => PublicFeedPage._();
+  @$core.override
+  PublicFeedPage createEmptyInstance() => create();
+  static $pb.PbList<PublicFeedPage> createRepeated() =>
+      $pb.PbList<PublicFeedPage>();
+  @$core.pragma('dart2js:noInline')
+  static PublicFeedPage getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PublicFeedPage>(create);
+  static PublicFeedPage? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get schemaVersion => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set schemaVersion($core.int value) => $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSchemaVersion() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSchemaVersion() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get feedId => $_getN(1);
+  @$pb.TagNumber(2)
+  set feedId($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasFeedId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearFeedId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $pb.PbList<PublicFeedEntry> get entries => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get oldestAvailableCursor => $_getI64(3);
+  @$pb.TagNumber(4)
+  set oldestAvailableCursor($fixnum.Int64 value) => $_setInt64(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasOldestAvailableCursor() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearOldestAvailableCursor() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $fixnum.Int64 get latestCursor => $_getI64(4);
+  @$pb.TagNumber(5)
+  set latestCursor($fixnum.Int64 value) => $_setInt64(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasLatestCursor() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearLatestCursor() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get nextCursor => $_getI64(5);
+  @$pb.TagNumber(6)
+  set nextCursor($fixnum.Int64 value) => $_setInt64(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasNextCursor() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearNextCursor() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get hasMore => $_getBF(6);
+  @$pb.TagNumber(7)
+  set hasMore($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasHasMore() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearHasMore() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.bool get historyGap => $_getBF(7);
+  @$pb.TagNumber(8)
+  set historyGap($core.bool value) => $_setBool(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasHistoryGap() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearHistoryGap() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $fixnum.Int64 get generatedAtMs => $_getI64(8);
+  @$pb.TagNumber(9)
+  set generatedAtMs($fixnum.Int64 value) => $_setInt64(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasGeneratedAtMs() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearGeneratedAtMs() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $fixnum.Int64 get afterCursor => $_getI64(9);
+  @$pb.TagNumber(10)
+  set afterCursor($fixnum.Int64 value) => $_setInt64(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasAfterCursor() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearAfterCursor() => $_clearField(10);
+}
+
+class SignedPublicFeedPage extends $pb.GeneratedMessage {
+  factory SignedPublicFeedPage({
+    $core.List<$core.int>? page,
+    $core.List<$core.int>? signature,
+  }) {
+    final result = create();
+    if (page != null) result.page = page;
+    if (signature != null) result.signature = signature;
+    return result;
+  }
+
+  SignedPublicFeedPage._();
+
+  factory SignedPublicFeedPage.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SignedPublicFeedPage.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignedPublicFeedPage',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'page', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'signature', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignedPublicFeedPage clone() =>
+      SignedPublicFeedPage()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignedPublicFeedPage copyWith(void Function(SignedPublicFeedPage) updates) =>
+      super.copyWith((message) => updates(message as SignedPublicFeedPage))
+          as SignedPublicFeedPage;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SignedPublicFeedPage create() => SignedPublicFeedPage._();
+  @$core.override
+  SignedPublicFeedPage createEmptyInstance() => create();
+  static $pb.PbList<SignedPublicFeedPage> createRepeated() =>
+      $pb.PbList<SignedPublicFeedPage>();
+  @$core.pragma('dart2js:noInline')
+  static SignedPublicFeedPage getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignedPublicFeedPage>(create);
+  static SignedPublicFeedPage? _defaultInstance;
+
+  /// Exact canonical PublicFeedPage bytes. Ed25519 signs
+  /// UTF8("noosphere/public-feed/checkpoint/v1\\0") || page.
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get page => $_getN(0);
+  @$pb.TagNumber(1)
+  set page($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPage() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPage() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get signature => $_getN(1);
+  @$pb.TagNumber(2)
+  set signature($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSignature() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSignature() => $_clearField(2);
 }
 
 const $core.bool _omitFieldNames =

@@ -13,6 +13,12 @@ limits:
   max-connections: 128
   max-streams-per-connection: 32
 server:
+  # Disabled by default. Generate the ID once with PublicFeedId.generate().
+  # public-feed:
+  #   enabled: true
+  #   feed-id: <64 lowercase hex characters from 32 random bytes>
+  #   max-entries: 10000
+  #   max-age-ms: 2592000000
   ms-lifetimes:
     challenge: 20000
     session: 60000

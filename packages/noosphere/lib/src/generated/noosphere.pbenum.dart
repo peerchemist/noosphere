@@ -74,6 +74,8 @@ class ProtocolErrorCode extends $pb.ProtobufEnum {
   static const ProtocolErrorCode PROTOCOL_ERROR_SESSION_EXPIRED =
       ProtocolErrorCode._(
           9, _omitEnumNames ? '' : 'PROTOCOL_ERROR_SESSION_EXPIRED');
+  static const ProtocolErrorCode PROTOCOL_ERROR_NOT_FOUND =
+      ProtocolErrorCode._(10, _omitEnumNames ? '' : 'PROTOCOL_ERROR_NOT_FOUND');
 
   static const $core.List<ProtocolErrorCode> values = <ProtocolErrorCode>[
     PROTOCOL_ERROR_UNSPECIFIED,
@@ -86,10 +88,11 @@ class ProtocolErrorCode extends $pb.ProtobufEnum {
     PROTOCOL_ERROR_UNKNOWN_OUTCOME,
     PROTOCOL_ERROR_SESSION_NOT_FOUND,
     PROTOCOL_ERROR_SESSION_EXPIRED,
+    PROTOCOL_ERROR_NOT_FOUND,
   ];
 
   static final $core.List<ProtocolErrorCode?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 9);
+      $pb.ProtobufEnum.$_initByValueList(values, 10);
   static ProtocolErrorCode? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 

@@ -45,6 +45,7 @@ const ProtocolErrorCode$json = {
     {'1': 'PROTOCOL_ERROR_UNKNOWN_OUTCOME', '2': 7},
     {'1': 'PROTOCOL_ERROR_SESSION_NOT_FOUND', '2': 8},
     {'1': 'PROTOCOL_ERROR_SESSION_EXPIRED', '2': 9},
+    {'1': 'PROTOCOL_ERROR_NOT_FOUND', '2': 10},
   ],
 };
 
@@ -56,7 +57,8 @@ final $typed_data.Uint8List protocolErrorCodeDescriptor = $convert.base64Decode(
     'FQUk9UT0NPTF9FUlJPUl9SRVNPVVJDRV9FWEhBVVNURUQQBBIkCiBQUk9UT0NPTF9FUlJPUl9E'
     'RUFETElORV9FWENFRURFRBAFEhsKF1BST1RPQ09MX0VSUk9SX0lOVEVSTkFMEAYSIgoeUFJPVE'
     '9DT0xfRVJST1JfVU5LTk9XTl9PVVRDT01FEAcSJAogUFJPVE9DT0xfRVJST1JfU0VTU0lPTl9O'
-    'T1RfRk9VTkQQCBIiCh5QUk9UT0NPTF9FUlJPUl9TRVNTSU9OX0VYUElSRUQQCQ==');
+    'T1RfRk9VTkQQCBIiCh5QUk9UT0NPTF9FUlJPUl9TRVNTSU9OX0VYUElSRUQQCRIcChhQUk9UT0'
+    'NPTF9FUlJPUl9OT1RfRk9VTkQQCg==');
 
 @$core.Deprecated('Use bytesDescriptor instead')
 const Bytes$json = {
@@ -1265,3 +1267,104 @@ const SessionStarted$json = {
 final $typed_data.Uint8List sessionStartedDescriptor = $convert.base64Decode(
     'Cg5TZXNzaW9uU3RhcnRlZBIdCgpzZXNzaW9uX2lkGAEgASgMUglzZXNzaW9uSWQSGgoIc25hcH'
     'Nob3QYAiABKAxSCHNuYXBzaG90');
+
+@$core.Deprecated('Use getPublicFeedRequestDescriptor instead')
+const GetPublicFeedRequest$json = {
+  '1': 'GetPublicFeedRequest',
+  '2': [
+    {'1': 'feed_id', '3': 1, '4': 1, '5': 12, '10': 'feedId'},
+    {'1': 'after_cursor', '3': 2, '4': 1, '5': 4, '10': 'afterCursor'},
+    {'1': 'limit', '3': 3, '4': 1, '5': 13, '10': 'limit'},
+  ],
+};
+
+/// Descriptor for `GetPublicFeedRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getPublicFeedRequestDescriptor = $convert.base64Decode(
+    'ChRHZXRQdWJsaWNGZWVkUmVxdWVzdBIXCgdmZWVkX2lkGAEgASgMUgZmZWVkSWQSIQoMYWZ0ZX'
+    'JfY3Vyc29yGAIgASgEUgthZnRlckN1cnNvchIUCgVsaW1pdBgDIAEoDVIFbGltaXQ=');
+
+@$core.Deprecated('Use publicFeedEntryDescriptor instead')
+const PublicFeedEntry$json = {
+  '1': 'PublicFeedEntry',
+  '2': [
+    {'1': 'cursor', '3': 1, '4': 1, '5': 4, '10': 'cursor'},
+    {'1': 'event_id', '3': 2, '4': 1, '5': 12, '10': 'eventId'},
+    {'1': 'category', '3': 3, '4': 1, '5': 9, '10': 'category'},
+    {'1': 'state', '3': 4, '4': 1, '5': 9, '10': 'state'},
+    {'1': 'observed_at_ms', '3': 5, '4': 1, '5': 3, '10': 'observedAtMs'},
+    {
+      '1': 'expires_at_ms',
+      '3': 6,
+      '4': 1,
+      '5': 3,
+      '9': 0,
+      '10': 'expiresAtMs',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_expires_at_ms'},
+  ],
+};
+
+/// Descriptor for `PublicFeedEntry`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List publicFeedEntryDescriptor = $convert.base64Decode(
+    'Cg9QdWJsaWNGZWVkRW50cnkSFgoGY3Vyc29yGAEgASgEUgZjdXJzb3ISGQoIZXZlbnRfaWQYAi'
+    'ABKAxSB2V2ZW50SWQSGgoIY2F0ZWdvcnkYAyABKAlSCGNhdGVnb3J5EhQKBXN0YXRlGAQgASgJ'
+    'UgVzdGF0ZRIkCg5vYnNlcnZlZF9hdF9tcxgFIAEoA1IMb2JzZXJ2ZWRBdE1zEicKDWV4cGlyZX'
+    'NfYXRfbXMYBiABKANIAFILZXhwaXJlc0F0TXOIAQFCEAoOX2V4cGlyZXNfYXRfbXM=');
+
+@$core.Deprecated('Use publicFeedPageDescriptor instead')
+const PublicFeedPage$json = {
+  '1': 'PublicFeedPage',
+  '2': [
+    {'1': 'schema_version', '3': 1, '4': 1, '5': 13, '10': 'schemaVersion'},
+    {'1': 'feed_id', '3': 2, '4': 1, '5': 12, '10': 'feedId'},
+    {
+      '1': 'entries',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.noosphere.PublicFeedEntry',
+      '10': 'entries'
+    },
+    {
+      '1': 'oldest_available_cursor',
+      '3': 4,
+      '4': 1,
+      '5': 4,
+      '10': 'oldestAvailableCursor'
+    },
+    {'1': 'latest_cursor', '3': 5, '4': 1, '5': 4, '10': 'latestCursor'},
+    {'1': 'next_cursor', '3': 6, '4': 1, '5': 4, '10': 'nextCursor'},
+    {'1': 'has_more', '3': 7, '4': 1, '5': 8, '10': 'hasMore'},
+    {'1': 'history_gap', '3': 8, '4': 1, '5': 8, '10': 'historyGap'},
+    {'1': 'generated_at_ms', '3': 9, '4': 1, '5': 3, '10': 'generatedAtMs'},
+    {'1': 'after_cursor', '3': 10, '4': 1, '5': 4, '10': 'afterCursor'},
+  ],
+};
+
+/// Descriptor for `PublicFeedPage`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List publicFeedPageDescriptor = $convert.base64Decode(
+    'Cg5QdWJsaWNGZWVkUGFnZRIlCg5zY2hlbWFfdmVyc2lvbhgBIAEoDVINc2NoZW1hVmVyc2lvbh'
+    'IXCgdmZWVkX2lkGAIgASgMUgZmZWVkSWQSNAoHZW50cmllcxgDIAMoCzIaLm5vb3NwaGVyZS5Q'
+    'dWJsaWNGZWVkRW50cnlSB2VudHJpZXMSNgoXb2xkZXN0X2F2YWlsYWJsZV9jdXJzb3IYBCABKA'
+    'RSFW9sZGVzdEF2YWlsYWJsZUN1cnNvchIjCg1sYXRlc3RfY3Vyc29yGAUgASgEUgxsYXRlc3RD'
+    'dXJzb3ISHwoLbmV4dF9jdXJzb3IYBiABKARSCm5leHRDdXJzb3ISGQoIaGFzX21vcmUYByABKA'
+    'hSB2hhc01vcmUSHwoLaGlzdG9yeV9nYXAYCCABKAhSCmhpc3RvcnlHYXASJgoPZ2VuZXJhdGVk'
+    'X2F0X21zGAkgASgDUg1nZW5lcmF0ZWRBdE1zEiEKDGFmdGVyX2N1cnNvchgKIAEoBFILYWZ0ZX'
+    'JDdXJzb3I=');
+
+@$core.Deprecated('Use signedPublicFeedPageDescriptor instead')
+const SignedPublicFeedPage$json = {
+  '1': 'SignedPublicFeedPage',
+  '2': [
+    {'1': 'page', '3': 1, '4': 1, '5': 12, '10': 'page'},
+    {'1': 'signature', '3': 2, '4': 1, '5': 12, '10': 'signature'},
+  ],
+};
+
+/// Descriptor for `SignedPublicFeedPage`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signedPublicFeedPageDescriptor = $convert.base64Decode(
+    'ChRTaWduZWRQdWJsaWNGZWVkUGFnZRISCgRwYWdlGAEgASgMUgRwYWdlEhwKCXNpZ25hdHVyZR'
+    'gCIAEoDFIJc2lnbmF0dXJl');

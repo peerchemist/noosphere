@@ -48,3 +48,11 @@ abstract final class RpcResponseStatus {
   static const int success = 0;
   static const int error = 1;
 }
+
+/// Only this operation is accepted on the public-feed ALPN.
+enum PublicFeedOperation {
+  getPublicFeed(1);
+
+  const PublicFeedOperation(this.id);
+  final int id;
+}

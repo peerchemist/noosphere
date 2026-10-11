@@ -35,6 +35,7 @@ extension _ServerSigning on ServerApiHandler {
 
     // Verify request doesn't already exist
     if (_state.sigRequests.containsKey(details.id) ||
+        _state.completedSigs.containsKey(details.id) ||
         _state.persistent.blockedSignatures.containsKey(details.id)) {
       throw InvalidRequest.sigRequestExists();
     }
@@ -58,6 +59,12 @@ extension _ServerSigning on ServerApiHandler {
               .nextCommitments[pid] =
           commitments[i];
     }
+
+    _state.persistent.publicFeed?.requested(
+      'signing:${details.id}',
+      PublicFeedCategory.signing,
+      details.expiry.time,
+    );
 
     await _persist();
 
@@ -90,6 +97,12 @@ extension _ServerSigning on ServerApiHandler {
         SignaturesProgressStage.failed,
       );
       _state.sigRequests.remove(id);
+      _state.persistent.publicFeed?.finish(
+        'signing:$id',
+        sigReqState.rejectors.isNotEmpty
+            ? PublicFeedLifecycle.rejected
+            : PublicFeedLifecycle.cancelled,
+      );
       return SignaturesProgressEvent(reqId: id, progress: progress);
     }
     return null;
@@ -292,6 +305,10 @@ extension _ServerSigning on ServerApiHandler {
 
       // Remove signature request as it is completed now
       _state.sigRequests.remove(reqId);
+      _state.persistent.publicFeed?.finish(
+        'signing:$reqId',
+        PublicFeedLifecycle.completed,
+      );
 
       await _persist();
 

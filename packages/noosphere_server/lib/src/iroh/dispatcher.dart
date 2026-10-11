@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:noosphere/wire.dart';
+import 'package:noosphere/wire.dart' hide PublicFeedPage, PublicFeedEntry;
 import 'package:noosphere/domain.dart';
+import 'package:noosphere/public_feed.dart';
 import 'package:protobuf/protobuf.dart';
 
 import '../server/api_handler.dart';
@@ -40,8 +41,15 @@ final class IrohDispatchResult<T> {
 /// after the group's lane has been released.
 final class IrohDispatcher {
   IrohDispatcher(Iterable<ServerApiHandler> handlers) {
-    for (final handler in handlers) {
-      addHandler(handler);
+    try {
+      for (final handler in handlers) {
+        addHandler(handler);
+      }
+    } catch (_) {
+      for (final lane in _lanes.values) {
+        lane.maintenance?.cancel();
+      }
+      rethrow;
     }
     if (_lanes.isEmpty) throw ArgumentError('at least one group is required');
   }
@@ -59,13 +67,54 @@ final class IrohDispatcher {
     if (_lanes.containsKey(key)) {
       throw ArgumentError('duplicate Iroh group fingerprint');
     }
+    final feedId = handler.config.publicFeed?.feedId;
+    if (feedId != null &&
+        _lanes.values.any(
+          (lane) => lane.handler.config.publicFeed?.feedId == feedId,
+        )) {
+      throw ArgumentError('duplicate public feed ID');
+    }
     _lanes[key] = _GroupLane(handler);
+    if (handler.config.publicFeed != null) {
+      final lane = _lanes[key]!;
+      lane.maintenance = Timer.periodic(const Duration(seconds: 1), (_) {
+        // Busy protocol calls already expire state through _prepare. Avoid
+        // accumulating maintenance jobs behind slow host persistence.
+        if (_closed || lane.queue.pending != 0) return;
+        unawaited(
+          lane.queue.run(handler.maintainPublicFeed).catchError((Object _) {
+            // Handler fails closed on an uncertain durable write. Reads will
+            // refuse to publish that state; the host must restart the handler.
+          }),
+        );
+      });
+    }
   }
 
   Future<void> removeHandler(List<int> groupFingerprint) async {
     if (_closed) throw StateError('dispatcher is closed');
     final lane = _lanes.remove(_GroupKey(groupFingerprint));
-    if (lane != null) await lane.queue.close();
+    if (lane != null) {
+      lane.maintenance?.cancel();
+      await lane.queue.close();
+    }
+  }
+
+  /// Routes by opaque feed ID only; never binds a participant connection.
+  Future<PublicFeedPage?> getPublicFeed(
+    PublicFeedId feedId,
+    int afterCursor,
+    int limit,
+  ) {
+    if (_closed) return Future.error(StateError('dispatcher is closed'));
+    for (final lane in _lanes.values) {
+      if (lane.handler.config.publicFeed?.feedId == feedId) {
+        // The handler reads an immutable committed view. Pollers neither wait
+        // behind host writes nor occupy the participant mutation lane.
+        return lane.handler.getPublicFeed(feedId, afterCursor, limit);
+      }
+    }
+    return Future.value(null);
   }
 
   int pendingFor(List<int> groupFingerprint) =>
@@ -309,6 +358,9 @@ final class IrohDispatcher {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+    for (final lane in _lanes.values) {
+      lane.maintenance?.cancel();
+    }
     await Future.wait(_lanes.values.map((lane) => lane.queue.close()));
   }
 }
@@ -318,6 +370,7 @@ final class _GroupLane {
 
   final ServerApiHandler handler;
   final _SerialQueue queue = _SerialQueue();
+  Timer? maintenance;
 }
 
 final class _GroupKey {

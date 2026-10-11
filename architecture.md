@@ -53,6 +53,7 @@ coordinators use `IrohServer` or the standalone CLI.
 | FROST DKG and ROAST signing | Implemented |
 | Transaction and text-message signing metadata | Implemented |
 | Invite-based room enrollment | Implemented with participant-bound clickable links and Iroh discovery |
+| Public event feed | Opt-in durable, redacted feed with signed checkpoints and an isolated polling client; see [integration guide](architecture/public-feed.md) |
 | Single-signer coordinator switching helper | Implemented; not a group vote |
 | Membership-transition values | Implemented; end-to-end orchestration is proposed |
 | Negotiated protocol extensions | Proposed, not implemented |
@@ -129,6 +130,7 @@ ROAST, recovery and authorization remain coordinated protocol changes.
 | [Persistence](architecture/state-and-persistence.md) | Atomic signing preparation and crash recovery |
 | [Protobuf](architecture/protobuf-and-framing.md) | RPC and persistent-stream framing |
 | [Iroh](architecture/iroh-transport.md) | Pinning, authentication, streams, limits and reconnect |
+| [Public feed](architecture/public-feed.md) | Redacted durable journal, signed polling and Sygnature integration |
 | [Client](architecture/client.md) | Participant login, DKG, signing and recovery |
 | [Server](architecture/server.md) | Group dispatch, coordination and persistence |
 | [Events](architecture/events.md) | Meaning, trust, wire mapping, projections and delivery |

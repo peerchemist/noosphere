@@ -21,6 +21,25 @@ void main() {
 
   group('ServerConfig', () {
     writableTest(() => serverConfig, ServerConfig.fromReader);
+    test(
+      'optional public-feed config round-trips and old config stays disabled',
+      () {
+        final feed = PublicFeedConfig(
+          feedId: PublicFeedId.generate(),
+          maxEntries: 17,
+          maxAge: const Duration(hours: 2),
+        );
+        final config = ServerConfig(group: groupConfig, publicFeed: feed);
+        final restored = ServerConfig.fromBytes(config.toBytes());
+        expect(restored.publicFeed!.feedId, feed.feedId);
+        expect(restored.publicFeed!.maxEntries, 17);
+        expect(restored.publicFeed!.maxAge, const Duration(hours: 2));
+        expect(
+          ServerConfig.fromBytes(serverConfig.toBytes()).publicFeed,
+          isNull,
+        );
+      },
+    );
   });
 
   group('CLI configuration', () {
@@ -36,6 +55,38 @@ void main() {
       expect(config.server.authTimeout, IrohConfig.defaultAuthTimeout);
       expect(config.server.server.sessionTTL, ServerConfig.defaultSessionTTL);
       expect(config.server.relay.policy, IrohRelayPolicy.defaultNetwork);
+      expect(config.server.server.publicFeed, isNull);
+    });
+
+    test('public feed requires explicit opt-in and a valid opaque ID', () {
+      final id = PublicFeedId.generate();
+      final config = parse(
+        cliYaml(
+          extra:
+              '  public-feed:\n    enabled: true\n    feed-id: "${id.hex}"\n    max-entries: 37\n    max-age-ms: 60000',
+        ),
+      );
+      expect(config.server.server.publicFeed!.feedId, id);
+      expect(config.server.server.publicFeed!.maxEntries, 37);
+      expect(
+        config.server.server.publicFeed!.maxAge,
+        const Duration(minutes: 1),
+      );
+      expect(
+        parse(cliYaml(extra: '  public-feed:\n    feed-id: "${id.hex}"'))
+            .server
+            .server
+            .publicFeed,
+        isNull,
+      );
+      expect(
+        () => parse(
+          cliYaml(
+            extra: '  public-feed:\n    enabled: true\n    feed-id: wrong',
+          ),
+        ),
+        throwsFormatException,
+      );
     });
 
     test('loads explicit transport options and server lifetimes', () {

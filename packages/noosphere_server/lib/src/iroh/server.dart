@@ -9,6 +9,7 @@ import 'package:noosphere/room.dart';
 
 import '../config/iroh.dart';
 import '../config/server.dart';
+import '../config/public_feed.dart';
 import '../server/api_handler.dart';
 import '../server/local_coordinator_api.dart';
 import '../server/persistence.dart';
@@ -16,6 +17,7 @@ import '../room/manager.dart';
 import 'connection_handler.dart';
 import 'dispatcher.dart';
 import 'enrollment_connection_handler.dart';
+import 'public_feed_connection_handler.dart';
 
 /// Bound Iroh endpoint using an identity supplied by the host.
 final class IrohServer {
@@ -25,6 +27,7 @@ final class IrohServer {
     required this.dispatcher,
     required this.rooms,
     required this.persistence,
+    required this._signingKey,
   });
 
   /// Starts with a host-owned identity. The host must persist a newly created
@@ -57,6 +60,7 @@ final class IrohServer {
       secretKey: secretKey,
       alpns: [
         config.alpn.codeUnits,
+        noospherePublicFeedAlpn.codeUnits,
         if (rooms != null) noosphereEnrollmentAlpn.codeUnits,
       ],
       relayMode: config.relay.toRelayMode(),
@@ -68,30 +72,42 @@ final class IrohServer {
         'room coordinator endpoint ID does not match the Iroh identity',
       );
     }
-    final api =
-        handler ??
-        ServerApiHandler(config: config.server, persistence: persistence);
-    await api.ready;
-    final dispatcher = IrohDispatcher.single(api);
-    if (rooms != null) {
-      for (final room in await rooms.getRooms()) {
-        if (room.lifecycle == RoomLifecycle.frozen) {
-          final roomHandler = ServerApiHandler(
-            config: _configForGroup(config.server, room.groupConfig!),
-            persistence: persistence,
-          );
-          await roomHandler.ready;
-          dispatcher.addHandler(roomHandler);
+    IrohDispatcher? dispatcher;
+    try {
+      final api =
+          handler ??
+          ServerApiHandler(config: config.server, persistence: persistence);
+      await api.ready;
+      dispatcher = IrohDispatcher.single(api);
+      if (rooms != null) {
+        for (final room in await rooms.getRooms()) {
+          if (room.lifecycle == RoomLifecycle.frozen) {
+            final roomHandler = ServerApiHandler(
+              config: _configForGroup(
+                config.server,
+                room.groupConfig!,
+                config.roomPublicFeeds[room.groupConfig!.id],
+              ),
+              persistence: persistence,
+            );
+            await roomHandler.ready;
+            dispatcher.addHandler(roomHandler);
+          }
         }
       }
+      return IrohServer._(
+        config: config,
+        endpoint: endpoint,
+        dispatcher: dispatcher,
+        rooms: rooms,
+        persistence: persistence,
+        signingKey: secretKey,
+      );
+    } catch (_) {
+      await dispatcher?.close();
+      await endpoint.close();
+      rethrow;
     }
-    return IrohServer._(
-      config: config,
-      endpoint: endpoint,
-      dispatcher: dispatcher,
-      rooms: rooms,
-      persistence: persistence,
-    );
   }
 
   final IrohConfig config;
@@ -99,6 +115,7 @@ final class IrohServer {
   final IrohDispatcher dispatcher;
   final RoomManager? rooms;
   final ServerPersistence persistence;
+  final SecretKey _signingKey;
   Future<void>? _closing;
   Future<void>? _serving;
   final Set<Future<void>> _connections = {};
@@ -161,7 +178,11 @@ final class IrohServer {
     final manager = _roomManager();
     final room = await manager.freezeRoom(roomId);
     final handler = ServerApiHandler(
-      config: _configForGroup(config.server, room.groupConfig!),
+      config: _configForGroup(
+        config.server,
+        room.groupConfig!,
+        config.roomPublicFeeds[room.groupConfig!.id],
+      ),
       persistence: persistence,
     );
     await handler.ready;
@@ -203,6 +224,13 @@ final class IrohServer {
           timeout: config.authTimeout,
           maxMessageLength: config.maxMessageLength,
           maxStreams: config.maxStreamsPerConnection,
+        ).run().whenComplete(() => _connections.remove(handling));
+      } else if (alpn == noospherePublicFeedAlpn) {
+        handling = PublicFeedConnectionHandler(
+          connection: connection,
+          dispatcher: dispatcher,
+          config: config,
+          signingKey: _signingKey,
         ).run().whenComplete(() => _connections.remove(handling));
       } else if (alpn == config.alpn) {
         handling = IrohConnectionHandler(
@@ -254,16 +282,20 @@ final class IrohServer {
   }
 }
 
-ServerConfig _configForGroup(ServerConfig template, GroupConfig group) =>
-    ServerConfig(
-      group: group,
-      challengeTTL: template.challengeTTL,
-      sessionTTL: template.sessionTTL,
-      minDkgRequestTTL: template.minDkgRequestTTL,
-      maxDkgRequestTTL: template.maxDkgRequestTTL,
-      minSignaturesRequestTTL: template.minSignaturesRequestTTL,
-      maxSignaturesRequestTTL: template.maxSignaturesRequestTTL,
-      minCompletedSignaturesTTL: template.minCompletedSignaturesTTL,
-      ackCacheTTL: template.ackCacheTTL,
-      keepAliveFreq: template.keepAliveFreq,
-    );
+ServerConfig _configForGroup(
+  ServerConfig template,
+  GroupConfig group,
+  PublicFeedConfig? publicFeed,
+) => ServerConfig(
+  group: group,
+  challengeTTL: template.challengeTTL,
+  sessionTTL: template.sessionTTL,
+  minDkgRequestTTL: template.minDkgRequestTTL,
+  maxDkgRequestTTL: template.maxDkgRequestTTL,
+  minSignaturesRequestTTL: template.minSignaturesRequestTTL,
+  maxSignaturesRequestTTL: template.maxSignaturesRequestTTL,
+  minCompletedSignaturesTTL: template.minCompletedSignaturesTTL,
+  ackCacheTTL: template.ackCacheTTL,
+  keepAliveFreq: template.keepAliveFreq,
+  publicFeed: publicFeed,
+);

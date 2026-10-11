@@ -12,7 +12,12 @@ Future<void> main(List<String> arguments) async {
   await loadFrosty();
   final persistence = FileServerPersistence(Directory(arguments.first));
   final handler = ServerApiHandler(
-    config: serverConfig,
+    config: arguments.length > 2
+        ? ServerConfig(
+            group: groupConfig,
+            publicFeed: PublicFeedConfig(feedId: PublicFeedId(arguments[2])),
+          )
+        : serverConfig,
     persistence: persistence,
   );
   await handler.ready;

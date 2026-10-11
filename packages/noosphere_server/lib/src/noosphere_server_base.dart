@@ -5,6 +5,10 @@ export 'package:noosphere/iroh.dart';
 
 export "config/iroh.dart" show IrohConfig;
 export "config/server.dart";
+export 'config/public_feed.dart';
+
+export 'package:noosphere/public_feed.dart';
+
 export "iroh/server.dart";
 export "server/api_handler.dart";
 export 'server/local_coordinator_api.dart' show LocalCoordinatorApi;

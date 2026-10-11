@@ -224,6 +224,7 @@ enum ProtocolErrorCode {
   PROTOCOL_ERROR_UNKNOWN_OUTCOME = 7;
   PROTOCOL_ERROR_SESSION_NOT_FOUND = 8;
   PROTOCOL_ERROR_SESSION_EXPIRED = 9;
+  PROTOCOL_ERROR_NOT_FOUND = 10;
 }
 
 message ProtocolError {
@@ -341,4 +342,42 @@ message SessionStarted {
   bytes session_id = 1;
   // Serialized LoginCompleteResponse domain snapshot.
   bytes snapshot = 2;
+}
+
+// Public-feed v1. No protocol request or participant data belongs here.
+message GetPublicFeedRequest {
+  bytes feed_id = 1;
+  uint64 after_cursor = 2;
+  uint32 limit = 3;
+}
+
+message PublicFeedEntry {
+  uint64 cursor = 1;
+  bytes event_id = 2;
+  string category = 3;
+  string state = 4;
+  int64 observed_at_ms = 5;
+  optional int64 expires_at_ms = 6;
+}
+
+// Re-encode known fields in field order, omitting proto3 defaults. No maps or
+// unknown fields are allowed in the canonical v1 representation.
+message PublicFeedPage {
+  uint32 schema_version = 1;
+  bytes feed_id = 2;
+  repeated PublicFeedEntry entries = 3;
+  uint64 oldest_available_cursor = 4;
+  uint64 latest_cursor = 5;
+  uint64 next_cursor = 6;
+  bool has_more = 7;
+  bool history_gap = 8;
+  int64 generated_at_ms = 9;
+  uint64 after_cursor = 10;
+}
+
+message SignedPublicFeedPage {
+  // Exact canonical PublicFeedPage bytes. Ed25519 signs
+  // UTF8("noosphere/public-feed/checkpoint/v1\\0") || page.
+  bytes page = 1;
+  bytes signature = 2;
 }

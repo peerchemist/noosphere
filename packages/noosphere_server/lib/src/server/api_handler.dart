@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere/domain.dart';
+import 'package:noosphere/public_feed.dart';
 import 'package:noosphere_server/src/config/server.dart';
 import 'package:noosphere_server/src/server/state/key_sharing.dart';
 import 'package:meta/meta.dart';
@@ -20,6 +21,8 @@ part 'api_dkg.dart';
 part 'api_signing.dart';
 part 'api_key_sharing.dart';
 
+typedef _PublicFeedView = ({List<PublicFeedEntry> entries, int latestCursor});
+
 /// Provides the logic of the server, implementing the [ApiRequestInterface].
 /// Throws an [InvalidRequest] when the server cannot satisfy the request.
 ///
@@ -33,6 +36,67 @@ class ServerApiHandler implements ApiRequestInterface {
   final ServerState _state;
   late ServerStateSnapshot _publishedState = _state.snapshot();
   ServerStateSnapshot get state => _publishedState;
+  // Immutable committed view; never expose an in-flight or failed write.
+  _PublicFeedView? _committedFeed;
+
+  /// No _prepare, session creation, expiration, or protocol mutation on reads.
+  Future<PublicFeedPage?> getPublicFeed(
+    PublicFeedId feedId,
+    int afterCursor,
+    int limit,
+  ) async {
+    await ready;
+    if (config.publicFeed?.feedId != feedId || _writeOutcomeUnknown) {
+      return null;
+    }
+    final committed = _committedFeed;
+    if (committed == null) return null;
+    RangeError.checkValueInInterval(
+      afterCursor,
+      0,
+      publicFeedMaxCursor,
+      'afterCursor',
+    );
+    final now = DateTime.now().toUtc();
+    final cutoff = now.subtract(config.publicFeed!.maxAge);
+    // Retain a cursor-contiguous suffix even if the wall clock moves backward.
+    final retained = committed.entries.skipWhile(
+      (e) => e.observedAt.isBefore(cutoff),
+    );
+    final oldest = retained.firstOrNull?.cursor ?? committed.latestCursor + 1;
+    final entries = retained
+        .where((e) => e.cursor > afterCursor)
+        .take(limit.clamp(1, publicFeedMaxPageEntries))
+        .toList();
+    final next =
+        entries.lastOrNull?.cursor ?? max(afterCursor, committed.latestCursor);
+    return PublicFeedPage(
+      feedId: feedId,
+      entries: entries,
+      oldestAvailableCursor: oldest,
+      latestCursor: committed.latestCursor,
+      nextCursor: next,
+      hasMore: next < committed.latestCursor,
+      historyGap: afterCursor < oldest - 1,
+      generatedAt: now,
+      afterCursor: afterCursor,
+    );
+  }
+
+  _PublicFeedView? _captureFeed() {
+    final feed = _state.persistent.publicFeed;
+    return feed == null
+        ? null
+        : (
+            entries: List.unmodifiable(feed.entries),
+            latestCursor: feed.nextCursor - 1,
+          );
+  }
+
+  void _publish(ServerStateSnapshot snapshot, _PublicFeedView? feed) {
+    _publishedState = snapshot;
+    _committedFeed = feed;
+  }
 
   @visibleForTesting
   ServerState get debugState => _state;
@@ -53,6 +117,7 @@ class ServerApiHandler implements ApiRequestInterface {
   final DateTime startTime = DateTime.now();
   late final Future<void> ready = _restore();
   bool _writeOutcomeUnknown = false;
+  Future<void> _writing = Future.value();
 
   ServerApiHandler({
     required this.config,
@@ -63,19 +128,20 @@ class ServerApiHandler implements ApiRequestInterface {
   Future<void> _restore() async {
     final snapshot = await persistence.load(config.group.id);
     if (snapshot == null) {
+      _state.configurePublicFeed(config.publicFeed);
       final initial = _state.snapshot();
       await persistence.write(config.group.id, initial);
-      _publishedState = initial;
+      _publish(initial, _captureFeed());
       return;
     }
-    if (_state.restore(snapshot)) {
+    if (_state.restore(snapshot, publicFeed: config.publicFeed)) {
       // Recovery status is durable before the handler accepts requests, so
       // delayed messages from pre-restart attempts cannot revive them.
       final recovered = _state.snapshot();
       await persistence.write(config.group.id, recovered);
-      _publishedState = recovered;
+      _publish(recovered, _captureFeed());
     } else {
-      _publishedState = snapshot;
+      _publish(snapshot, _captureFeed());
     }
   }
 
@@ -108,8 +174,22 @@ class ServerApiHandler implements ApiRequestInterface {
 
   Future<void> _expirePersistentState() async {
     var changed = false;
-    changed = _state.nameToDkg.removeExpired().isNotEmpty || changed;
-    changed = _state.sigRequests.removeExpired().isNotEmpty || changed;
+    final expiredDkgs = _state.nameToDkg.removeExpired();
+    for (final entry in expiredDkgs) {
+      _state.persistent.publicFeed?.finish(
+        'dkg:${entry.key}',
+        PublicFeedLifecycle.expired,
+      );
+    }
+    changed = expiredDkgs.isNotEmpty || changed;
+    final expiredSigning = _state.sigRequests.removeExpired();
+    for (final entry in expiredSigning) {
+      _state.persistent.publicFeed?.finish(
+        'signing:${entry.key}',
+        PublicFeedLifecycle.expired,
+      );
+    }
+    changed = expiredSigning.isNotEmpty || changed;
     changed = _state.completedSigs.removeExpired().isNotEmpty || changed;
     final interruptedBefore = _state.persistent.interruptedDkgs.length;
     _state.persistent.interruptedDkgs.removeWhere(
@@ -124,18 +204,41 @@ class ServerApiHandler implements ApiRequestInterface {
     );
     changed =
         _state.persistent.blockedSignatures.length != blockedBefore || changed;
+    changed = (_state.persistent.publicFeed?.expire() ?? false) || changed;
+    changed = (_state.persistent.publicFeed?.prune() ?? false) || changed;
     if (changed) await _persist();
+  }
+
+  /// Called by the coordinator's serial maintenance lane, independently of
+  /// public polling. Standalone API hosts may also schedule this method.
+  Future<void> maintainPublicFeed() async {
+    await ready;
+    if (_writeOutcomeUnknown || config.publicFeed == null) return;
+    await _expirePersistentState();
   }
 
   Future<void> _persist() async {
     final next = _state.snapshot();
+    final feed = _captureFeed();
+    // Lost-session callbacks can arrive outside the transport's serial lane.
+    // Keep host writes in capture order, and publish exactly the view that was
+    // captured with this snapshot, even if another callback has since run.
+    final preceding = _writing;
+    final completed = Completer<void>();
+    _writing = completed.future;
     try {
+      await preceding;
+      if (_writeOutcomeUnknown) {
+        throw StateError('Server persistence outcome is unknown');
+      }
       await persistence.write(config.group.id, next);
+      _publish(next, feed);
     } catch (_) {
       _writeOutcomeUnknown = true;
       rethrow;
+    } finally {
+      completed.complete();
     }
-    _publishedState = next;
   }
 
   int get _participantN => config.group.participants.length;

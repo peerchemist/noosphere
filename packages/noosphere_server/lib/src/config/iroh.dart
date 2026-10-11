@@ -3,6 +3,7 @@ import 'package:noosphere/iroh.dart';
 import 'package:noosphere/wire.dart';
 
 import 'server.dart';
+import 'public_feed.dart';
 
 extension IrohServerRelayMode on IrohRelayConfig {
   RelayMode toRelayMode() => switch (policy) {
@@ -31,8 +32,17 @@ final class IrohConfig {
     this.maxConnections = defaultMaxConnections,
     this.maxStreamsPerConnection = defaultMaxStreamsPerConnection,
     this.nativeLibraryPath,
-  }) : relay = relay ?? IrohRelayConfig.defaultNetwork() {
+    Map<String, PublicFeedConfig> roomPublicFeeds = const {},
+  }) : relay = relay ?? IrohRelayConfig.defaultNetwork(),
+       roomPublicFeeds = Map.unmodifiable(roomPublicFeeds) {
     if (alpn.isEmpty) throw ArgumentError.value(alpn, 'alpn', 'is empty');
+    if (alpn == noospherePublicFeedAlpn || alpn == noosphereEnrollmentAlpn) {
+      throw ArgumentError.value(
+        alpn,
+        'alpn',
+        'reserved public/enrollment ALPN',
+      );
+    }
     if (authTimeout <= Duration.zero) {
       throw ArgumentError.value(authTimeout, 'authTimeout');
     }
@@ -63,4 +73,8 @@ final class IrohConfig {
   final int maxConnections;
   final int maxStreamsPerConnection;
   final String? nativeLibraryPath;
+
+  /// Explicit opt-in for frozen room groups, keyed by their private group ID.
+  /// Primary-group settings are supplied through [server]. IDs must be unique.
+  final Map<String, PublicFeedConfig> roomPublicFeeds;
 }

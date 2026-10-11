@@ -4,6 +4,10 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere/common.dart';
 import 'package:noosphere/domain.dart';
+import 'package:noosphere/public_feed.dart';
+
+import '../../config/public_feed.dart';
+import 'public_feed.dart';
 
 import 'client_session.dart';
 import 'dkg.dart';
@@ -62,6 +66,7 @@ class ServerRuntimeState {
 
 /// Protocol state represented in the host-owned durable snapshot.
 class ServerPersistentState {
+  PublicFeedJournal? publicFeed;
   final nameToDkg = ExpirableMap<String, DkgState>(expireOnRead: false);
   final dkgAckCache = ExpirableMap<cl.ECPublicKey, DkgAckCache>();
   final sigRequests =
@@ -235,6 +240,8 @@ class ServerState {
             'signing': signing,
             'completed': completed,
             'shares': shares,
+            if (persistent.publicFeed case final feed?)
+              'publicFeed': feed.toJson(),
           }),
         ),
       ),
@@ -244,31 +251,55 @@ class ServerState {
   /// Restores durable values. Returns true when active attempts were converted
   /// to their restart-safe interrupted/blocked representation and the upgraded
   /// snapshot must be written before requests are accepted.
-  bool restore(ServerStateSnapshot snapshot) {
+  bool restore(ServerStateSnapshot snapshot, {PublicFeedConfig? publicFeed}) {
     Uint8List bytes(Object? value) => base64Decode(value! as String);
     Identifier id(Object? value) => Identifier.fromBytes(bytes(value));
     final root = jsonDecode(utf8.decode(snapshot.toBytes())) as Map;
     var changed = false;
+    if (root['publicFeed'] case final Map<Object?, Object?> raw) {
+      persistent.publicFeed = PublicFeedJournal.fromJson(raw);
+    }
+    changed = configurePublicFeed(publicFeed) || changed;
 
     for (final raw in root['dkg']! as List) {
       final record = raw as Map;
       final event = NewDkgEvent.fromBytes(bytes(record['event']));
       if (event.expiry.isExpired) {
+        persistent.publicFeed?.finish(
+          'dkg:${event.details.obj.name}',
+          PublicFeedLifecycle.expired,
+        );
         changed = true;
         continue;
       }
       persistent.interruptedDkgs[event.details.obj.name] = event;
-      if (record['status'] == 'active') changed = true;
+      if (record['status'] == 'active') {
+        persistent.publicFeed?.finish(
+          'dkg:${event.details.obj.name}',
+          PublicFeedLifecycle.cancelled,
+        );
+        changed = true;
+      }
     }
     for (final raw in root['signing']! as List) {
       final record = raw as Map;
       final event = SignaturesRequestEvent.fromBytes(bytes(record['event']));
       if (event.expiry.isExpired) {
+        persistent.publicFeed?.finish(
+          'signing:${event.details.obj.id}',
+          PublicFeedLifecycle.expired,
+        );
         changed = true;
         continue;
       }
       persistent.blockedSignatures[event.details.obj.id] = event;
-      if (record['status'] == 'active') changed = true;
+      if (record['status'] == 'active') {
+        persistent.publicFeed?.finish(
+          'signing:${event.details.obj.id}',
+          PublicFeedLifecycle.cancelled,
+        );
+        changed = true;
+      }
     }
     for (final raw in root['completed']! as List) {
       final record = raw as Map;
@@ -310,6 +341,33 @@ class ServerState {
         }
       }
     }
+    changed = (persistent.publicFeed?.expire() ?? false) || changed;
     return changed;
+  }
+
+  bool configurePublicFeed(PublicFeedConfig? config) {
+    var feed = persistent.publicFeed;
+    if (feed == null) {
+      if (config == null) return false;
+      persistent.publicFeed = PublicFeedJournal(config);
+      return true;
+    }
+    if (config != null && feed.feedId != config.feedId) {
+      throw StateError(
+        'Public feed ID cannot change for a persisted coordinator',
+      );
+    }
+    final enabled = config != null;
+    var changed = feed.enabled != enabled;
+    feed.enabled = enabled;
+    if (config != null) {
+      changed =
+          changed ||
+          feed.maxEntries != config.maxEntries ||
+          feed.maxAge != config.maxAge;
+      feed.maxEntries = config.maxEntries;
+      feed.maxAge = config.maxAge;
+    }
+    return feed.prune() || changed;
   }
 }
