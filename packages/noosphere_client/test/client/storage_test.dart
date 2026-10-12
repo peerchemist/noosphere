@@ -36,6 +36,19 @@ class InterruptingCompletionStorage extends InMemoryClientStorage {
   }
 }
 
+final class InterruptingCancellationStorage({required this.afterWrite})
+    extends InMemoryClientStorage {
+  final bool afterWrite;
+  @override
+  Future<void> cancelSignaturesRequest(
+    SignaturesRequestId id,
+    Expiry expiresAt,
+  ) async {
+    if (afterWrite) await super.cancelSignaturesRequest(id, expiresAt);
+    throw StateError('unknown cancellation write outcome');
+  }
+}
+
 void main() {
   setUpAll(loadFrosty);
 
@@ -74,6 +87,98 @@ void main() {
       decoded.expiry.time.millisecondsSinceEpoch,
       original.expiry.time.millisecondsSinceEpoch,
     );
+  });
+
+  test('cancellation atomically removes nonces, prepared payloads and decisions; reload blocks replay', () async {
+    final store = InMemoryClientStorage();
+    final cache = await ClientCachedStorage.load(store);
+    final op = operation();
+    await cache.prepareSignaturesOperation(operation: op, capacity: 1);
+    await cache.addRejectedSigsRequest(op.id, op.expiry);
+    final tombstone = CancelledSignaturesRequest(op.id, op.expiry);
+    await cache.cancelSignaturesRequest(tombstone);
+    final snapshot = await store.loadState();
+    expect(snapshot.sigNonces, isEmpty);
+    expect(snapshot.preparedOperations, isEmpty);
+    expect(snapshot.rejectedRequests, isEmpty);
+    expect(snapshot.cancelledRequests[op.id]!.toBytes(), [
+      ...op.id.toBytes(),
+      ...op.expiry.toBytes(),
+    ]);
+    final reloaded = await ClientCachedStorage.load(store);
+    expect(reloaded.cancelledRequests[op.id], isNotNull);
+    await expectLater(
+      reloaded.prepareSignaturesOperation(operation: op, capacity: 1),
+      throwsStateError,
+    );
+    await expectLater(
+      store.prepareSignaturesOperation(op, 1),
+      throwsStateError,
+    );
+    await expectLater(
+      store.addSignaturesNonces(op.id, op.nextNonces, 1),
+      throwsStateError,
+    );
+    await expectLater(
+      store.addRejectedSigsRequest(op.id, FinalExpirable(op.expiry)),
+      throwsStateError,
+    );
+    await reloaded.cancelSignaturesRequest(tombstone);
+    expect((await store.loadState()).cancelledRequests, hasLength(1));
+  });
+
+  for (final afterWrite in [false, true]) {
+    test(
+      'unknown cancellation write (committed=$afterWrite) blocks the cache until reload',
+      () async {
+        final store = InterruptingCancellationStorage(afterWrite: afterWrite);
+        final cache = await ClientCachedStorage.load(store);
+        final op = operation();
+        await cache.prepareSignaturesOperation(operation: op, capacity: 1);
+        await expectLater(
+          cache.cancelSignaturesRequest(
+            CancelledSignaturesRequest(op.id, op.expiry),
+          ),
+          throwsStateError,
+        );
+        await expectLater(
+          cache.prepareSignaturesOperation(operation: op, capacity: 1),
+          throwsStateError,
+        );
+        final snapshot = await store.loadState();
+        expect(snapshot.cancelledRequests.containsKey(op.id), afterWrite);
+        expect(snapshot.preparedOperations.containsKey(op.id), !afterWrite);
+        expect(snapshot.sigNonces.containsKey(op.id), !afterWrite);
+        final reloaded = await ClientCachedStorage.load(store);
+        expect(reloaded.cancelledRequests.containsKey(op.id), afterWrite);
+      },
+    );
+  }
+
+  test(
+    'expired cancellation tombstones are pruned durably on reload',
+    () async {
+      final store = InMemoryClientStorage();
+      final id = operation().id;
+      store.cancelledRequests[id] = CancelledSignaturesRequest(
+        id,
+        Expiry(const Duration(seconds: -1)),
+      );
+      final cache = await ClientCachedStorage.load(store);
+      expect(cache.cancelledRequests.values, isEmpty);
+      expect((await store.loadState()).cancelledRequests, isEmpty);
+    },
+  );
+
+  test('inconsistent provider snapshot fails closed instead of exposing reusable nonces', () async {
+    final store = InMemoryClientStorage();
+    final op = operation();
+    await store.prepareSignaturesOperation(op, 1);
+    store.cancelledRequests[op.id] = CancelledSignaturesRequest(
+      op.id,
+      op.expiry,
+    );
+    await expectLater(ClientCachedStorage.load(store), throwsStateError);
   });
 
   test('prepared operation exposes defensive nested byte snapshots', () {

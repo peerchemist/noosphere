@@ -11,6 +11,12 @@ import 'package:noosphere/src/generated/noosphere.pb.dart' as wire;
 
 /// Converts a domain event to its typed protobuf representation.
 wire.EventMessage encodeEvent(domain.Event event) => switch (event) {
+  domain.SignaturesCancelledEvent() => wire.EventMessage(
+    signaturesCancelled: wire.SignaturesCancelledEvent(
+      requestId: event.requestId.toBytes(),
+      expiresAt: event.expiresAt.toBytes(),
+    ),
+  ),
   domain.ParticipantStatusEvent() => wire.EventMessage(
     participantStatus: wire.ParticipantStatusEvent(
       participantId: event.id.toBytes(),
@@ -111,6 +117,15 @@ wire.EventMessage encodeEvent(domain.Event event) => switch (event) {
 /// Converts a typed protobuf event to its domain representation.
 domain.Event decodeEvent(wire.EventMessage event) {
   return switch (event.whichEvent()) {
+    wire.EventMessage_Event.signaturesCancelled =>
+      domain.SignaturesCancelledEvent(
+        requestId: domain.SignaturesRequestId.fromBytes(
+          _bytes(event.signaturesCancelled.requestId),
+        ),
+        expiresAt: domain.Expiry.fromBytes(
+          _bytes(event.signaturesCancelled.expiresAt),
+        ),
+      ),
     wire.EventMessage_Event.participantStatus => domain.ParticipantStatusEvent(
       id: _identifier(event.participantStatus.participantId),
       loggedIn: event.participantStatus.loggedIn,

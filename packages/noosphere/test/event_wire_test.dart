@@ -106,6 +106,7 @@ void main() {
       ),
       SignaturesCompleteEvent(reqId: requestId, signatures: [signature]),
       SignaturesFailureEvent(requestId),
+      SignaturesCancelledEvent(requestId: requestId, expiresAt: expiry),
       KeepaliveEvent(),
       SecretShareEvent(
         sender: firstId,

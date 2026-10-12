@@ -2,24 +2,24 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:collection/collection.dart';
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:collection/collection.dart';
+import 'package:meta/meta.dart';
 import 'package:noosphere/domain.dart';
 import 'package:noosphere/public_feed.dart';
 import 'package:noosphere_server/src/config/server.dart';
 import 'package:noosphere_server/src/server/state/key_sharing.dart';
-import 'package:meta/meta.dart';
 
-import 'state/signatures_coordination.dart';
+import 'persistence.dart';
 import 'state/client_session.dart';
 import 'state/dkg.dart';
+import 'state/signatures_coordination.dart';
 import 'state/state.dart';
-import 'persistence.dart';
 
-part 'api_sessions.dart';
 part 'api_dkg.dart';
-part 'api_signing.dart';
 part 'api_key_sharing.dart';
+part 'api_sessions.dart';
+part 'api_signing.dart';
 
 typedef _PublicFeedView = ({List<PublicFeedEntry> entries, int latestCursor});
 
@@ -107,6 +107,21 @@ class ServerApiHandler implements ApiRequestInterface {
       _endSession(session);
 
   Future<void> _endSession(ClientSession session) async {
+    await ready;
+    if (_writeOutcomeUnknown) {
+      // Closing a transport must remain possible after a write failed closed.
+      // Only discard runtime authentication; do not mutate protocol state or
+      // publish events based on an unknown durable outcome.
+      session.end();
+      _state.clientSessions.remove(session.sessionID);
+      if (identical(
+        _state.participantToSession[session.participantId],
+        session,
+      )) {
+        _state.participantToSession.remove(session.participantId);
+      }
+      return;
+    }
     await _prepare();
     if (!_state.endSession(session, publish: false)) return;
     await _persist();
@@ -191,6 +206,16 @@ class ServerApiHandler implements ApiRequestInterface {
     }
     changed = expiredSigning.isNotEmpty || changed;
     changed = _state.completedSigs.removeExpired().isNotEmpty || changed;
+    changed =
+        _state.persistent.cancelledSignatures.removeExpired().isNotEmpty ||
+        changed;
+    final terminalBefore = _state.persistent.terminalSignatures.length;
+    _state.persistent.terminalSignatures.removeWhere(
+      (_, value) => value.expiry.isExpired,
+    );
+    changed =
+        _state.persistent.terminalSignatures.length != terminalBefore ||
+        changed;
     final interruptedBefore = _state.persistent.interruptedDkgs.length;
     _state.persistent.interruptedDkgs.removeWhere(
       (_, event) => event.expiry.isExpired,
@@ -213,7 +238,7 @@ class ServerApiHandler implements ApiRequestInterface {
   /// public polling. Standalone API hosts may also schedule this method.
   Future<void> maintainPublicFeed() async {
     await ready;
-    if (_writeOutcomeUnknown || config.publicFeed == null) return;
+    if (_writeOutcomeUnknown) return;
     await _expirePersistentState();
   }
 
@@ -363,6 +388,12 @@ class ServerApiHandler implements ApiRequestInterface {
     required SessionID sid,
     required SignaturesRequestId reqId,
   }) => _rejectSignaturesRequest(sid: sid, reqId: reqId);
+
+  @override
+  Future<CancelSignaturesRequestResponse> cancelSignaturesRequest({
+    required SessionID sid,
+    required SignaturesRequestId reqId,
+  }) => _cancelSignaturesRequest(sid: sid, reqId: reqId);
 
   @override
   Future<SignaturesResponse?> submitSignatureReplies({

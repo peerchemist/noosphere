@@ -14,6 +14,25 @@ import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
+@$core.Deprecated('Use cancelSignaturesRequestResultDescriptor instead')
+const CancelSignaturesRequestResult$json = {
+  '1': 'CancelSignaturesRequestResult',
+  '2': [
+    {'1': 'CANCEL_SIGNATURES_CANCELLED', '2': 0},
+    {'1': 'CANCEL_SIGNATURES_ALREADY_CANCELLED', '2': 1},
+    {'1': 'CANCEL_SIGNATURES_ALREADY_COMPLETED', '2': 2},
+    {'1': 'CANCEL_SIGNATURES_ALREADY_TERMINAL', '2': 3},
+    {'1': 'CANCEL_SIGNATURES_NOT_FOUND', '2': 4},
+  ],
+};
+
+/// Descriptor for `CancelSignaturesRequestResult`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List cancelSignaturesRequestResultDescriptor = $convert.base64Decode(
+    'Ch1DYW5jZWxTaWduYXR1cmVzUmVxdWVzdFJlc3VsdBIfChtDQU5DRUxfU0lHTkFUVVJFU19DQU'
+    '5DRUxMRUQQABInCiNDQU5DRUxfU0lHTkFUVVJFU19BTFJFQURZX0NBTkNFTExFRBABEicKI0NB'
+    'TkNFTF9TSUdOQVRVUkVTX0FMUkVBRFlfQ09NUExFVEVEEAISJgoiQ0FOQ0VMX1NJR05BVFVSRV'
+    'NfQUxSRUFEWV9URVJNSU5BTBADEh8KG0NBTkNFTF9TSUdOQVRVUkVTX05PVF9GT1VORBAE');
+
 @$core.Deprecated('Use signaturesProgressStageDescriptor instead')
 const SignaturesProgressStage$json = {
   '1': 'SignaturesProgressStage',
@@ -251,6 +270,64 @@ const SignaturesRejection$json = {
 final $typed_data.Uint8List signaturesRejectionDescriptor = $convert.base64Decode(
     'ChNTaWduYXR1cmVzUmVqZWN0aW9uEhAKA3NpZBgBIAEoDFIDc2lkEhUKBnJlcV9pZBgCIAEoDF'
     'IFcmVxSWQ=');
+
+@$core.Deprecated('Use cancelSignaturesRequestDescriptor instead')
+const CancelSignaturesRequest$json = {
+  '1': 'CancelSignaturesRequest',
+  '2': [
+    {'1': 'session_id', '3': 1, '4': 1, '5': 12, '10': 'sessionId'},
+    {'1': 'request_id', '3': 2, '4': 1, '5': 12, '10': 'requestId'},
+  ],
+};
+
+/// Descriptor for `CancelSignaturesRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List cancelSignaturesRequestDescriptor =
+    $convert.base64Decode(
+        'ChdDYW5jZWxTaWduYXR1cmVzUmVxdWVzdBIdCgpzZXNzaW9uX2lkGAEgASgMUglzZXNzaW9uSW'
+        'QSHQoKcmVxdWVzdF9pZBgCIAEoDFIJcmVxdWVzdElk');
+
+@$core.Deprecated('Use cancelSignaturesRequestResponseDescriptor instead')
+const CancelSignaturesRequestResponse$json = {
+  '1': 'CancelSignaturesRequestResponse',
+  '2': [
+    {
+      '1': 'result',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.noosphere.CancelSignaturesRequestResult',
+      '9': 0,
+      '10': 'result',
+      '17': true
+    },
+    {'1': 'expires_at', '3': 2, '4': 1, '5': 12, '10': 'expiresAt'},
+  ],
+  '8': [
+    {'1': '_result'},
+  ],
+};
+
+/// Descriptor for `CancelSignaturesRequestResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List cancelSignaturesRequestResponseDescriptor =
+    $convert.base64Decode(
+        'Ch9DYW5jZWxTaWduYXR1cmVzUmVxdWVzdFJlc3BvbnNlEkUKBnJlc3VsdBgBIAEoDjIoLm5vb3'
+        'NwaGVyZS5DYW5jZWxTaWduYXR1cmVzUmVxdWVzdFJlc3VsdEgAUgZyZXN1bHSIAQESHQoKZXhw'
+        'aXJlc19hdBgCIAEoDFIJZXhwaXJlc0F0QgkKB19yZXN1bHQ=');
+
+@$core.Deprecated('Use signaturesCancelledEventDescriptor instead')
+const SignaturesCancelledEvent$json = {
+  '1': 'SignaturesCancelledEvent',
+  '2': [
+    {'1': 'request_id', '3': 1, '4': 1, '5': 12, '10': 'requestId'},
+    {'1': 'expires_at', '3': 2, '4': 1, '5': 12, '10': 'expiresAt'},
+  ],
+};
+
+/// Descriptor for `SignaturesCancelledEvent`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signaturesCancelledEventDescriptor =
+    $convert.base64Decode(
+        'ChhTaWduYXR1cmVzQ2FuY2VsbGVkRXZlbnQSHQoKcmVxdWVzdF9pZBgBIAEoDFIJcmVxdWVzdE'
+        'lkEh0KCmV4cGlyZXNfYXQYAiABKAxSCWV4cGlyZXNBdA==');
 
 @$core.Deprecated('Use signaturesRepliesDescriptor instead')
 const SignaturesReplies$json = {
@@ -784,6 +861,15 @@ const EventMessage$json = {
       '9': 0,
       '10': 'signaturesProgress'
     },
+    {
+      '1': 'signatures_cancelled',
+      '3': 16,
+      '4': 1,
+      '5': 11,
+      '6': '.noosphere.SignaturesCancelledEvent',
+      '9': 0,
+      '10': 'signaturesCancelled'
+    },
   ],
   '8': [
     {'1': 'event'},
@@ -812,7 +898,8 @@ final $typed_data.Uint8List eventMessageDescriptor = $convert.base64Decode(
     'RTaGFyZRJJCg9jb25zdHJ1Y3RlZF9rZXkYDiABKAsyHi5ub29zcGhlcmUuQ29uc3RydWN0ZWRL'
     'ZXlFdmVudEgAUg5jb25zdHJ1Y3RlZEtleRJVChNzaWduYXR1cmVzX3Byb2dyZXNzGA8gASgLMi'
     'Iubm9vc3BoZXJlLlNpZ25hdHVyZXNQcm9ncmVzc0V2ZW50SABSEnNpZ25hdHVyZXNQcm9ncmVz'
-    'c0IHCgVldmVudA==');
+    'cxJYChRzaWduYXR1cmVzX2NhbmNlbGxlZBgQIAEoCzIjLm5vb3NwaGVyZS5TaWduYXR1cmVzQ2'
+    'FuY2VsbGVkRXZlbnRIAFITc2lnbmF0dXJlc0NhbmNlbGxlZEIHCgVldmVudA==');
 
 @$core.Deprecated('Use protocolErrorDescriptor instead')
 const ProtocolError$json = {

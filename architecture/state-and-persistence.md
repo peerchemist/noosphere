@@ -42,6 +42,18 @@ blocks blind retry and nonce reuse. Reconnecting does not replay it
 automatically. Final verified signatures are exposed only after durable request
 cleanup; the application stores their business meaning separately.
 
+Creator cancellation uses `cancelSignaturesRequest(requestId)` on the client
+and `cancelSignaturesRequest(setupId, requestId)` on the worker. Only a confirmed
+coordinator response, event, or authoritative snapshot establishes cancellation.
+A timeout is an unknown outcome; reconnect and reconcile, or retry safely.
+
+Providers implement atomic `cancelSignaturesRequest(requestId, expiresAt)`:
+insert only the request ID and its original expiry, and remove every nonce,
+prepared operation, request record and local decision in the same transaction.
+Unexpired tombstones block subsequent signing writes. `loadState()` includes
+them; load and session maintenance invoke `pruneCancelledSignaturesRequests()`.
+An uncertain cancellation write blocks signing until storage is reloaded.
+
 ## Coordinator and room storage
 
 `ServerPersistence` atomically loads/writes an opaque `ServerStateSnapshot` by
@@ -75,6 +87,7 @@ later, so a replacement must wait or reconcile before trusting a new load.
 | Coordinator DKG | Restore as interrupted; creator may replace it |
 | Coordinator signing request | Block ID until expiry; do not resume rounds |
 | Completed signatures | Restore and redeliver until expiry |
+| Cancelled signing request | Retain only ID and original expiry; reconcile all clients through snapshots |
 | Encrypted recovery shares | Restore for recipient delivery |
 | Client prepared signing operation | Block pending reconciliation |
 | Durable rejection | Re-send when proposal reappears |

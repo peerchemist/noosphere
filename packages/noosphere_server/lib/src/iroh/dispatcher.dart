@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:noosphere/wire.dart' hide PublicFeedPage, PublicFeedEntry;
 import 'package:noosphere/domain.dart';
 import 'package:noosphere/public_feed.dart';
+import 'package:noosphere/wire.dart' hide PublicFeedPage, PublicFeedEntry;
 import 'package:protobuf/protobuf.dart';
 
 import '../server/api_handler.dart';
@@ -74,21 +74,18 @@ final class IrohDispatcher {
         )) {
       throw ArgumentError('duplicate public feed ID');
     }
-    _lanes[key] = _GroupLane(handler);
-    if (handler.config.publicFeed != null) {
-      final lane = _lanes[key]!;
-      lane.maintenance = Timer.periodic(const Duration(seconds: 1), (_) {
-        // Busy protocol calls already expire state through _prepare. Avoid
-        // accumulating maintenance jobs behind slow host persistence.
-        if (_closed || lane.queue.pending != 0) return;
-        unawaited(
-          lane.queue.run(handler.maintainPublicFeed).catchError((Object _) {
-            // Handler fails closed on an uncertain durable write. Reads will
-            // refuse to publish that state; the host must restart the handler.
-          }),
-        );
-      });
-    }
+    final lane = _lanes[key] = _GroupLane(handler);
+    lane.maintenance = Timer.periodic(const Duration(seconds: 1), (_) {
+      // Busy protocol calls already expire state through _prepare. Avoid
+      // accumulating maintenance jobs behind slow host persistence.
+      if (_closed || lane.queue.pending != 0) return;
+      unawaited(
+        lane.queue.run(handler.maintainPublicFeed).catchError((Object _) {
+          // Handler fails closed on an uncertain durable write. Reads will
+          // refuse to publish that state; the host must restart the handler.
+        }),
+      );
+    });
   }
 
   Future<void> removeHandler(List<int> groupFingerprint) async {

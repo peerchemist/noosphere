@@ -95,6 +95,12 @@ final class _RemoteClientStorage(this.host, this.setupId)
         for (final operation in operations) operation.id: operation,
       },
       rejectedRequests: rejected,
+      cancelledRequests: {
+        for (final raw in snapshot['cancelled']! as List)
+          if (CancelledSignaturesRequest.fromBytes(asBytes(raw))
+              case final tombstone)
+            tombstone.requestId: tombstone,
+      },
     );
   }
 
@@ -155,5 +161,25 @@ final class _RemoteClientStorage(this.host, this.setupId)
       .request(setupId, ProviderOperation.removeSignatures, {
         'id': id.toBytes(),
       })
+      .then((_) {});
+
+  @override
+  Future<void> cancelSignaturesRequest(
+    SignaturesRequestId id,
+    Expiry expiresAt,
+  ) => host
+      .request(setupId, ProviderOperation.cancelSignaturesRequest, {
+        'id': id.toBytes(),
+        'expiryMicros': expiresAt.time.microsecondsSinceEpoch,
+      })
+      .then((_) {});
+
+  @override
+  Future<void> pruneCancelledSignaturesRequests() => host
+      .request(
+        setupId,
+        ProviderOperation.pruneCancelledSignaturesRequests,
+        const {},
+      )
       .then((_) {});
 }

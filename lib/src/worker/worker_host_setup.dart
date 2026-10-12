@@ -193,6 +193,10 @@ final class HostSetup {
             for (final operation in snapshot.preparedOperations.values)
               operation.toBytes(),
           ],
+          'cancelled': [
+            for (final tombstone in snapshot.cancelledRequests.values)
+              tombstone.toBytes(),
+          ],
           'rejected': [
             for (final entry in snapshot.rejectedRequests.entries)
               {
@@ -233,6 +237,17 @@ final class HostSetup {
         await store.removeRejectionOfSigsRequest(id!);
       case ProviderOperation.removeSignatures:
         await store.removeSigsRequest(id!);
+      case ProviderOperation.cancelSignaturesRequest:
+        await store.cancelSignaturesRequest(
+          id!,
+          Expiry.fromTime(
+            DateTime.fromMicrosecondsSinceEpoch(
+              payload['expiryMicros']! as int,
+            ),
+          ),
+        );
+      case ProviderOperation.pruneCancelledSignaturesRequests:
+        await store.pruneCancelledSignaturesRequests();
       default:
         throw ArgumentError.value(
           operation,

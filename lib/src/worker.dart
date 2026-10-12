@@ -312,6 +312,17 @@ final class NoosphereWorker {
     payload: {'id': proposal.id, 'proposal': proposal.proposalBytes},
   ).then((_) {});
 
+  /// A timeout/disconnect is an unknown outcome. Reconnect and reconcile the
+  /// snapshot, or retry this idempotent command.
+  Future<CancelSignaturesRequestResult> cancelSignaturesRequest(
+    String setupId,
+    SignaturesRequestId requestId,
+  ) => _invoke(
+    WorkerOperation.cancelSignaturesRequest,
+    setupId: setupId,
+    payload: {'id': requestId.toBytes()},
+  ).then((value) => CancelSignaturesRequestResult.values[value! as int]);
+
   Future<void> rejectSignatures(
     String setupId,
     WorkerSigningRequest proposal,

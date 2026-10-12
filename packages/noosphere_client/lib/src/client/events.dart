@@ -1,13 +1,14 @@
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:frosty/frosty.dart';
+import 'package:noosphere/api/types/expiry.dart';
 import 'package:noosphere/api/types/new_dkg_details.dart';
 import 'package:noosphere/api/types/signatures_request_details.dart';
 import 'package:noosphere/api/types/signed_message.dart';
 
-import 'dkg_in_progress.dart';
-import 'key_construction.dart';
 import 'client.dart';
+import 'dkg_in_progress.dart';
 import 'frost_key_with_details.dart';
+import 'key_construction.dart';
 import 'signatures_request.dart';
 
 enum DkgFault {
@@ -29,6 +30,15 @@ enum DkgFault {
 
 /// Events that are specific to the high-level [Client] class.
 sealed class ClientEvent {}
+
+/// Emitted after cancellation cleanup and its tombstone are durable.
+final class SignaturesCancelledClientEvent({
+  required this.requestId,
+  required this.expiresAt,
+}) extends ClientEvent {
+  final SignaturesRequestId requestId;
+  final Expiry expiresAt;
+}
 
 /// Provided when a participant logs in or logs out.
 class ParticipantStatusClientEvent extends ClientEvent {

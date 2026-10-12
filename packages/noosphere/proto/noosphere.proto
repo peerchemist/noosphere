@@ -68,6 +68,30 @@ message SignaturesRejection {
   bytes req_id = 2;
 }
 
+message CancelSignaturesRequest {
+  bytes session_id = 1;
+  bytes request_id = 2;
+}
+
+enum CancelSignaturesRequestResult {
+  CANCEL_SIGNATURES_CANCELLED = 0;
+  CANCEL_SIGNATURES_ALREADY_CANCELLED = 1;
+  CANCEL_SIGNATURES_ALREADY_COMPLETED = 2;
+  CANCEL_SIGNATURES_ALREADY_TERMINAL = 3;
+  CANCEL_SIGNATURES_NOT_FOUND = 4;
+}
+
+message CancelSignaturesRequestResponse {
+  optional CancelSignaturesRequestResult result = 1;
+  // Canonical Expiry. Present for cancelled and already_cancelled.
+  bytes expires_at = 2;
+}
+
+message SignaturesCancelledEvent {
+  bytes request_id = 1;
+  bytes expires_at = 2;
+}
+
 message SignaturesReplies {
   bytes sid = 1;
   bytes req_id = 2;
@@ -210,6 +234,7 @@ message EventMessage {
     SecretShareEvent secret_share = 13;
     ConstructedKeyEvent constructed_key = 14;
     SignaturesProgressEvent signatures_progress = 15;
+    SignaturesCancelledEvent signatures_cancelled = 16;
   }
 }
 

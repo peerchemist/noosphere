@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:collection/collection.dart';
+import 'package:frosty/frosty.dart';
+import 'package:noosphere/api/types/cancelled_signatures_request.dart';
 import 'package:noosphere/api/types/expirable.dart';
+import 'package:noosphere/api/types/expiry.dart';
 import 'package:noosphere/api/types/signatures_request_details.dart';
 import 'package:noosphere_client/src/client/storage_interface.dart';
-import 'package:frosty/frosty.dart';
 
 import '../client/frost_key_with_details.dart';
 
@@ -22,6 +24,36 @@ class InMemoryClientStorage implements ClientStorageInterface {
   final Map<SignaturesRequestId, PreparedSignaturesOperation>
   preparedSigOperations = {};
   final Map<SignaturesRequestId, FinalExpirable> sigsRejected = {};
+  final Map<SignaturesRequestId, CancelledSignaturesRequest> cancelledRequests =
+      {};
+
+  @override
+  Future<void> pruneCancelledSignaturesRequests() async {
+    cancelledRequests.removeWhere((_, tombstone) => tombstone.expiry.isExpired);
+  }
+
+  @override
+  Future<void> cancelSignaturesRequest(
+    SignaturesRequestId id,
+    Expiry expiresAt,
+  ) async {
+    sigNonces.remove(id);
+    preparedSigOperations.remove(id);
+    sigsRejected.remove(id);
+    if (!expiresAt.isExpired) {
+      cancelledRequests.putIfAbsent(
+        id,
+        () => CancelledSignaturesRequest(id, expiresAt),
+      );
+    }
+  }
+
+  void _requireNotCancelled(SignaturesRequestId id) {
+    if (cancelledRequests[id] case final tombstone?
+        when !tombstone.expiry.isExpired) {
+      throw StateError('Signatures request was cancelled');
+    }
+  }
 
   final Map<String, KeyToComplete> keyCompleters = {};
 
@@ -47,6 +79,7 @@ class InMemoryClientStorage implements ClientStorageInterface {
     sigNonces: sigNonces,
     preparedOperations: preparedSigOperations,
     rejectedRequests: sigsRejected,
+    cancelledRequests: cancelledRequests,
   );
 
   @override
@@ -54,6 +87,7 @@ class InMemoryClientStorage implements ClientStorageInterface {
     SignaturesRequestId id,
     FinalExpirable expirable,
   ) async {
+    _requireNotCancelled(id);
     sigsRejected[id] = expirable;
   }
 
@@ -63,6 +97,7 @@ class InMemoryClientStorage implements ClientStorageInterface {
     SignaturesNonces nonces,
     int capacity,
   ) async {
+    _requireNotCancelled(id);
     if (sigNonces.containsKey(id)) {
       final previous = sigNonces[id]!;
       sigNonces[id] = SignaturesNonces({
@@ -80,6 +115,7 @@ class InMemoryClientStorage implements ClientStorageInterface {
     int capacity,
   ) async {
     final id = operation.id;
+    _requireNotCancelled(id);
     final updated = Map<int, SigningNonces>.of(sigNonces[id]?.map ?? {});
     updated.addEntries(operation.nextNonces.map.entries);
     sigNonces[id] = SignaturesNonces(updated, operation.expiry);

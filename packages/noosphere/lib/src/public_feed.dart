@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:fixnum/fixnum.dart';
 import 'package:collection/collection.dart';
+import 'package:fixnum/fixnum.dart';
 
 import 'generated/noosphere.pb.dart' as wire;
 
@@ -58,6 +58,7 @@ enum PublicFeedLifecycle {
   rejected,
   cancelled,
   expired,
+  failed,
 }
 
 final class PublicFeedEntry({

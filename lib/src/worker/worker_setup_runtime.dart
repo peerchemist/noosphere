@@ -178,6 +178,17 @@ final class WorkerSetupRuntime {
   Future<Object?> requestSignatures(SignaturesRequestDetails details) =>
       _withClient((client) => client.requestSignatures(details));
 
+  Future<int> cancelSignaturesRequest(SignaturesRequestId id) =>
+      _synchronized(() async {
+        final client = _client;
+        if (client == null || _clientNode?.client?.isConnected != true) {
+          throw StateError('Signer is not connected.');
+        }
+        final result = await client.cancelSignaturesRequest(id);
+        _emitSnapshot();
+        return result.index;
+      });
+
   Future<Object?> respondSignatures({
     required SignaturesRequestId id,
     required Uint8List proposalBytes,

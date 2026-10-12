@@ -42,12 +42,16 @@ int approximateMessageBytes(Object? value) => switch (value) {
   final WorkerKeyInfo value => _workerDtoBytes(value),
   final WorkerSigningRequest value => _workerDtoBytes(value),
   final WorkerSigningProgress value => _workerDtoBytes(value),
+  final WorkerCancelledSignaturesRequest value => _workerDtoBytes(value),
   final NoosphereWorkerSnapshot value => _workerDtoBytes(value),
   final NoosphereWorkerEvent value => _workerDtoBytes(value),
   _ => 8,
 };
 
 int _workerDtoBytes(Object value) => switch (value) {
+  final WorkerCancelledSignaturesRequest value => value.requestId.length + 8,
+  final WorkerSignaturesCancelledEvent value =>
+    _strings([value.setupId]) + value.requestId.length + 16,
   final WorkerCoordinatorAddress value => _strings([
     value.id,
     ...value.relayUrls,
@@ -85,6 +89,10 @@ int _workerDtoBytes(Object value) => switch (value) {
           (sum, item) => sum + _workerDtoBytes(item),
         ) +
         value.keys.fold<int>(0, (sum, item) => sum + _workerDtoBytes(item)) +
+        value.cancelledRequests.fold<int>(
+          0,
+          (sum, item) => sum + _workerDtoBytes(item),
+        ) +
         24,
   final WorkerSnapshotEvent value => _workerDtoBytes(value.snapshot),
   final WorkerParticipantEvent value => _strings([

@@ -198,6 +198,8 @@ extension _ClientEvents on Client {
 
         case SignaturesRequestEvent():
           await _sigReqLock.synchronized(() async {
+            _store.requireReady();
+            if (_store.cancelledRequests.containsKey(ev.details.obj.id)) return;
             Client._checkOtherParticipantId(config, ev.creator);
             Client._checkDetailsEvent(config, ev);
             if (_sigReqExists(ev.details.obj.id)) {
@@ -225,8 +227,8 @@ extension _ClientEvents on Client {
           });
 
         case SignaturesProgressEvent():
-          Client._checkSignaturesProgress(config, ev.progress);
           await _runSigsReqSyncIfExists(ev.reqId, (sigsState) async {
+            Client._checkSignaturesProgress(config, ev.progress);
             final validThresholds = sigsState.details.requiredSigs
                 .map(
                   (signature) =>
@@ -254,22 +256,35 @@ extension _ClientEvents on Client {
           });
 
         case SignatureNewRoundsEvent():
-          Client._checkRounds(config, ev.rounds);
-          await _runSigsReqSyncIfExists(
-            ev.reqId,
-            (sigsState) => _handleRounds(sigsState, ev.rounds),
+          await _runSigsReqSyncIfExists(ev.reqId, (sigsState) async {
+            Client._checkRounds(config, ev.rounds);
+            await _handleRounds(sigsState, ev.rounds);
+          });
+
+        case SignaturesCancelledEvent():
+          await _sigReqLock.synchronized(
+            () => _handleCancellation(
+              CancelledSignaturesRequest(ev.requestId, ev.expiresAt),
+            ),
           );
 
         case SignaturesCompleteEvent():
-          _checkSigsNotEmpty(ev.signatures);
-          await _runSigsReqSyncIfExists(
-            ev.reqId,
-            (sigsState) => _handleCompletedSignatures(
+          await _sigReqLock.synchronized(() async {
+            _store.requireReady();
+            if (_store.cancelledRequests.containsKey(ev.reqId)) {
+              throw ServerMisbehaviour(
+                'Completed signatures received for a cancelled request',
+              );
+            }
+            _checkSigsNotEmpty(ev.signatures);
+            final sigsState = _state.sigRequests[ev.reqId];
+            if (sigsState == null) return;
+            await _handleCompletedSignatures(
               details: sigsState.details,
               signatures: ev.signatures,
               creator: sigsState.creator,
-            ),
-          );
+            );
+          });
 
         case SecretShareEvent():
           Client._checkOtherParticipantId(config, ev.sender);

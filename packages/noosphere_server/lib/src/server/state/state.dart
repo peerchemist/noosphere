@@ -7,13 +7,12 @@ import 'package:noosphere/domain.dart';
 import 'package:noosphere/public_feed.dart';
 
 import '../../config/public_feed.dart';
-import 'public_feed.dart';
-
+import '../persistence.dart';
 import 'client_session.dart';
 import 'dkg.dart';
 import 'key_sharing.dart';
+import 'public_feed.dart';
 import 'signatures_coordination.dart';
-import '../persistence.dart';
 
 class ChallengeDetails implements Expirable {
   final Identifier id;
@@ -82,6 +81,13 @@ class ServerPersistentState {
   /// attempts remain blocked until their signed request expires.
   final Map<String, NewDkgEvent> interruptedDkgs = {};
   final Map<SignaturesRequestId, SignaturesRequestEvent> blockedSignatures = {};
+  final cancelledSignatures =
+      ExpirableMap<SignaturesRequestId, CancelledSignaturesRequest>(
+        expireOnRead: false,
+      );
+
+  /// Minimal records for failed/rejected requests; cancellation cannot rewrite them.
+  final Map<SignaturesRequestId, FinalExpirable> terminalSignatures = {};
 }
 
 class ServerState {
@@ -240,6 +246,18 @@ class ServerState {
             'signing': signing,
             'completed': completed,
             'shares': shares,
+            'cancelled': [
+              for (final value in persistent.cancelledSignatures.values)
+                bytes(value.toBytes()),
+            ],
+            'terminalSigning': [
+              for (final entry in persistent.terminalSignatures.entries)
+                if (!entry.value.expiry.isExpired)
+                  {
+                    'id': bytes(entry.key.toBytes()),
+                    'expiry': entry.value.expiry.time.microsecondsSinceEpoch,
+                  },
+            ],
             if (persistent.publicFeed case final feed?)
               'publicFeed': feed.toJson(),
           }),
@@ -260,6 +278,30 @@ class ServerState {
       persistent.publicFeed = PublicFeedJournal.fromJson(raw);
     }
     changed = configurePublicFeed(publicFeed) || changed;
+
+    for (final raw in root['cancelled']! as List) {
+      final tombstone = CancelledSignaturesRequest.fromBytes(bytes(raw));
+      if (tombstone.expiry.isExpired) {
+        changed = true;
+        continue;
+      }
+      persistent.cancelledSignatures[tombstone.requestId] = tombstone;
+    }
+    for (final raw in root['terminalSigning']! as List) {
+      final record = raw as Map;
+      final expiry = Expiry.fromTime(
+        DateTime.fromMicrosecondsSinceEpoch(record['expiry']! as int),
+      );
+      if (expiry.isExpired) {
+        changed = true;
+        continue;
+      }
+      persistent.terminalSignatures[SignaturesRequestId.fromBytes(
+        bytes(record['id']),
+      )] = FinalExpirable(
+        expiry,
+      );
+    }
 
     for (final raw in root['dkg']! as List) {
       final record = raw as Map;
@@ -284,6 +326,10 @@ class ServerState {
     for (final raw in root['signing']! as List) {
       final record = raw as Map;
       final event = SignaturesRequestEvent.fromBytes(bytes(record['event']));
+      if (persistent.cancelledSignatures.containsKey(event.details.obj.id)) {
+        changed = true;
+        continue;
+      }
       if (event.expiry.isExpired) {
         persistent.publicFeed?.finish(
           'signing:${event.details.obj.id}',
@@ -296,7 +342,7 @@ class ServerState {
       if (record['status'] == 'active') {
         persistent.publicFeed?.finish(
           'signing:${event.details.obj.id}',
-          PublicFeedLifecycle.cancelled,
+          PublicFeedLifecycle.failed,
         );
         changed = true;
       }
@@ -313,6 +359,9 @@ class ServerState {
       final result = CompletedSignaturesRequest.fromBytes(
         bytes(record['result']),
       );
+      if (persistent.cancelledSignatures.containsKey(result.details.obj.id)) {
+        throw StateError('Completed signatures conflict with cancellation');
+      }
       final restored = CompletedSignatures(
         details: result.details,
         signatures: result.signatures,

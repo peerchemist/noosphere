@@ -1,12 +1,34 @@
 part of 'client.dart';
 
 extension _ClientSigning on Client {
+  // Caller holds the signing lane, shared with request/reply/round processing.
+  Future<void> _handleCancellation(CancelledSignaturesRequest tombstone) async {
+    _store.requireReady();
+    if (_store.cancelledRequests.containsKey(tombstone.requestId)) return;
+    try {
+      await _store.cancelSignaturesRequest(tombstone);
+    } catch (_) {
+      _disconnect();
+      rethrow;
+    }
+    final active = _state.sigRequests.remove(tombstone.requestId);
+    active?.pendingRounds.clear();
+    _sendEvent(
+      SignaturesCancelledClientEvent(
+        requestId: tombstone.requestId,
+        expiresAt: tombstone.expiry,
+      ),
+    );
+  }
+
   Future<ClientSigsState?> _handleSigsReq({
     required Signed<SignaturesRequestDetails> signed,
     required Identifier creator,
     required SignaturesProgress progress,
   }) async {
     final details = signed.obj;
+    _store.requireReady();
+    if (_store.cancelledRequests.containsKey(details.id)) return null;
     if (details.expiry.isExpired) return null;
     Client._checkSignaturesProgress(config, progress);
 
@@ -285,6 +307,12 @@ extension _ClientSigning on Client {
     required List<cl.SchnorrSignature> signatures,
     required Identifier creator,
   }) async {
+    _store.requireReady();
+    if (_store.cancelledRequests.containsKey(details.id)) {
+      throw ServerMisbehaviour(
+        'Completed signatures received for a cancelled request',
+      );
+    }
     if (signatures.length != details.requiredSigs.length) {
       throw ServerMisbehaviour.wrongSigNum();
     }
@@ -349,8 +377,13 @@ extension _ClientSigning on Client {
 
     // Avoid race conditions, trying to submit the same request multiple times
     await _sigReqLock.synchronized(() async {
+      _store.requireReady();
+      if (_disconnecting || _state.expiry.isExpired) {
+        throw StateError('Client is disconnected');
+      }
       // Check if exists
       if (_sigReqExists(details.id) ||
+          _store.cancelledRequests.containsKey(details.id) ||
           _store.preparedSigOperations.containsKey(details.id)) {
         throw ArgumentError.value(details.id, "details.id", "exists");
       }
@@ -425,12 +458,15 @@ extension _ClientSigning on Client {
     SignaturesRequestId reqId,
     FutureOr<void> Function(ClientSigsState) criticalSection,
   ) async {
-    // Ignore non-existing request
-    final sigsState = _state.sigRequests[reqId];
-
-    await sigsState?.synchronized(() async {
-      // Check again if removed before start of async critical section
-      if (!_sigReqExists(reqId)) return;
+    await _sigReqLock.synchronized(() async {
+      _store.requireReady();
+      if (_disconnecting ||
+          _state.expiry.isExpired ||
+          _store.cancelledRequests.containsKey(reqId)) {
+        return;
+      }
+      final sigsState = _state.sigRequests[reqId];
+      if (sigsState == null) return;
       await criticalSection(sigsState);
     });
   }

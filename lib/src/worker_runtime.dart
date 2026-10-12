@@ -167,6 +167,10 @@ final class _WorkerRuntime {
             proposalBytes: payload.bytes('proposal'),
             accept: true,
           );
+        case WorkerOperation.cancelSignaturesRequest:
+          result = await _setup(setupId!).cancelSignaturesRequest(
+            SignaturesRequestId.fromBytes(payload.bytes('id')),
+          );
         case WorkerOperation.rejectSignatures:
           result = await _setup(setupId!).respondSignatures(
             id: SignaturesRequestId.fromBytes(payload.bytes('id')),

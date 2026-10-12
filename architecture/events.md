@@ -85,6 +85,7 @@ stream because QUIC reads do not preserve application write boundaries.
 | 13 | `SecretShareEvent` | Encrypted recovery share |
 | 14 | `ConstructedKeyEvent` | Signed reconstruction claim |
 | 15 | `SignaturesProgressEvent` | Coordinator-observed progress |
+| 16 | `SignaturesCancelledEvent` | Durable creator cancellation, ID and original expiry |
 
 The server converts domain events with `encodeEvent`; the client incrementally
 decodes records with `decodeEvent` and applies protocol-specific validation.
@@ -116,6 +117,11 @@ does not automatically serialize asynchronous application writes.
   transient entries when full.
 - Completed results and recovery shares can be restored separately, so hosts
   must deduplicate side effects.
+- Creator cancellation is a dedicated authenticated RPC. After its atomic
+  commit, every connected participant receives a cancellation event, including
+  the creator. Reconnect snapshots contain minimal cancellation tombstones;
+  clients persist cleanup before emitting `SignaturesCancelledClientEvent`
+  and workers project `WorkerSignaturesCancelledEvent`.
 
 ## Adding an event
 

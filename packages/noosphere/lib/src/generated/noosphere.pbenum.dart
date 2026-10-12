@@ -14,6 +14,40 @@ import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 
+class CancelSignaturesRequestResult extends $pb.ProtobufEnum {
+  static const CancelSignaturesRequestResult CANCEL_SIGNATURES_CANCELLED =
+      CancelSignaturesRequestResult._(
+          0, _omitEnumNames ? '' : 'CANCEL_SIGNATURES_CANCELLED');
+  static const CancelSignaturesRequestResult
+      CANCEL_SIGNATURES_ALREADY_CANCELLED = CancelSignaturesRequestResult._(
+          1, _omitEnumNames ? '' : 'CANCEL_SIGNATURES_ALREADY_CANCELLED');
+  static const CancelSignaturesRequestResult
+      CANCEL_SIGNATURES_ALREADY_COMPLETED = CancelSignaturesRequestResult._(
+          2, _omitEnumNames ? '' : 'CANCEL_SIGNATURES_ALREADY_COMPLETED');
+  static const CancelSignaturesRequestResult
+      CANCEL_SIGNATURES_ALREADY_TERMINAL = CancelSignaturesRequestResult._(
+          3, _omitEnumNames ? '' : 'CANCEL_SIGNATURES_ALREADY_TERMINAL');
+  static const CancelSignaturesRequestResult CANCEL_SIGNATURES_NOT_FOUND =
+      CancelSignaturesRequestResult._(
+          4, _omitEnumNames ? '' : 'CANCEL_SIGNATURES_NOT_FOUND');
+
+  static const $core.List<CancelSignaturesRequestResult> values =
+      <CancelSignaturesRequestResult>[
+    CANCEL_SIGNATURES_CANCELLED,
+    CANCEL_SIGNATURES_ALREADY_CANCELLED,
+    CANCEL_SIGNATURES_ALREADY_COMPLETED,
+    CANCEL_SIGNATURES_ALREADY_TERMINAL,
+    CANCEL_SIGNATURES_NOT_FOUND,
+  ];
+
+  static final $core.List<CancelSignaturesRequestResult?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 4);
+  static CancelSignaturesRequestResult? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const CancelSignaturesRequestResult._(super.value, super.name);
+}
+
 class SignaturesProgressStage extends $pb.ProtobufEnum {
   static const SignaturesProgressStage SIGNATURES_PROGRESS_COLLECTING =
       SignaturesProgressStage._(

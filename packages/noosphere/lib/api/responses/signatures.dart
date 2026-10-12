@@ -1,9 +1,26 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:frosty/frosty.dart';
 import 'package:noosphere/api/types/signature_round_start.dart';
 import 'package:noosphere/common/serial.dart';
-import 'package:frosty/frosty.dart';
+
+import '../types/expiry.dart';
+
+enum CancelSignaturesRequestResult {
+  cancelled,
+  alreadyCancelled,
+  alreadyCompleted,
+  alreadyTerminal,
+  notFound,
+}
+
+/// The expiry accompanies cancellation results so even a retrying participant
+/// that missed the original request can durably reconcile the tombstone.
+final class CancelSignaturesRequestResponse(this.result, {this.expiresAt}) {
+  final CancelSignaturesRequestResult result;
+  final Expiry? expiresAt;
+}
 
 sealed class SignaturesResponse with cl.Writable, NoosphereWritable {}
 

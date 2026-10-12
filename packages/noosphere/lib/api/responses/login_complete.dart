@@ -1,14 +1,16 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere/api/types/signatures_request_details.dart';
-import 'package:noosphere/api/types/signed.dart';
-import 'package:noosphere/common/serial.dart';
 import 'package:frosty/frosty.dart';
 import 'package:noosphere/api/events.dart';
 import 'package:noosphere/api/types/expirable.dart';
 import 'package:noosphere/api/types/expiry.dart';
 import 'package:noosphere/api/types/onetime_numbers.dart';
+import 'package:noosphere/api/types/signatures_request_details.dart';
+import 'package:noosphere/api/types/signed.dart';
+import 'package:noosphere/common/serial.dart';
+
+import '../types/cancelled_signatures_request.dart';
 
 /// Provides details of completed signatures upon login
 class CompletedSignaturesRequest with cl.Writable, NoosphereWritable {
@@ -82,6 +84,9 @@ class LoginCompleteResponse
   /// logged out
   final List<CompletedSignaturesRequest> completedSigs;
 
+  /// Authoritative cancellation tombstones, including requests never seen here.
+  final List<CancelledSignaturesRequest> cancelledRequests;
+
   /// Secret key shares provided to the participant which were not previously
   /// acknowledged.
   final List<SecretShareEvent> secretShares;
@@ -101,12 +106,14 @@ class LoginCompleteResponse
     required List<SignatureNewRoundsEvent> sigRounds,
     required List<CompletedSignaturesRequest> completedSigs,
     required List<SecretShareEvent> secretShares,
+    List<CancelledSignaturesRequest> cancelledRequests = const [],
     required this.events,
   }) : _onlineParticipants = Set.unmodifiable(onlineParticipants),
        newDkgs = List.unmodifiable(newDkgs),
        sigRequests = List.unmodifiable(sigRequests),
        sigRounds = List.unmodifiable(sigRounds),
        completedSigs = List.unmodifiable(completedSigs),
+       cancelledRequests = List.unmodifiable(cancelledRequests),
        secretShares = List.unmodifiable(secretShares);
 
   LoginCompleteResponse.fromReader(cl.BytesReader reader, Stream<Event> events)
@@ -131,6 +138,9 @@ class LoginCompleteResponse
           (bytes) => SecretShareEvent.fromBytes(bytes),
         ),
         events: events,
+        cancelledRequests: reader.readWritableVector(
+          CancelledSignaturesRequest.fromBytes,
+        ),
       );
 
   factory LoginCompleteResponse.fromBytes(
@@ -154,6 +164,7 @@ class LoginCompleteResponse
       sigRounds,
       completedSigs,
       secretShares,
+      cancelledRequests,
     ]) {
       writer.writeWritableVector(evList);
     }

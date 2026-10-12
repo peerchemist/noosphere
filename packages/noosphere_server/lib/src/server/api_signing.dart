@@ -1,6 +1,57 @@
 part of 'api_handler.dart';
 
 extension _ServerSigning on ServerApiHandler {
+  Future<CancelSignaturesRequestResponse> _cancelSignaturesRequest({
+    required SessionID sid,
+    required SignaturesRequestId reqId,
+  }) async {
+    await _prepare();
+    final caller = getSession(sid).participantId;
+    final cancelled = _state.persistent.cancelledSignatures[reqId];
+    if (cancelled != null) {
+      return CancelSignaturesRequestResponse(
+        CancelSignaturesRequestResult.alreadyCancelled,
+        expiresAt: cancelled.expiry,
+      );
+    }
+    if (_state.completedSigs.containsKey(reqId)) {
+      return CancelSignaturesRequestResponse(
+        CancelSignaturesRequestResult.alreadyCompleted,
+      );
+    }
+    if (_state.persistent.terminalSignatures.containsKey(reqId) ||
+        _state.persistent.blockedSignatures.containsKey(reqId)) {
+      return CancelSignaturesRequestResponse(
+        CancelSignaturesRequestResult.alreadyTerminal,
+      );
+    }
+    final active = _state.sigRequests[reqId];
+    if (active == null) {
+      return CancelSignaturesRequestResponse(
+        CancelSignaturesRequestResult.notFound,
+      );
+    }
+    if (caller != active.creator) throw InvalidRequest.notSignaturesCreator();
+    final tombstone = CancelledSignaturesRequest(reqId, active.expiry);
+    _state.sigRequests.remove(reqId);
+    _state.persistent.cancelledSignatures[reqId] = tombstone;
+    _state.persistent.publicFeed?.finish(
+      'signing:$reqId',
+      PublicFeedLifecycle.cancelled,
+    );
+    // One group snapshot atomically removes every round, commitment, share,
+    // rejector and request detail and installs the minimal tombstone. A failed
+    // write latches the handler closed, as for other signing transitions.
+    await _persist();
+    _state.sendEventToAll(
+      SignaturesCancelledEvent(requestId: reqId, expiresAt: tombstone.expiry),
+    );
+    return CancelSignaturesRequestResponse(
+      CancelSignaturesRequestResult.cancelled,
+      expiresAt: tombstone.expiry,
+    );
+  }
+
   Future<void> _requestSignatures({
     required SessionID sid,
     required Set<AggregateKeyInfo> keys,
@@ -36,6 +87,8 @@ extension _ServerSigning on ServerApiHandler {
     // Verify request doesn't already exist
     if (_state.sigRequests.containsKey(details.id) ||
         _state.completedSigs.containsKey(details.id) ||
+        _state.persistent.cancelledSignatures.containsKey(details.id) ||
+        _state.persistent.terminalSignatures.containsKey(details.id) ||
         _state.persistent.blockedSignatures.containsKey(details.id)) {
       throw InvalidRequest.sigRequestExists();
     }
@@ -97,11 +150,14 @@ extension _ServerSigning on ServerApiHandler {
         SignaturesProgressStage.failed,
       );
       _state.sigRequests.remove(id);
+      _state.persistent.terminalSignatures[id] = FinalExpirable(
+        sigReqState.expiry,
+      );
       _state.persistent.publicFeed?.finish(
         'signing:$id',
         sigReqState.rejectors.isNotEmpty
             ? PublicFeedLifecycle.rejected
-            : PublicFeedLifecycle.cancelled,
+            : PublicFeedLifecycle.failed,
       );
       return SignaturesProgressEvent(reqId: id, progress: progress);
     }

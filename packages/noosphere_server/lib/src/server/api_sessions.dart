@@ -114,6 +114,7 @@ extension _ServerSessions on ServerApiHandler {
       startTime: startTime,
       onlineParticipants: online,
       events: session.eventController.stream,
+      cancelledRequests: _state.persistent.cancelledSignatures.values.toList(),
 
       newDkgs: _state.round1Dkgs
           .map(

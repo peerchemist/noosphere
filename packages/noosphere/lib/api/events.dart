@@ -13,8 +13,8 @@ import 'types/encrypted_key_share.dart';
 import 'types/expiry.dart';
 import 'types/new_dkg_details.dart';
 import 'types/signature_round_start.dart';
-import 'types/signatures_request_details.dart';
 import 'types/signatures_progress.dart';
+import 'types/signatures_request_details.dart';
 import 'types/signed.dart';
 import 'types/signed_dkg_ack.dart';
 
@@ -351,6 +351,30 @@ class SignaturesFailureEvent extends Event {
   @override
   void write(cl.Writer writer) {
     reqId.write(writer);
+  }
+}
+
+/// An authoritative, durably committed creator cancellation.
+final class SignaturesCancelledEvent({
+  required this.requestId,
+  required this.expiresAt,
+}) extends Event {
+  final SignaturesRequestId requestId;
+  final Expiry expiresAt;
+
+  new fromReader(cl.BytesReader reader)
+    : this(
+        requestId: SignaturesRequestId.fromReader(reader),
+        expiresAt: Expiry.fromReader(reader),
+      );
+
+  factory fromBytes(Uint8List bytes) =>
+      readNoosphere(bytes, SignaturesCancelledEvent.fromReader);
+
+  @override
+  void write(cl.Writer writer) {
+    requestId.write(writer);
+    expiresAt.write(writer);
   }
 }
 

@@ -1,4 +1,6 @@
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:frosty/frosty.dart';
+import 'package:noosphere/api/types/cancelled_signatures_request.dart';
 import 'package:noosphere/api/types/dkg_ack_request.dart';
 import 'package:noosphere/api/types/expirable.dart';
 import 'package:noosphere/api/types/expiry.dart';
@@ -7,7 +9,6 @@ import 'package:noosphere/api/types/signed_dkg_ack.dart';
 import 'package:noosphere/common/expirable_map.dart';
 import 'package:noosphere_client/src/client/frost_key_with_details.dart';
 import 'package:noosphere_client/src/client/storage_interface.dart';
-import 'package:frosty/frosty.dart';
 
 class ClientCachedStorage {
   final ClientStorageInterface _underlying;
@@ -16,6 +17,42 @@ class ClientCachedStorage {
   final ExpirableMap<SignaturesRequestId, PreparedSignaturesOperation>
   preparedSigOperations;
   final ExpirableMap<SignaturesRequestId, FinalExpirable> sigsRejected;
+  final ExpirableMap<SignaturesRequestId, CancelledSignaturesRequest>
+  cancelledRequests;
+  bool _writeOutcomeUnknown = false;
+
+  void requireReady() {
+    if (_writeOutcomeUnknown) {
+      throw StateError(
+        'Client cancellation persistence outcome is unknown; reload storage',
+      );
+    }
+  }
+
+  Future<void> cancelSignaturesRequest(
+    CancelledSignaturesRequest tombstone,
+  ) async {
+    requireReady();
+    try {
+      await _underlying.cancelSignaturesRequest(
+        tombstone.requestId,
+        tombstone.expiry,
+      );
+    } catch (_) {
+      _writeOutcomeUnknown = true;
+      rethrow;
+    }
+    sigNonces.remove(tombstone.requestId);
+    preparedSigOperations.remove(tombstone.requestId);
+    sigsRejected.remove(tombstone.requestId);
+    cancelledRequests[tombstone.requestId] = tombstone;
+  }
+
+  Future<void> pruneCancelledSignaturesRequests() async {
+    requireReady();
+    await _underlying.pruneCancelledSignaturesRequests();
+    cancelledRequests.removeExpired();
+  }
 
   ClientCachedStorage._(
     this._underlying,
@@ -23,16 +60,27 @@ class ClientCachedStorage {
     this.sigNonces,
     this.preparedSigOperations,
     this.sigsRejected,
+    this.cancelledRequests,
   );
 
   static Future<ClientCachedStorage> load(ClientStorageInterface store) async {
+    await store.pruneCancelledSignaturesRequests();
     final snapshot = await store.loadState();
+    for (final entry in snapshot.cancelledRequests.entries) {
+      if (entry.key != entry.value.requestId ||
+          snapshot.sigNonces.containsKey(entry.key) ||
+          snapshot.preparedOperations.containsKey(entry.key) ||
+          snapshot.rejectedRequests.containsKey(entry.key)) {
+        throw StateError('Cancellation tombstone coexists with signing state');
+      }
+    }
     return ClientCachedStorage._(
       store,
       {for (final key in snapshot.keys) key.groupKey: key},
       ExpirableMap.of(snapshot.sigNonces),
       ExpirableMap.of(snapshot.preparedOperations),
       ExpirableMap.of(snapshot.rejectedRequests),
+      ExpirableMap.of(snapshot.cancelledRequests),
     );
   }
 
@@ -46,6 +94,10 @@ class ClientCachedStorage {
     required int capacity,
   }) async {
     final id = operation.id;
+    requireReady();
+    if (cancelledRequests.containsKey(id)) {
+      throw StateError('Signatures request was cancelled');
+    }
     try {
       await _underlying.prepareSignaturesOperation(operation, capacity);
     } catch (_) {
@@ -92,6 +144,10 @@ class ClientCachedStorage {
     required SignaturesNonces nonces,
     required int capacity,
   }) async {
+    requireReady();
+    if (cancelledRequests.containsKey(id)) {
+      throw StateError('Signatures request was cancelled');
+    }
     await _underlying.addSignaturesNonces(id, nonces, capacity);
     if (sigNonces.containsKey(id)) {
       final previous = sigNonces[id]!;

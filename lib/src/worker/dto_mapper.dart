@@ -48,6 +48,15 @@ final class WorkerDtoMapper {
       keys: client == null
           ? const []
           : [for (final key in client.keys.values) _key(key)],
+      cancelledRequests: [
+        for (final tombstone
+            in client?.cancelledSignaturesRequests ??
+                <CancelledSignaturesRequest>[])
+          WorkerCancelledSignaturesRequest(
+            requestId: tombstone.requestId.toBytes(),
+            expiresAt: tombstone.expiry.time,
+          ),
+      ],
     );
   }
 
@@ -90,6 +99,15 @@ final class WorkerDtoMapper {
 
   void event(ClientEvent event, {Client? client}) {
     switch (event) {
+      case SignaturesCancelledClientEvent():
+        emit(
+          WorkerSignaturesCancelledEvent(
+            setupId,
+            generation,
+            requestId: event.requestId.toBytes(),
+            expiresAt: event.expiresAt.time,
+          ),
+        );
       case ParticipantStatusClientEvent():
         emit(
           WorkerParticipantEvent(

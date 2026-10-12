@@ -16,6 +16,7 @@ enum WorkerOperation {
   requestSignatures,
   acceptSignatures,
   rejectSignatures,
+  cancelSignaturesRequest,
   close,
   testStopServing,
   testPending,
@@ -40,6 +41,8 @@ enum ProviderOperation {
   addRejection,
   removeRejection,
   removeSignatures,
+  cancelSignaturesRequest,
+  pruneCancelledSignaturesRequests,
   testHost,
 }
 

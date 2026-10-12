@@ -20,6 +20,12 @@ Future<Client> _loginClient({
     Signed.sign(obj: resp1.challenge, key: key),
   );
 
+  // Install authoritative tombstones before considering any active snapshot
+  // record, or subscribing to rounds that might allocate fresh nonce material.
+  for (final tombstone in resp2.cancelledRequests) {
+    await cachedStore.cancelSignaturesRequest(tombstone);
+  }
+
   // Do verification of details without state processing first
 
   // Verify online participants
@@ -38,13 +44,16 @@ Future<Client> _loginClient({
 
   // Verify Signatures Requests
   for (final req in resp2.sigRequests) {
+    if (cachedStore.cancelledRequests.containsKey(req.details.obj.id)) continue;
     Client._checkDetailsEvent(config, req);
     Client._checkSignaturesProgress(config, req.progress);
   }
 
   // Check for duplicate requests
   {
-    final ids = resp2.sigRequests.map((req) => req.details.obj.id);
+    final ids = resp2.sigRequests
+        .map((req) => req.details.obj.id)
+        .where((id) => !cachedStore.cancelledRequests.containsKey(id));
     if (ids.length != ids.toSet().length) {
       throw ServerMisbehaviour.duplicateSigsReq();
     }
@@ -52,7 +61,9 @@ Future<Client> _loginClient({
 
   // Check duplicate signature request in rounds
   {
-    final ids = resp2.sigRounds.map((rounds) => rounds.reqId);
+    final ids = resp2.sigRounds
+        .map((rounds) => rounds.reqId)
+        .where((id) => !cachedStore.cancelledRequests.containsKey(id));
     if (ids.length != ids.toSet().length) {
       throw ServerMisbehaviour.duplicateSigsReqRounds();
     }
@@ -60,6 +71,7 @@ Future<Client> _loginClient({
 
   // Check signature rounds
   for (final round in resp2.sigRounds) {
+    if (cachedStore.cancelledRequests.containsKey(round.reqId)) continue;
     Client._checkRounds(config, round.rounds);
     // Must have signature request for rounds
     if (!resp2.sigRequests.any((req) => req.details.obj.id == round.reqId)) {
@@ -69,6 +81,13 @@ Future<Client> _loginClient({
 
   // Check completed signature details
   for (final completedSig in resp2.completedSigs) {
+    if (cachedStore.cancelledRequests.containsKey(
+      completedSig.details.obj.id,
+    )) {
+      throw ServerMisbehaviour(
+        'Completed snapshot conflicts with cancellation',
+      );
+    }
     Client._checkSigned(config, completedSig.details, completedSig.creator);
   }
 
@@ -91,6 +110,17 @@ Future<Client> _loginClient({
   // Add the online participants
   client._state.onlineParticipants = resp2.onlineParticipants;
 
+  for (final tombstone in resp2.cancelledRequests) {
+    if (!tombstone.expiry.isExpired) {
+      client._sendEvent(
+        SignaturesCancelledClientEvent(
+          requestId: tombstone.requestId,
+          expiresAt: tombstone.expiry,
+        ),
+      );
+    }
+  }
+
   // Add DKGs to state
   for (final dkg in resp2.newDkgs) {
     final details = dkg.details.obj;
@@ -103,31 +133,31 @@ Future<Client> _loginClient({
     );
   }
 
-  // Add signature requests to state
-  for (final req in resp2.sigRequests) {
-    await client._handleSigsReq(
-      signed: req.details,
-      creator: req.creator,
-      progress: req.progress,
-    );
-  }
+  // Snapshot signing work shares the lane with live cancellation events.
+  // A delayed snapshot continuation must not restore decisions or nonces
+  // after a live terminal transition.
+  await client._sigReqLock.synchronized(() async {
+    for (final req in resp2.sigRequests) {
+      await client._handleSigsReq(
+        signed: req.details,
+        creator: req.creator,
+        progress: req.progress,
+      );
+    }
 
-  // Handle signature rounds
-  for (final round in resp2.sigRounds) {
-    final sigReq = client._state.sigRequests[round.reqId];
-    // It may be null if expired or otherwise rejected so ignore in those
-    // cases
-    if (sigReq != null) await client._handleRounds(sigReq, round.rounds);
-  }
+    for (final round in resp2.sigRounds) {
+      final sigReq = client._state.sigRequests[round.reqId];
+      if (sigReq != null) await client._handleRounds(sigReq, round.rounds);
+    }
 
-  // Handle completed signatures as immediate events
-  for (final completedSig in resp2.completedSigs) {
-    await client._handleCompletedSignatures(
-      details: completedSig.details.obj,
-      signatures: completedSig.signatures,
-      creator: completedSig.creator,
-    );
-  }
+    for (final completedSig in resp2.completedSigs) {
+      await client._handleCompletedSignatures(
+        details: completedSig.details.obj,
+        signatures: completedSig.signatures,
+        creator: completedSig.creator,
+      );
+    }
+  });
 
   // Request ACKs that are needed
   // Do not await for these ACKs but capture errors as events
@@ -160,6 +190,7 @@ Future<Client> _loginClient({
 extension _ClientSession on Client {
   Future<void> _extendSession() async {
     try {
+      await _store.pruneCancelledSignaturesRequests();
       _state.expiry = await api.extendSession(_state.sessionID);
       _setSessionExtendTimer();
     } catch (e) {

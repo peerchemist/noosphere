@@ -14,7 +14,8 @@ enum RoastOperation {
   submitSignatureReplies(12),
   shareSecretShare(13),
   ackKeyConstructed(14),
-  startSession(15);
+  startSession(15),
+  cancelSignaturesRequest(16);
 
   const RoastOperation(this.id);
   final int id;

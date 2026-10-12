@@ -20,7 +20,9 @@ final class ServerStateSnapshot {
         decoded['dkg'] is! List ||
         decoded['signing'] is! List ||
         decoded['completed'] is! List ||
-        decoded['shares'] is! List) {
+        decoded['shares'] is! List ||
+        decoded['cancelled'] is! List ||
+        decoded['terminalSigning'] is! List) {
       throw const FormatException('Invalid server state snapshot.');
     }
     return ServerStateSnapshot._(copy);

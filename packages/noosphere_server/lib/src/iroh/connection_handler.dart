@@ -3,9 +3,13 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/api/types/dkg_ack_request.dart' as domain;
+import 'package:noosphere/domain.dart' as domain;
+import 'package:noosphere/domain.dart'
+    hide
+        DkgAckRequest,
+        CancelSignaturesRequestResponse,
+        CancelSignaturesRequestResult;
 import 'package:noosphere/wire.dart';
-import 'package:noosphere/domain.dart' hide DkgAckRequest;
 import 'package:protobuf/protobuf.dart';
 
 import '../config/iroh.dart';
@@ -151,6 +155,10 @@ final class IrohConnectionHandler {
         ),
         RoastOperation.rejectSignaturesRequest =>
           await _rejectSignaturesRequest(SignaturesRejection.fromBuffer(body)),
+        RoastOperation.cancelSignaturesRequest =>
+          await _cancelSignaturesRequest(
+            CancelSignaturesRequest.fromBuffer(body),
+          ),
         RoastOperation.submitSignatureReplies => await _submitSignatureReplies(
           SignaturesReplies.fromBuffer(body),
         ),
@@ -391,6 +399,39 @@ final class IrohConnectionHandler {
       },
     );
     return RejectSignaturesRequestResponse(success: EmptySuccess());
+  }
+
+  Future<CancelSignaturesRequestResponse> _cancelSignaturesRequest(
+    CancelSignaturesRequest rpc,
+  ) async {
+    final dispatched = await dispatcher.invokeReady(
+      groupFingerprint: _readyGroup(),
+      connection: context,
+      operation: (handler, _) async => IrohDispatchResult(
+        await handler.cancelSignaturesRequest(
+          sid: _sessionId(rpc.sessionId),
+          reqId: SignaturesRequestId.fromBytes(
+            Uint8List.fromList(rpc.requestId),
+          ),
+        ),
+      ),
+    );
+    final response = dispatched.value;
+    return CancelSignaturesRequestResponse(
+      result: switch (response.result) {
+        domain.CancelSignaturesRequestResult.cancelled =>
+          CancelSignaturesRequestResult.CANCEL_SIGNATURES_CANCELLED,
+        domain.CancelSignaturesRequestResult.alreadyCancelled =>
+          CancelSignaturesRequestResult.CANCEL_SIGNATURES_ALREADY_CANCELLED,
+        domain.CancelSignaturesRequestResult.alreadyCompleted =>
+          CancelSignaturesRequestResult.CANCEL_SIGNATURES_ALREADY_COMPLETED,
+        domain.CancelSignaturesRequestResult.alreadyTerminal =>
+          CancelSignaturesRequestResult.CANCEL_SIGNATURES_ALREADY_TERMINAL,
+        domain.CancelSignaturesRequestResult.notFound =>
+          CancelSignaturesRequestResult.CANCEL_SIGNATURES_NOT_FOUND,
+      },
+      expiresAt: response.expiresAt?.toBytes(),
+    );
   }
 
   Future<SubmitSignatureRepliesResponse> _submitSignatureReplies(

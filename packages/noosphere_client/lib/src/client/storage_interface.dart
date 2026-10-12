@@ -1,10 +1,11 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:frosty/frosty.dart';
+import 'package:noosphere/api/types/cancelled_signatures_request.dart';
 import 'package:noosphere/api/types/expirable.dart';
 import 'package:noosphere/api/types/expiry.dart';
 import 'package:noosphere/api/types/signatures_request_details.dart';
-import 'package:frosty/frosty.dart';
 
 import 'frost_key_with_details.dart';
 
@@ -125,6 +126,8 @@ final class ClientStorageSnapshot {
     required Map<SignaturesRequestId, PreparedSignaturesOperation>
     preparedOperations,
     required Map<SignaturesRequestId, FinalExpirable> rejectedRequests,
+    Map<SignaturesRequestId, CancelledSignaturesRequest> cancelledRequests =
+        const {},
   }) : keys = Set.unmodifiable(
          keys.map((key) => FrostKeyWithDetails.fromBytes(key.toBytes())),
        ),
@@ -135,18 +138,31 @@ final class ClientStorageSnapshot {
              entry.value.toBytes(),
            ),
        }),
-       rejectedRequests = Map.unmodifiable(rejectedRequests);
+       rejectedRequests = Map.unmodifiable(rejectedRequests),
+       cancelledRequests = Map.unmodifiable(cancelledRequests);
 
   final Set<FrostKeyWithDetails> keys;
   final Map<SignaturesRequestId, SignaturesNonces> sigNonces;
   final Map<SignaturesRequestId, PreparedSignaturesOperation>
   preparedOperations;
   final Map<SignaturesRequestId, FinalExpirable> rejectedRequests;
+  final Map<SignaturesRequestId, CancelledSignaturesRequest> cancelledRequests;
 }
 
 /// These methods need to be implemented for permanent storage of key
 /// information.
 abstract interface class ClientStorageInterface {
+  /// Atomically inserts the minimal tombstone and removes ALL request data,
+  /// including nonces, prepared operations, and local decisions. Subsequent
+  /// signing writes must refuse IDs with unexpired tombstones.
+  Future<void> cancelSignaturesRequest(
+    SignaturesRequestId id,
+    Expiry expiresAt,
+  );
+
+  /// Automatically invoked on load and during session maintenance.
+  Future<void> pruneCancelledSignaturesRequests();
+
   /// Loads every related record from one consistent storage snapshot.
   Future<ClientStorageSnapshot> loadState();
 

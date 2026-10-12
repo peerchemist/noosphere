@@ -5,8 +5,6 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:frosty/frosty.dart';
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/wire.dart' as protocol;
-import 'package:protobuf/protobuf.dart';
 import 'package:noosphere/api/events.dart';
 import 'package:noosphere/api/request_interface.dart';
 import 'package:noosphere/api/responses/expirable_auth_challenge.dart';
@@ -24,6 +22,8 @@ import 'package:noosphere/api/types/signatures_request_details.dart';
 import 'package:noosphere/api/types/signed.dart';
 import 'package:noosphere/api/types/signed_dkg_ack.dart';
 import 'package:noosphere/domain.dart' show noosphereRoastProtocolVersion;
+import 'package:noosphere/wire.dart' as protocol;
+import 'package:protobuf/protobuf.dart';
 
 import 'config.dart';
 import 'endpoint.dart';
@@ -369,6 +369,60 @@ final class IrohClientApi implements ApiRequestInterface {
       protocol.RoastOperation.rejectSignaturesRequest,
       protocol.SignaturesRejection(sid: sid.toBytes(), reqId: reqId.toBytes()),
       protocol.RejectSignaturesRequestResponse.fromBuffer,
+    );
+  }
+
+  @override
+  Future<CancelSignaturesRequestResponse> cancelSignaturesRequest({
+    required SessionID sid,
+    required SignaturesRequestId reqId,
+  }) async {
+    final protocol.CancelSignaturesRequestResponse response;
+    try {
+      response = await _rpc(
+        protocol.RoastOperation.cancelSignaturesRequest,
+        protocol.CancelSignaturesRequest(
+          sessionId: sid.toBytes(),
+          requestId: reqId.toBytes(),
+        ),
+        protocol.CancelSignaturesRequestResponse.fromBuffer,
+      );
+    } on IrohProtocolException catch (error) {
+      if (error.error?.code ==
+          protocol.ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST) {
+        // A confirmed rejection (including authorization denial) has a known
+        // outcome and must not trigger cancellation reconciliation.
+        throw InvalidRequest(error.message);
+      }
+      rethrow;
+    }
+    if (!response.hasResult()) {
+      throw const IrohProtocolException('cancellation response has no result');
+    }
+    final result = switch (response.result) {
+      protocol.CancelSignaturesRequestResult.CANCEL_SIGNATURES_CANCELLED =>
+        CancelSignaturesRequestResult.cancelled,
+      protocol
+          .CancelSignaturesRequestResult
+          .CANCEL_SIGNATURES_ALREADY_CANCELLED =>
+        CancelSignaturesRequestResult.alreadyCancelled,
+      protocol
+          .CancelSignaturesRequestResult
+          .CANCEL_SIGNATURES_ALREADY_COMPLETED =>
+        CancelSignaturesRequestResult.alreadyCompleted,
+      protocol
+          .CancelSignaturesRequestResult
+          .CANCEL_SIGNATURES_ALREADY_TERMINAL =>
+        CancelSignaturesRequestResult.alreadyTerminal,
+      protocol.CancelSignaturesRequestResult.CANCEL_SIGNATURES_NOT_FOUND =>
+        CancelSignaturesRequestResult.notFound,
+      _ => throw const IrohProtocolException('unknown cancellation result'),
+    };
+    return CancelSignaturesRequestResponse(
+      result,
+      expiresAt: response.expiresAt.isEmpty
+          ? null
+          : Expiry.fromBytes(Uint8List.fromList(response.expiresAt)),
     );
   }
 

@@ -326,6 +326,8 @@ final class _Connection(this.current) implements WorkerClientConnection {
 }
 
 class _Client implements Client {
+  @override
+  List<CancelledSignaturesRequest> get cancelledSignaturesRequests => const [];
   final controller = StreamController<ClientEvent>.broadcast();
   @override
   Stream<ClientEvent> get events => controller.stream;

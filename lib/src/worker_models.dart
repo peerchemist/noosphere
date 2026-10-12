@@ -105,6 +105,16 @@ final class WorkerSigningRequest {
       SignaturesRequestDetails.fromBytesAllowExpired(proposalBytes);
 }
 
+/// Public cancellation state containing no proposal or cryptographic material.
+final class WorkerCancelledSignaturesRequest({
+  required Uint8List requestId,
+  required this.expiresAt,
+}) {
+  final Uint8List requestId = Uint8List.fromList(requestId)
+      .asUnmodifiableView();
+  final DateTime expiresAt;
+}
+
 /// A point-in-time public view of one setup.
 final class NoosphereWorkerSnapshot {
   NoosphereWorkerSnapshot({
@@ -118,10 +128,12 @@ final class NoosphereWorkerSnapshot {
     required List<WorkerDkgStatus> dkgs,
     required List<WorkerSigningRequest> signingRequests,
     required List<WorkerKeyInfo> keys,
+    List<WorkerCancelledSignaturesRequest> cancelledRequests = const [],
   }) : onlineParticipants = List.unmodifiable(onlineParticipants),
        dkgs = List.unmodifiable(dkgs),
        signingRequests = List.unmodifiable(signingRequests),
-       keys = List.unmodifiable(keys);
+       keys = List.unmodifiable(keys),
+       cancelledRequests = List.unmodifiable(cancelledRequests);
 
   final String setupId;
   final int generation;
@@ -133,6 +145,7 @@ final class NoosphereWorkerSnapshot {
   final List<WorkerDkgStatus> dkgs;
   final List<WorkerSigningRequest> signingRequests;
   final List<WorkerKeyInfo> keys;
+  final List<WorkerCancelledSignaturesRequest> cancelledRequests;
 }
 
 sealed class NoosphereWorkerEvent {
@@ -140,6 +153,17 @@ sealed class NoosphereWorkerEvent {
 
   final String setupId;
   final int generation;
+}
+
+final class WorkerSignaturesCancelledEvent(
+  super.setupId,
+  super.generation, {
+  required Uint8List requestId,
+  required this.expiresAt,
+}) extends NoosphereWorkerEvent {
+  final Uint8List requestId = Uint8List.fromList(requestId)
+      .asUnmodifiableView();
+  final DateTime expiresAt;
 }
 
 final class WorkerSnapshotEvent extends NoosphereWorkerEvent {

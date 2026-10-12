@@ -5,8 +5,8 @@ import 'package:frosty/frosty.dart';
 import 'package:noosphere/api/types/key_was_constructed.dart';
 
 import 'events.dart';
-import 'responses/login_complete.dart';
 import 'responses/expirable_auth_challenge.dart';
+import 'responses/login_complete.dart';
 import 'responses/signatures.dart';
 import 'types/dkg_ack_request.dart';
 import 'types/dkg_encrypted_secret.dart';
@@ -55,6 +55,8 @@ class InvalidRequest implements Exception {
   InvalidRequest.invalidSigReqSignature()
     : this("Signatures request signature invalid");
   InvalidRequest.sigRequestExists() : this("Signatures request already exists");
+  InvalidRequest.notSignaturesCreator()
+    : this("Only the signatures request creator can cancel it");
   InvalidRequest.markedMalicious()
     : this("Cannot give signatures reply as considered malicious");
   InvalidRequest.emptySigReply() : this("Signature reply is empty");
@@ -78,6 +80,13 @@ class InvalidRequest implements Exception {
 }
 
 abstract interface class ApiRequestInterface {
+  /// Cancels an active request as its authenticated creator. Transport errors
+  /// have an unknown outcome; retry or reconcile the next session snapshot.
+  Future<CancelSignaturesRequestResponse> cancelSignaturesRequest({
+    required SessionID sid,
+    required SignaturesRequestId reqId,
+  });
+
   /// Requests to login to the group for a given [participantId]. The
   /// [groupFingerprint] is provided to check that the group configuration is
   /// correct and the same as what the server has.

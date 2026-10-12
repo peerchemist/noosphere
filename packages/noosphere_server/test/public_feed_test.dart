@@ -629,10 +629,10 @@ void main() {
           page.entries.take(2).map((e) => e.eventId),
           before.entries.map((e) => e.eventId),
         );
-        expect(
-          page.entries.skip(2).map((e) => e.state),
-          everyElement(PublicFeedLifecycle.cancelled),
-        );
+        expect(page.entries.skip(2).map((e) => e.state), [
+          PublicFeedLifecycle.cancelled,
+          PublicFeedLifecycle.failed,
+        ]);
         expect(page.entries[0].eventId, page.entries[2].eventId);
         expect(page.entries[1].eventId, page.entries[3].eventId);
       }
@@ -862,7 +862,7 @@ void main() {
     final legacy = ServerStateSnapshot.fromBytes(
       Uint8List.fromList(
         utf8.encode(
-          '{"version":1,"dkg":[],"signing":[],"completed":[],"shares":[]}',
+          '{"version":1,"dkg":[],"signing":[],"completed":[],"shares":[],"cancelled":[],"terminalSigning":[]}',
         ),
       ),
     );

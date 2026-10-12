@@ -33,6 +33,7 @@ void main() {
       protocol.DkgAckRequest(sid: [1]),
       protocol.SignaturesRequest(sid: [1]),
       protocol.SignaturesRejection(sid: [1]),
+      protocol.CancelSignaturesRequest(sessionId: [1], requestId: [2]),
       protocol.SignaturesReplies(sid: [1]),
       protocol.SecretShare(sid: [1]),
       protocol.ConstructedKey(sid: [1]),
@@ -54,6 +55,11 @@ void main() {
       ),
       protocol.RequestSignaturesResponse(),
       protocol.RejectSignaturesRequestResponse(),
+      for (final result in protocol.CancelSignaturesRequestResult.values)
+        protocol.CancelSignaturesRequestResponse(
+          result: result,
+          expiresAt: [1],
+        ),
       protocol.SubmitSignatureRepliesResponse(
         noUpdate: protocol.NoSignatureUpdate(),
       ),

@@ -897,6 +897,230 @@ class SignaturesRejection extends $pb.GeneratedMessage {
   void clearReqId() => $_clearField(2);
 }
 
+class CancelSignaturesRequest extends $pb.GeneratedMessage {
+  factory CancelSignaturesRequest({
+    $core.List<$core.int>? sessionId,
+    $core.List<$core.int>? requestId,
+  }) {
+    final result = create();
+    if (sessionId != null) result.sessionId = sessionId;
+    if (requestId != null) result.requestId = requestId;
+    return result;
+  }
+
+  CancelSignaturesRequest._();
+
+  factory CancelSignaturesRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CancelSignaturesRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CancelSignaturesRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'sessionId', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'requestId', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CancelSignaturesRequest clone() =>
+      CancelSignaturesRequest()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CancelSignaturesRequest copyWith(
+          void Function(CancelSignaturesRequest) updates) =>
+      super.copyWith((message) => updates(message as CancelSignaturesRequest))
+          as CancelSignaturesRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CancelSignaturesRequest create() => CancelSignaturesRequest._();
+  @$core.override
+  CancelSignaturesRequest createEmptyInstance() => create();
+  static $pb.PbList<CancelSignaturesRequest> createRepeated() =>
+      $pb.PbList<CancelSignaturesRequest>();
+  @$core.pragma('dart2js:noInline')
+  static CancelSignaturesRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CancelSignaturesRequest>(create);
+  static CancelSignaturesRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get sessionId => $_getN(0);
+  @$pb.TagNumber(1)
+  set sessionId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSessionId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSessionId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get requestId => $_getN(1);
+  @$pb.TagNumber(2)
+  set requestId($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRequestId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRequestId() => $_clearField(2);
+}
+
+class CancelSignaturesRequestResponse extends $pb.GeneratedMessage {
+  factory CancelSignaturesRequestResponse({
+    CancelSignaturesRequestResult? result,
+    $core.List<$core.int>? expiresAt,
+  }) {
+    final result$ = create();
+    if (result != null) result$.result = result;
+    if (expiresAt != null) result$.expiresAt = expiresAt;
+    return result$;
+  }
+
+  CancelSignaturesRequestResponse._();
+
+  factory CancelSignaturesRequestResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CancelSignaturesRequestResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CancelSignaturesRequestResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..e<CancelSignaturesRequestResult>(
+        1, _omitFieldNames ? '' : 'result', $pb.PbFieldType.OE,
+        defaultOrMaker:
+            CancelSignaturesRequestResult.CANCEL_SIGNATURES_CANCELLED,
+        valueOf: CancelSignaturesRequestResult.valueOf,
+        enumValues: CancelSignaturesRequestResult.values)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'expiresAt', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CancelSignaturesRequestResponse clone() =>
+      CancelSignaturesRequestResponse()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CancelSignaturesRequestResponse copyWith(
+          void Function(CancelSignaturesRequestResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as CancelSignaturesRequestResponse))
+          as CancelSignaturesRequestResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CancelSignaturesRequestResponse create() =>
+      CancelSignaturesRequestResponse._();
+  @$core.override
+  CancelSignaturesRequestResponse createEmptyInstance() => create();
+  static $pb.PbList<CancelSignaturesRequestResponse> createRepeated() =>
+      $pb.PbList<CancelSignaturesRequestResponse>();
+  @$core.pragma('dart2js:noInline')
+  static CancelSignaturesRequestResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CancelSignaturesRequestResponse>(
+          create);
+  static CancelSignaturesRequestResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  CancelSignaturesRequestResult get result => $_getN(0);
+  @$pb.TagNumber(1)
+  set result(CancelSignaturesRequestResult value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasResult() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearResult() => $_clearField(1);
+
+  /// Canonical Expiry. Present for cancelled and already_cancelled.
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get expiresAt => $_getN(1);
+  @$pb.TagNumber(2)
+  set expiresAt($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasExpiresAt() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearExpiresAt() => $_clearField(2);
+}
+
+class SignaturesCancelledEvent extends $pb.GeneratedMessage {
+  factory SignaturesCancelledEvent({
+    $core.List<$core.int>? requestId,
+    $core.List<$core.int>? expiresAt,
+  }) {
+    final result = create();
+    if (requestId != null) result.requestId = requestId;
+    if (expiresAt != null) result.expiresAt = expiresAt;
+    return result;
+  }
+
+  SignaturesCancelledEvent._();
+
+  factory SignaturesCancelledEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SignaturesCancelledEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignaturesCancelledEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'requestId', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'expiresAt', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesCancelledEvent clone() =>
+      SignaturesCancelledEvent()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignaturesCancelledEvent copyWith(
+          void Function(SignaturesCancelledEvent) updates) =>
+      super.copyWith((message) => updates(message as SignaturesCancelledEvent))
+          as SignaturesCancelledEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SignaturesCancelledEvent create() => SignaturesCancelledEvent._();
+  @$core.override
+  SignaturesCancelledEvent createEmptyInstance() => create();
+  static $pb.PbList<SignaturesCancelledEvent> createRepeated() =>
+      $pb.PbList<SignaturesCancelledEvent>();
+  @$core.pragma('dart2js:noInline')
+  static SignaturesCancelledEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignaturesCancelledEvent>(create);
+  static SignaturesCancelledEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get requestId => $_getN(0);
+  @$pb.TagNumber(1)
+  set requestId($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRequestId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get expiresAt => $_getN(1);
+  @$pb.TagNumber(2)
+  set expiresAt($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasExpiresAt() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearExpiresAt() => $_clearField(2);
+}
+
 class SignaturesReplies extends $pb.GeneratedMessage {
   factory SignaturesReplies({
     $core.List<$core.int>? sid,
@@ -2477,6 +2701,7 @@ enum EventMessage_Event {
   secretShare,
   constructedKey,
   signaturesProgress,
+  signaturesCancelled,
   notSet
 }
 
@@ -2497,6 +2722,7 @@ class EventMessage extends $pb.GeneratedMessage {
     SecretShareEvent? secretShare,
     ConstructedKeyEvent? constructedKey,
     SignaturesProgressEvent? signaturesProgress,
+    SignaturesCancelledEvent? signaturesCancelled,
   }) {
     final result = create();
     if (participantStatus != null) result.participantStatus = participantStatus;
@@ -2517,6 +2743,8 @@ class EventMessage extends $pb.GeneratedMessage {
     if (constructedKey != null) result.constructedKey = constructedKey;
     if (signaturesProgress != null)
       result.signaturesProgress = signaturesProgress;
+    if (signaturesCancelled != null)
+      result.signaturesCancelled = signaturesCancelled;
     return result;
   }
 
@@ -2546,13 +2774,14 @@ class EventMessage extends $pb.GeneratedMessage {
     13: EventMessage_Event.secretShare,
     14: EventMessage_Event.constructedKey,
     15: EventMessage_Event.signaturesProgress,
+    16: EventMessage_Event.signaturesCancelled,
     0: EventMessage_Event.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EventMessage',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
       createEmptyInstance: create)
-    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
     ..aOM<ParticipantStatusEvent>(1, _omitFieldNames ? '' : 'participantStatus',
         subBuilder: ParticipantStatusEvent.create)
     ..aOM<NewDkgEvent>(2, _omitFieldNames ? '' : 'newDkg',
@@ -2587,6 +2816,9 @@ class EventMessage extends $pb.GeneratedMessage {
     ..aOM<SignaturesProgressEvent>(
         15, _omitFieldNames ? '' : 'signaturesProgress',
         subBuilder: SignaturesProgressEvent.create)
+    ..aOM<SignaturesCancelledEvent>(
+        16, _omitFieldNames ? '' : 'signaturesCancelled',
+        subBuilder: SignaturesCancelledEvent.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2779,6 +3011,18 @@ class EventMessage extends $pb.GeneratedMessage {
   void clearSignaturesProgress() => $_clearField(15);
   @$pb.TagNumber(15)
   SignaturesProgressEvent ensureSignaturesProgress() => $_ensure(14);
+
+  @$pb.TagNumber(16)
+  SignaturesCancelledEvent get signaturesCancelled => $_getN(15);
+  @$pb.TagNumber(16)
+  set signaturesCancelled(SignaturesCancelledEvent value) =>
+      $_setField(16, value);
+  @$pb.TagNumber(16)
+  $core.bool hasSignaturesCancelled() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearSignaturesCancelled() => $_clearField(16);
+  @$pb.TagNumber(16)
+  SignaturesCancelledEvent ensureSignaturesCancelled() => $_ensure(15);
 }
 
 class ProtocolError extends $pb.GeneratedMessage {

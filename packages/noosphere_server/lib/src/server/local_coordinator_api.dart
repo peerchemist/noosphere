@@ -170,6 +170,15 @@ final class LocalCoordinatorApi implements ApiRequestInterface {
   );
 
   @override
+  Future<CancelSignaturesRequestResponse> cancelSignaturesRequest({
+    required SessionID sid,
+    required SignaturesRequestId reqId,
+  }) => _ready(
+    sid,
+    (handler) => handler.cancelSignaturesRequest(sid: sid, reqId: reqId),
+  );
+
+  @override
   Future<SignaturesResponse?> submitSignatureReplies({
     required SessionID sid,
     required SignaturesRequestId reqId,

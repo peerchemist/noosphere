@@ -13,15 +13,15 @@ import 'package:synchronized/extension.dart';
 import 'events.dart';
 import 'key_construction.dart';
 import 'signatures_request.dart';
-import 'storage_interface.dart';
-import 'state/state.dart';
 import 'state/dkg.dart';
+import 'state/state.dart';
+import 'storage_interface.dart';
 
 part 'client_dkg.dart';
-part 'client_signing.dart';
-part 'client_key_sharing.dart';
 part 'client_events.dart';
+part 'client_key_sharing.dart';
 part 'client_session.dart';
+part 'client_signing.dart';
 
 typedef GetPrivateKey = Future<cl.ECPrivateKey> Function(KeyPurpose purpose);
 
@@ -306,6 +306,42 @@ class Client {
   Future<void> rejectSignaturesRequest(SignaturesRequestId reqId) =>
       _runSigsReqSyncIfExists(reqId, _rejectSigsReq);
 
+  /// Cancels as the original creator. A thrown transport error is an unknown
+  /// outcome: reconnect to reconcile or retry this idempotent operation.
+  Future<CancelSignaturesRequestResult> cancelSignaturesRequest(
+    SignaturesRequestId requestId,
+  ) => _sigReqLock.synchronized(() async {
+    _store.requireReady();
+    if (_disconnecting || _state.expiry.isExpired) {
+      throw StateError('Client is disconnected');
+    }
+    final CancelSignaturesRequestResponse response;
+    try {
+      response = await api.cancelSignaturesRequest(
+        sid: _state.sessionID,
+        reqId: requestId,
+      );
+    } on InvalidRequest {
+      rethrow;
+    } catch (_) {
+      // The coordinator may have committed. Stop signing and reconcile.
+      _disconnect();
+      rethrow;
+    }
+    if (response.result == CancelSignaturesRequestResult.cancelled ||
+        response.result == CancelSignaturesRequestResult.alreadyCancelled) {
+      final expiry = response.expiresAt;
+      if (expiry == null) {
+        _disconnect();
+        throw ServerMisbehaviour(
+          'Cancellation response omitted original expiry',
+        );
+      }
+      await _handleCancellation(CancelledSignaturesRequest(requestId, expiry));
+    }
+    return response.result;
+  });
+
   Future<void> acceptSignaturesRequest(SignaturesRequestId reqId) =>
       _runSigsReqSyncIfExists(reqId, (sigsState) async {
         // Remove from rejected if it was
@@ -396,6 +432,10 @@ class Client {
   /// accepted or rejected by the client.
   List<SignaturesRequest> get signaturesRequests =>
       _state.sigRequests.values.map(_sigsStateToObj).toList();
+
+  /// Minimal durable cancellation state, retained until original expiry.
+  List<CancelledSignaturesRequest> get cancelledSignaturesRequests =>
+      List.unmodifiable(_store.cancelledRequests.values);
 
   /// A stream of events to keep track of state changes that occur. If an error
   /// is provided on this stream, the stream will immediately close afterwards.
