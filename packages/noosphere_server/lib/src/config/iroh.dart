@@ -1,6 +1,6 @@
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/iroh.dart';
-import 'package:noosphere/wire.dart';
+import 'package:noosphere_protocol/iroh.dart';
+import 'package:noosphere_protocol/wire.dart';
 
 import 'server.dart';
 import 'public_feed.dart';

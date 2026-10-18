@@ -5,8 +5,8 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
-import 'package:noosphere/domain.dart';
-import 'package:noosphere/public_feed.dart';
+import 'package:noosphere_protocol/domain.dart';
+import 'package:noosphere_protocol/public_feed.dart';
 import 'package:noosphere_server/src/config/server.dart';
 import 'package:noosphere_server/src/server/state/key_sharing.dart';
 

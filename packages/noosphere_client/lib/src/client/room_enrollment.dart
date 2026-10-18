@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere/room.dart';
+import 'package:noosphere_protocol/room.dart';
 
 import '../config/client.dart';
 import 'client.dart';

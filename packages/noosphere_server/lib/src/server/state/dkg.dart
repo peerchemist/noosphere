@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:noosphere/domain.dart';
+import 'package:noosphere_protocol/domain.dart';
 
 abstract class DkgRoundState {}
 

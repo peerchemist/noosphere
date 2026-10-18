@@ -3,9 +3,9 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/config.dart';
-import 'package:noosphere/iroh.dart';
-import 'package:noosphere/room.dart';
+import 'package:noosphere_protocol/config.dart';
+import 'package:noosphere_protocol/iroh.dart';
+import 'package:noosphere_protocol/room.dart';
 
 import '../config/iroh.dart';
 import '../config/server.dart';

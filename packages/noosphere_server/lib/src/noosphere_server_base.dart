@@ -1,13 +1,13 @@
-export 'package:noosphere/common.dart';
-export 'package:noosphere/config.dart';
-export 'package:noosphere/domain.dart';
-export 'package:noosphere/iroh.dart';
+export 'package:noosphere_protocol/common.dart';
+export 'package:noosphere_protocol/config.dart';
+export 'package:noosphere_protocol/domain.dart';
+export 'package:noosphere_protocol/iroh.dart';
 
 export "config/iroh.dart" show IrohConfig;
 export "config/server.dart";
 export 'config/public_feed.dart';
 
-export 'package:noosphere/public_feed.dart';
+export 'package:noosphere_protocol/public_feed.dart';
 
 export "iroh/server.dart";
 export "server/api_handler.dart";

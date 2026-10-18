@@ -1,10 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere/common.dart';
-import 'package:noosphere/config.dart';
-import 'package:noosphere/domain.dart';
-import 'package:noosphere/public_feed.dart';
+import 'package:noosphere_protocol/common.dart';
+import 'package:noosphere_protocol/config.dart';
+import 'package:noosphere_protocol/domain.dart';
+import 'package:noosphere_protocol/public_feed.dart';
 
 import 'public_feed.dart';
 

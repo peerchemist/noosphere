@@ -2,9 +2,9 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:frosty/frosty.dart';
-import 'package:noosphere/api/types/expiry.dart';
-import 'package:noosphere/common/serial.dart';
-import 'package:noosphere/config/group.dart';
+import 'package:noosphere_protocol/api/types/expiry.dart';
+import 'package:noosphere_protocol/common/serial.dart';
+import 'package:noosphere_protocol/config/group.dart';
 
 /// The reason the private key is being requested
 enum KeyPurpose {

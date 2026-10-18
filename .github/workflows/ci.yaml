@@ -27,21 +27,21 @@ jobs:
         working-directory: noosphere
         run: flutter pub get
       - name: Verify protocol generation and tests
-        working-directory: noosphere/packages/noosphere
+        working-directory: noosphere/packages/noosphere_protocol
         run: |
           ./tool/generate_protocol.sh --check
           dart analyze
           dart test
       - name: Analyze and unit test Flutter facade
-        working-directory: noosphere
+        working-directory: noosphere/packages/noosphere_flutter
         run: |
           flutter analyze
           flutter test test
       - name: Run native Linux integration tests
-        working-directory: noosphere
+        working-directory: noosphere/apps/integration_host
         run: |
+          flutter analyze
           xvfb-run -a flutter test integration_test/worker_setup_runtime_test.dart -d linux
-          xvfb-run -a flutter test integration_test/example_session_test.dart -d linux
           xvfb-run -a flutter test integration_test/native_transport_test.dart -d linux
           xvfb-run -a flutter test integration_test/roast_2_of_2_test.dart -d linux
           xvfb-run -a flutter test integration_test/message_signing_2_of_2_test.dart -d linux
@@ -61,9 +61,10 @@ jobs:
         working-directory: noosphere
         run: xvfb-run -a ./tool/validate_release_consumer.sh
       - name: Analyze and build example
-        working-directory: noosphere/example
+        working-directory: noosphere/apps/demo
         run: |
           flutter analyze
+          xvfb-run -a flutter test integration_test/example_session_test.dart -d linux
           flutter build linux --release
       - name: Verify client core
         working-directory: noosphere/packages/noosphere_client

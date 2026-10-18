@@ -4,8 +4,8 @@ import 'dart:typed_data';
 import 'package:fixnum/fixnum.dart';
 import 'package:collection/collection.dart';
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/public_feed.dart';
-import 'package:noosphere/wire.dart' as wire;
+import 'package:noosphere_protocol/public_feed.dart';
+import 'package:noosphere_protocol/wire.dart' as wire;
 import 'package:synchronized/synchronized.dart';
 
 import 'config.dart';

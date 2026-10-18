@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:noosphere/public_feed.dart';
+import 'package:noosphere_protocol/public_feed.dart';
 
 void main() {
   test('public journal survives process restart without cursor reuse or duplicate recovery', () async {

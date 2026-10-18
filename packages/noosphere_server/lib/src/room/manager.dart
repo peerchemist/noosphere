@@ -3,9 +3,9 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:frosty/frosty.dart';
-import 'package:noosphere/config.dart';
-import 'package:noosphere/api/types/signed.dart';
-import 'package:noosphere/room.dart';
+import 'package:noosphere_protocol/config.dart';
+import 'package:noosphere_protocol/api/types/signed.dart';
+import 'package:noosphere_protocol/room.dart';
 
 import 'persistence.dart';
 

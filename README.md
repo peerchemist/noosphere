@@ -38,7 +38,7 @@ decide what the group should authorize.
 
 Coordinators can explicitly enable a separate unauthenticated, read-only event
 feed for notifications and transparency. See the [public feed and Sygnature
-integration guide](architecture/public-feed.md) for configuration, privacy,
+integration guide](docs/architecture/public-feed.md) for configuration, privacy,
 signed checkpoints, retention, and the lightweight polling client.
 
 ## Encrypted peer-to-peer communication
@@ -145,15 +145,15 @@ coordinated change to the core event model, wire schema, coordinator and
 participant state machines.
 
 Further detail is available in the
-[protocol semantics](packages/noosphere/spec/PROTOCOL.md),
-[event model](architecture/events.md),
-[protocol extension design](architecture/protocol-extensions.md) and
-[security model](packages/noosphere/spec/SECURITY.md).
+[protocol semantics](packages/noosphere_protocol/spec/PROTOCOL.md),
+[event model](docs/architecture/events.md),
+[protocol extension design](docs/architecture/protocol-extensions.md) and
+[security model](packages/noosphere_protocol/spec/SECURITY.md).
 
 ## Standalone coordinator container
 
-The root [`Containerfile`](Containerfile) builds the standalone Linux
-coordinator from the `noosphere`, `noosphere_client` and `noosphere_server`
+The coordinator [`Containerfile`](deploy/coordinator/Containerfile) builds the standalone Linux
+coordinator from the `noosphere_protocol`, `noosphere_client` and `noosphere_server`
 packages at the same workspace revision. The Flutter facade and example are
 development hosts rather than server-image runtime dependencies; CI analyzes
 and tests them directly on Linux as part of the complete workspace
@@ -164,7 +164,7 @@ Build the image from the repository root so the complete package workspace is
 available as the build context:
 
 ```sh
-podman build --file Containerfile --tag noosphere-server .
+podman build --file deploy/coordinator/Containerfile --tag noosphere-server .
 ```
 
 Docker can be used with the same arguments by replacing `podman` with

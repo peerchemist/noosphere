@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:noosphere/api/types/expiry.dart';
-import 'package:noosphere/api/types/onetime_numbers.dart';
-import 'package:noosphere/api/types/signatures_request_details.dart';
-import 'package:noosphere/common/expirable_map.dart';
+import 'package:noosphere_protocol/api/types/expiry.dart';
+import 'package:noosphere_protocol/api/types/onetime_numbers.dart';
+import 'package:noosphere_protocol/api/types/signatures_request_details.dart';
+import 'package:noosphere_protocol/common/expirable_map.dart';
 import 'package:frosty/frosty.dart';
 
 import 'dkg.dart';

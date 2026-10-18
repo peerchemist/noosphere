@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:collection/collection.dart';
 import 'package:frosty/frosty.dart';
-import 'package:noosphere/api/types/cancelled_signatures_request.dart';
-import 'package:noosphere/api/types/expirable.dart';
-import 'package:noosphere/api/types/expiry.dart';
-import 'package:noosphere/api/types/signatures_request_details.dart';
+import 'package:noosphere_protocol/api/types/cancelled_signatures_request.dart';
+import 'package:noosphere_protocol/api/types/expirable.dart';
+import 'package:noosphere_protocol/api/types/expiry.dart';
+import 'package:noosphere_protocol/api/types/signatures_request_details.dart';
 import 'package:noosphere_client/src/client/storage_interface.dart';
 
 import '../client/frost_key_with_details.dart';

@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:noosphere/public_feed.dart';
+import 'package:noosphere_protocol/public_feed.dart';
 
 import '../../config/public_feed.dart';
 

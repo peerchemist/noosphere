@@ -1,8 +1,8 @@
 export "package:frosty/frosty.dart";
-export "package:noosphere/common.dart";
-export "package:noosphere/config.dart";
-export "package:noosphere/domain.dart";
-export "package:noosphere/iroh.dart";
+export "package:noosphere_protocol/common.dart";
+export "package:noosphere_protocol/config.dart";
+export "package:noosphere_protocol/domain.dart";
+export "package:noosphere_protocol/iroh.dart";
 
 export "client/client.dart" show Client, GetPrivateKey, ServerMisbehaviour;
 export "client/dkg_in_progress.dart";

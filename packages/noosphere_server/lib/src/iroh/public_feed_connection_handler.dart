@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/public_feed.dart';
-import 'package:noosphere/wire.dart';
+import 'package:noosphere_protocol/public_feed.dart';
+import 'package:noosphere_protocol/wire.dart';
 
 import '../config/iroh.dart';
 import 'dispatcher.dart';

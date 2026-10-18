@@ -1,7 +1,7 @@
-import 'package:noosphere/api/types/expirable.dart';
-import 'package:noosphere/api/types/expiry.dart';
-import 'package:noosphere/api/types/signatures_request_details.dart';
-import 'package:noosphere/api/types/signatures_progress.dart';
+import 'package:noosphere_protocol/api/types/expirable.dart';
+import 'package:noosphere_protocol/api/types/expiry.dart';
+import 'package:noosphere_protocol/api/types/signatures_request_details.dart';
+import 'package:noosphere_protocol/api/types/signatures_progress.dart';
 import 'package:frosty/frosty.dart';
 
 /// If [waiting] the request hasn't received a response by the client, otherwise

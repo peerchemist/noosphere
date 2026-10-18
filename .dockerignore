@@ -3,6 +3,5 @@
 .idea/
 build/
 coverage/
-example/
-linux/
-macos/
+apps/
+packages/noosphere_flutter/

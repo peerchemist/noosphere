@@ -1,5 +1,5 @@
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere/common/serial.dart';
+import 'package:noosphere_protocol/common/serial.dart';
 import 'package:frosty/frosty.dart';
 
 sealed class KeyConstruction with cl.Writable {

@@ -1,0 +1,6 @@
+include: ../../analysis_options.yaml
+
+# This private test host also exercises package-internal runtime behavior.
+analyzer:
+  errors:
+    invalid_use_of_internal_member: ignore

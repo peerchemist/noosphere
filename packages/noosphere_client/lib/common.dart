@@ -1,3 +1,3 @@
 library;
 
-export 'package:noosphere/common.dart';
+export 'package:noosphere_protocol/common.dart';

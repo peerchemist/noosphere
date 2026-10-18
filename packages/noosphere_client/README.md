@@ -97,7 +97,7 @@ set, and replace the subscription when a reconnect produces a fresh `Client`.
 ## Protocol
 
 Canonical domain types, group configuration, messages and framing live in the
-sibling `noosphere` workspace package. This package implements the participant
+sibling `noosphere_protocol` workspace package. This package implements the participant
 role and its Iroh transport; gRPC is not supported by this fork.
 
 See `example/example.dart` for a minimal command-line login and DKG example.

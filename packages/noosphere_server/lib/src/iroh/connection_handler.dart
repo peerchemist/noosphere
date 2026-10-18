@@ -3,13 +3,13 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/domain.dart' as domain;
-import 'package:noosphere/domain.dart'
+import 'package:noosphere_protocol/domain.dart' as domain;
+import 'package:noosphere_protocol/domain.dart'
     hide
         DkgAckRequest,
         CancelSignaturesRequestResponse,
         CancelSignaturesRequestResult;
-import 'package:noosphere/wire.dart';
+import 'package:noosphere_protocol/wire.dart';
 import 'package:protobuf/protobuf.dart';
 
 import '../config/iroh.dart';

@@ -5,6 +5,8 @@ analyzer:
     - build/**
     - macos/**
     - linux/**
+    # This manifest resolves paths relative to /workspace inside the image.
+    - deploy/coordinator/pubspec.yaml
 
 linter:
   rules:

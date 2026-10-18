@@ -8,7 +8,7 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/wire.dart' as wire;
+import 'package:noosphere_protocol/wire.dart' as wire;
 import 'package:noosphere_client/public_feed.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 import 'package:noosphere_server/src/server/state/public_feed.dart';

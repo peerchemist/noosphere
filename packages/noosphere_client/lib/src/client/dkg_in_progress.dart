@@ -1,5 +1,5 @@
-import 'package:noosphere/api/types/expiry.dart';
-import 'package:noosphere/api/types/new_dkg_details.dart';
+import 'package:noosphere_protocol/api/types/expiry.dart';
+import 'package:noosphere_protocol/api/types/new_dkg_details.dart';
 import 'package:frosty/frosty.dart';
 
 enum DkgStage { round1, round2 }

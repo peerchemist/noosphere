@@ -1,9 +1,9 @@
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:frosty/frosty.dart';
-import 'package:noosphere/api/types/expiry.dart';
-import 'package:noosphere/api/types/new_dkg_details.dart';
-import 'package:noosphere/api/types/signatures_request_details.dart';
-import 'package:noosphere/api/types/signed_message.dart';
+import 'package:noosphere_protocol/api/types/expiry.dart';
+import 'package:noosphere_protocol/api/types/new_dkg_details.dart';
+import 'package:noosphere_protocol/api/types/signatures_request_details.dart';
+import 'package:noosphere_protocol/api/types/signed_message.dart';
 
 import 'client.dart';
 import 'dkg_in_progress.dart';

@@ -1,8 +1,8 @@
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/wire.dart' show defaultMaxMessageLength;
-import 'package:noosphere/iroh.dart';
+import 'package:noosphere_protocol/wire.dart' show defaultMaxMessageLength;
+import 'package:noosphere_protocol/iroh.dart';
 
-export 'package:noosphere/iroh.dart';
+export 'package:noosphere_protocol/iroh.dart';
 
 extension IrohClientRelayMode on IrohRelayConfig {
   RelayMode toRelayMode() => switch (policy) {

@@ -18,8 +18,8 @@ import shutil
 import sys
 
 repo, stage = map(Path, sys.argv[1:])
-for name in ['noosphere_flutter', 'noosphere', 'noosphere_client', 'noosphere_server']:
-    source = repo if name == 'noosphere_flutter' else repo / 'packages' / name
+for name in ['noosphere_flutter', 'noosphere_protocol', 'noosphere_client', 'noosphere_server']:
+    source = repo / 'packages' / name
     target = stage / 'packages' / name
     target.mkdir(parents=True)
     shutil.copytree(source / 'lib', target / 'lib')
@@ -62,8 +62,8 @@ dev_dependencies:
     sdk: flutter
 
 dependency_overrides:
-  noosphere:
-    path: ../packages/noosphere
+  noosphere_protocol:
+    path: ../packages/noosphere_protocol
   noosphere_client:
     path: ../packages/noosphere_client
   noosphere_server:

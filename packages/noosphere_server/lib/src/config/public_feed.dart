@@ -1,4 +1,4 @@
-import 'package:noosphere/public_feed.dart';
+import 'package:noosphere_protocol/public_feed.dart';
 
 /// Explicit opt-in for one coordinator group. Supply a random ID once and
 /// retain it in host configuration; the journal also persists it atomically.

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere/domain.dart';
+import 'package:noosphere_protocol/domain.dart';
 import 'package:noosphere_client/src/client/cached_storage.dart';
 import 'package:noosphere_client/src/client/dkg_in_progress.dart';
 import 'package:noosphere_client/src/client/frost_key_with_details.dart';

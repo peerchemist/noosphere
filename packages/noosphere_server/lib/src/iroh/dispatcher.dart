@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:noosphere/domain.dart';
-import 'package:noosphere/public_feed.dart';
-import 'package:noosphere/wire.dart' hide PublicFeedPage, PublicFeedEntry;
+import 'package:noosphere_protocol/domain.dart';
+import 'package:noosphere_protocol/public_feed.dart';
+import 'package:noosphere_protocol/wire.dart'
+    hide PublicFeedPage, PublicFeedEntry;
 import 'package:protobuf/protobuf.dart';
 
 import '../server/api_handler.dart';

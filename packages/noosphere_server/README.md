@@ -55,7 +55,7 @@ installs Iroh's signed upstream prebuilt, and bundles the AOT-compiled CLI with
 all three required native libraries.
 
 ```sh
-podman build -f Containerfile -t noosphere-server .
+podman build -f deploy/coordinator/Containerfile -t noosphere-server .
 podman run --rm \
   -v noosphere-data:/var/lib/noosphere \
   -v "$PWD/config.yaml:/config/server.yaml:ro,Z" \
@@ -135,7 +135,7 @@ base or frozen-room handler. Iroh remains active for every remote participant.
 ## Protocol and migration
 
 The shared domain types, protocol schema, generated message classes and framing
-live in the sibling `noosphere` package. The server has no production
+live in the sibling `noosphere_protocol` package. The server has no production
 dependency on `noosphere_client`; that package is used only by end-to-end tests
 and examples. The 3.0.0 server and 4.0.0 client remove gRPC completely. Migrate
 by replacing

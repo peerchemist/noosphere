@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere/iroh.dart';
+import 'package:noosphere_protocol/iroh.dart';
 import 'package:noosphere_client/public_feed.dart';
 
 Future<void> main(List<String> args) async {

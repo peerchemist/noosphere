@@ -1,5 +1,5 @@
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere/wire.dart' show defaultMaxMessageLength;
+import 'package:noosphere_protocol/wire.dart' show defaultMaxMessageLength;
 import 'package:noosphere_server/noosphere_server.dart';
 import 'package:yaml/yaml.dart';
 
