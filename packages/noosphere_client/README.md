@@ -29,7 +29,7 @@ For desktop Dart, install the signed Iroh native library and pass its path as
 dart run iroh_quic:setup
 ```
 
-Flutter applications should depend on `iroh_flutter: 1.0.3`, which packages
+Flutter applications should depend on `iroh_flutter: 1.1.0`, which packages
 the matching native libraries for supported target ABIs.
 
 ## Connecting

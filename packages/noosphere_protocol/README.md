@@ -54,7 +54,7 @@ field or read-only collection does not transfer or duplicate a native handle.
 Prefer the Flutter worker's public DTOs for UI state. To create an independent
 native value, copy its serialized bytes and decode with its type's constructor;
 manage that new value's lifetime separately. Never duplicate signing nonces for
-reuse. Coinlib 6.0.1, Frosty 5.0.0 and the Iroh adapters 1.0.3 are pinned to the
+reuse. Coinlib 6.0.1, Frosty 5.0.1 and the Iroh adapters 1.1.0 are pinned to the
 versions exercised by the release tests.
 
 Unknown signature metadata can be preserved as a standalone opaque value, but

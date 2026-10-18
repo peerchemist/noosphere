@@ -74,7 +74,7 @@ jobs:
           dart test --concurrency=1
         env:
           IROHDART_CACHE_DIR: ${{ runner.temp }}/iroh-cache
-          IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.0.3/x86_64-unknown-linux-gnu/libirohdart_ffi.so
+          IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.1.0/x86_64-unknown-linux-gnu/libirohdart_ffi.so
       - name: Verify server core
         working-directory: noosphere/packages/noosphere_server
         run: |
@@ -82,4 +82,4 @@ jobs:
           dart test --concurrency=1
         env:
           IROHDART_CACHE_DIR: ${{ runner.temp }}/iroh-cache
-          IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.0.3/x86_64-unknown-linux-gnu/libirohdart_ffi.so
+          IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.1.0/x86_64-unknown-linux-gnu/libirohdart_ffi.so

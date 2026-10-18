@@ -71,7 +71,7 @@ the container build context.
 
 ## Native development setup
 
-This branch requires Dart 3.13, the published Frosty 5.0.0 native-assets
+This branch requires Dart 3.13, the published Frosty 5.0.1 native-assets
 release, and Coinlib 6.0.1. Install Iroh's signed native library with:
 
 ```sh
