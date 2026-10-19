@@ -291,11 +291,11 @@ extension _ServerDkg on ServerApiHandler {
         (candidate) =>
             cl.bytesEqual(candidate.details.obj.ceremonyId, value.ceremonyId),
       );
-      // An ACK is a completion claim only while its exact ceremony is
-      // retained. Afterwards it remains a signed key-possession statement.
-      if (dkg != null) {
-        if (!value.accepted ||
-            dkg.round is! DkgRound2State ||
+      // Only positive acknowledgements can claim completion. A negative
+      // possession response is valid even while the ceremony is retained,
+      // and must never remove or alter a durable completion acknowledgement.
+      if (dkg != null && value.accepted) {
+        if (dkg.round is! DkgRound2State ||
             !dkg.round2.allSharesSubmitted ||
             !dkg.round2.contributions.containsKey(ack.signer) ||
             !cl.bytesEqual(dkg.round2.expectedHash, value.transcriptHash)) {

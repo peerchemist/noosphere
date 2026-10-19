@@ -16,17 +16,25 @@ final class ServerStateSnapshot {
     final copy = Uint8List.fromList(bytes);
     final decoded = jsonDecode(utf8.decode(copy));
     if (decoded is! Map<String, dynamic> ||
-        decoded['version'] != currentVersion ||
+        ![1, 2, currentVersion].contains(decoded['version']) ||
         decoded['dkg'] is! List ||
         (decoded['dkg'] as List).any(
-          (record) => record is! Map || record['status'] != 'resumable',
+          (record) =>
+              record is! Map ||
+              !(decoded['version'] == currentVersion
+                      ? ['resumable']
+                      : decoded['version'] == 1
+                      ? ['active', 'interrupted']
+                      : ['resumable', 'interrupted'])
+                  .contains(record['status']),
         ) ||
         decoded['signing'] is! List ||
         decoded['completed'] is! List ||
         decoded['shares'] is! List ||
         decoded['cancelled'] is! List ||
         decoded['terminalSigning'] is! List ||
-        decoded['terminalDkg'] is! List) {
+        (decoded['version'] == currentVersion &&
+            decoded['terminalDkg'] is! List)) {
       throw const FormatException('Invalid server state snapshot.');
     }
     return ServerStateSnapshot._(copy);

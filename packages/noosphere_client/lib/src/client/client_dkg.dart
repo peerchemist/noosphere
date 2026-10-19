@@ -197,9 +197,14 @@ extension _ClientDkg on Client {
         final serverContributed = snapshot.commitments.any(
           (c) => c.$1 == config.id,
         );
-        round1.commitments
-          ..clear()
-          ..addAll(snapshot.commitments);
+        // Events may have delivered newer commitments while the snapshot RPC
+        // was in flight. Contributions are immutable, so reconcile by union
+        // after checking conflicts above rather than rolling local state back.
+        round1.commitments.addAll(
+          snapshot.commitments.where(
+            (entry) => !localCommitments.containsKey(entry.$1),
+          ),
+        );
         if (serverContributed && round1.ourSecret == null) {
           dkg
             ..missingSecret = true
@@ -209,7 +214,7 @@ extension _ClientDkg on Client {
             }
             ..unavailableCompleted = switch (snapshot.stage) {
               DkgCeremonyStage.collectingCommitments =>
-                snapshot.commitments.map((commitment) => commitment.$1).toSet(),
+                round1.commitments.map((commitment) => commitment.$1).toSet(),
               DkgCeremonyStage.collectingShares => snapshot.shareContributors,
               _ => snapshot.completedParticipants,
             };
@@ -217,7 +222,6 @@ extension _ClientDkg on Client {
           return;
         }
         if (!serverContributed && localContribution != null) {
-          round1.commitments.add(localContribution);
           await api.submitDkgCommitment(
             sid: _state.sessionID,
             name: name,

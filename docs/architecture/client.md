@@ -45,7 +45,9 @@ commitment set.
 Disconnecting does not remove a commitment or reset round two. On login, the
 client fetches the durable ceremony snapshot, tolerates identical deliveries,
 rejects conflicting deliveries and resubmits the exact prepared round-two
-payload when it is still available. Invalid proofs, ciphertexts or shares
+payload when it is still available. Snapshot reconciliation preserves verified
+commitments delivered by events while the fetch was in flight. Invalid proofs,
+ciphertexts or shares
 reject the attempt.
 
 Noosphere remains stateless with respect to durable application data: the host

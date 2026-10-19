@@ -11,6 +11,29 @@ Future<Client> _loginClient({
   final key = await getPrivateKey(KeyPurpose.login);
   final cachedStore = await ClientCachedStorage.load(store);
 
+  // Migrated key shares remain usable, but their historical ACK cache did not
+  // preserve ceremony context. Re-attest only our own possession and commit
+  // through the caller's storage before participating in ACK exchange.
+  for (final stored in cachedStore.keys.values.toList()) {
+    if (!stored.hasLegacyDkgContext ||
+        stored.acks.any((ack) => ack.signer == config.id)) {
+      continue;
+    }
+    final ack = SignedDkgAck(
+      signer: config.id,
+      signed: Signed.sign(
+        obj: DkgAck(
+          groupKey: stored.groupKey,
+          accepted: true,
+          ceremonyId: stored.ceremonyId,
+          transcriptHash: stored.transcriptHash,
+        ),
+        key: await getPrivateKey(KeyPurpose.signAck),
+      ),
+    );
+    await cachedStore.addOrReplaceFrostKey(stored.addOrReplaceAck(ack));
+  }
+
   // Login with server
   final resp1 = await api.login(
     groupFingerprint: config.group.fingerprint,

@@ -48,7 +48,8 @@ signed value is a long-lived key-possession statement once the ceremony has
 been removed; it can repopulate the ephemeral ACK cache after expiry,
 rejection, restart or cache eviction. ACK batches are fully validated before
 any member is applied, and completion changes are persisted before events are
-published.
+published. Negative possession responses are valid even while the ceremony is
+retained; they do not create, revoke, or replace completion acknowledgements.
 
 For signing, it validates the signed request, exact group keys, initial
 commitments and expiry. Per-signature state tracks queued commitments, active

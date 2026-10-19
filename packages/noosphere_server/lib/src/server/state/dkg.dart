@@ -102,7 +102,7 @@ class DkgState implements Expirable {
   };
 }
 
-enum DkgTerminalOutcome { rejected, expired, completed }
+enum DkgTerminalOutcome { rejected, expired, completed, interrupted }
 
 /// Compact replay-prevention record retained after delivery data is removed.
 class TerminalDkg implements Expirable {

@@ -72,21 +72,54 @@ class FrostKeyWithDetails with cl.Writable {
        );
 
   factory FrostKeyWithDetails.fromReader(cl.BytesReader reader) {
-    final prefix = reader.readSlice(_formatPrefix.length);
-    if (!cl.bytesEqual(prefix, _formatPrefix)) {
+    // Historical records began directly with the compressed group public key.
+    // Its 02/03 prefix cannot collide with the versioned format's 00 prefix.
+    final first = reader.bytes.getUint8(reader.offset);
+    final legacy = first == 2 || first == 3;
+    if (!legacy &&
+        !cl.bytesEqual(reader.readSlice(_formatPrefix.length), _formatPrefix)) {
       throw const FormatException('Malformed FrostKeyWithDetails');
     }
     final keyInfo = ParticipantKeyInfo.fromReader(reader);
     final name = reader.readString();
     final description = reader.readString();
-    final acks = reader.readWritableVector(SignedDkgAck.fromBytes).toSet();
+    final Set<SignedDkgAck> acks;
+    if (legacy) {
+      // The compact historical encoding omitted signed ceremony context.
+      // Never attach invented context to those signatures. Discard only this
+      // reconstructible ACK cache; login re-attests possession with a new ACK.
+      final count = reader.readUInt16();
+      for (var i = 0; i < count; i++) {
+        reader.readIdentifier();
+        reader.readBool();
+        reader.readSignature();
+      }
+      acks = {};
+    } else {
+      acks = reader.readWritableVector(SignedDkgAck.fromBytes).toSet();
+    }
+    final ceremonyId = legacy
+        ? _legacyCeremonyId(keyInfo.groupKey)
+        : reader.readSlice(32);
+    final transcriptHash = legacy
+        ? _legacyTranscriptHash(keyInfo.groupKey)
+        : reader.readSlice(32);
+    if (legacy && reader.atEnd) {
+      return FrostKeyWithDetails(
+        keyInfo: keyInfo,
+        name: name,
+        description: description,
+        ceremonyId: ceremonyId,
+        transcriptHash: transcriptHash,
+      );
+    }
     return FrostKeyWithDetails._(
       keyInfo: keyInfo,
       name: name,
       description: description,
       acks: acks,
-      ceremonyId: reader.readSlice(32),
-      transcriptHash: reader.readSlice(32),
+      ceremonyId: ceremonyId,
+      transcriptHash: transcriptHash,
       secretShareTimes: reader.readMap(
         () => reader.readIdentifier(),
         () => reader.readTime(),
@@ -97,6 +130,19 @@ class FrostKeyWithDetails with cl.Writable {
           : KeyConstructionComplete.fromReader(reader),
     );
   }
+
+  // Legacy keys have no recoverable DKG transcript. These domain-separated,
+  // key-bound values support possession exchange without identifying a new DKG.
+  static Uint8List _legacyCeremonyId(cl.ECCompressedPublicKey key) =>
+      cl.getTaggedHasher('NoosphereLegacyKeyPossession')(key.data);
+  static Uint8List _legacyTranscriptHash(cl.ECCompressedPublicKey key) =>
+      cl.getTaggedHasher('NoosphereLegacyKeyTranscript')(key.data);
+
+  /// Whether this key predates stored ceremony metadata and uses a context
+  /// for possession exchange only, never for resuming a new DKG.
+  bool get hasLegacyDkgContext =>
+      cl.bytesEqual(ceremonyId, _legacyCeremonyId(groupKey)) &&
+      cl.bytesEqual(transcriptHash, _legacyTranscriptHash(groupKey));
 
   /// Convenience constructor to construct from serialised [bytes].
   factory FrostKeyWithDetails.fromBytes(Uint8List bytes) =>

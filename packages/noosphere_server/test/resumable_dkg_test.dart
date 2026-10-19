@@ -4,6 +4,8 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_server/noosphere_server.dart';
 import 'package:noosphere_server/testing.dart';
 import 'package:test/test.dart';
+import 'package:noosphere_client/noosphere_client.dart';
+import 'package:noosphere_client/testing.dart';
 
 void main() {
   setUpAll(() async {
@@ -382,6 +384,49 @@ void main() {
       throwsA(isA<InvalidRequest>()),
     );
     await disconnect(session);
+    var disconnected = false;
+    final blocked = await Client.login(
+      config: ClientConfig(id: ids[0], group: group),
+      api: server,
+      store: InMemoryClientStorage(),
+      getPrivateKey: (_) async => identityKeys[0],
+      onDisconnect: () {
+        disconnected = true;
+      },
+    );
+    final errors = <Object>[];
+    final subscription = blocked.events.listen((_) {}, onError: errors.add);
+    addTearDown(subscription.cancel);
+    addTearDown(blocked.logout);
+    expect(blocked.acceptedDkgs.single.canResume, isFalse);
+    server.debugState.dkgAckCache.remove(participantKeys[0].groupKey);
+    session = await login(1);
+    await server.requestDkgAcks(
+      sid: session.id,
+      requests: {
+        DkgAckRequest(
+          ids: {ids[0]},
+          groupPublicKey: participantKeys[0].groupKey,
+          ceremonyId: details.ceremonyId,
+          transcriptHash: transcriptHash,
+        ),
+      },
+    );
+    await pumpEventQueue();
+    expect(
+      disconnected,
+      isFalse,
+      reason: 'A missing-key possession NACK must not disconnect the blocked signer',
+    );
+    expect(errors, isEmpty);
+    expect(
+      (await server.getDkg(
+        sid: session.id,
+        name: details.name,
+        ceremonyId: details.ceremonyId,
+      ))!.completedParticipants,
+      ids.toSet(),
+    );
   });
 
   test(
