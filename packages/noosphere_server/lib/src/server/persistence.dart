@@ -6,7 +6,7 @@ import 'dart:typed_data';
 /// The payload is intentionally opaque to hosts: noosphere owns its schema and
 /// validation, while the host owns atomic and durable storage of the record.
 final class ServerStateSnapshot {
-  static const currentVersion = 2;
+  static const currentVersion = 3;
 
   final Uint8List _bytes;
 
@@ -16,13 +16,17 @@ final class ServerStateSnapshot {
     final copy = Uint8List.fromList(bytes);
     final decoded = jsonDecode(utf8.decode(copy));
     if (decoded is! Map<String, dynamic> ||
-        (decoded['version'] != 1 && decoded['version'] != currentVersion) ||
+        decoded['version'] != currentVersion ||
         decoded['dkg'] is! List ||
+        (decoded['dkg'] as List).any(
+          (record) => record is! Map || record['status'] != 'resumable',
+        ) ||
         decoded['signing'] is! List ||
         decoded['completed'] is! List ||
         decoded['shares'] is! List ||
         decoded['cancelled'] is! List ||
-        decoded['terminalSigning'] is! List) {
+        decoded['terminalSigning'] is! List ||
+        decoded['terminalDkg'] is! List) {
       throw const FormatException('Invalid server state snapshot.');
     }
     return ServerStateSnapshot._(copy);

@@ -30,15 +30,25 @@ snapshot containing current DKG/signing work, completed results and recovery
 shares. Session IDs must remain bound to their authenticated connection.
 
 Sessions and challenges are ephemeral. Optional keepalives are disabled by
-default. Logging out removes the session and updates in-memory DKG/signing
-state; reachability is not a durable rejection vote.
+default. Logging out removes the session; reachability is not a DKG mutation or
+a durable rejection vote.
 
 ## DKG and ROAST
 
-For DKG, the server validates signed proposals, enforces unique active names,
-collects the full roster's commitments, and routes encrypted round-two shares
-to their recipients. It caches signed ACKs and requests missing ones, but can
-rebuild that cache from participant records after restart.
+For DKG, the server validates protocol version and group fingerprint on signed
+proposals, enforces unique active names, collects the full roster's
+commitments, and routes encrypted round-two shares to their recipients. Every
+authenticated fetch or mutation targets both name and mandatory ceremony ID.
+Commitment, rejection and round-two events also carry that ID, so delayed
+traffic cannot mutate a replacement sharing the display name.
+
+Completion ACKs are accepted only against a retained ceremony with a complete
+round-two transcript and a contribution from that signer. The same contextual
+signed value is a long-lived key-possession statement once the ceremony has
+been removed; it can repopulate the ephemeral ACK cache after expiry,
+rejection, restart or cache eviction. ACK batches are fully validated before
+any member is applied, and completion changes are persisted before events are
+published.
 
 For signing, it validates the signed request, exact group keys, initial
 commitments and expiry. Per-signature state tracks queued commitments, active
@@ -54,11 +64,13 @@ emits failure.
 
 ## Persistence and delivery
 
-Live DKG secrets and ROAST rounds are not restartable. Restore converts active
-DKGs to interrupted records and active signing requests to blocked records
-before accepting traffic. Completed signatures and encrypted recovery shares
-remain available for redelivery. A write with unknown outcome blocks further
-mutations until the handler reloads storage.
+Participant DKG secrets and ROAST rounds are not coordinator state. Version 3
+coordinator snapshots restore active DKG commitments, encrypted round-two
+mailboxes and completion acknowledgements, while active signing requests become
+blocked records. Rejected and expired DKG ceremony IDs remain terminal for the
+configured maximum DKG request TTL. Completed signatures and encrypted recovery
+shares remain available for redelivery. A write with unknown outcome blocks
+further mutations until the handler reloads storage.
 
 Each session has a 100-event pause buffer. It drops older transient entries
 when full and provides neither durable replay nor exactly-once delivery.

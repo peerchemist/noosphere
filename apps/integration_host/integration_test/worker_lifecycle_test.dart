@@ -115,6 +115,7 @@ void main() {
               description: 'Disconnected mutation must fail',
               threshold: 2,
               expiry: Expiry(const Duration(hours: 1)),
+              groupFingerprint: group.fingerprint,
             ),
           ),
           throwsA(isA<NoosphereWorkerException>()),

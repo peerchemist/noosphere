@@ -91,6 +91,7 @@ void main() {
         description: 'One co-signer is offline for four minutes',
         threshold: 3,
         expiry: Expiry(const Duration(hours: 1)),
+        groupFingerprint: group.fingerprint,
       ),
     );
     final received = await Future.wait(proposals)

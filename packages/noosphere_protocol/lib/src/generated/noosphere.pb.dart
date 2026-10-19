@@ -1679,11 +1679,13 @@ class DkgCommitmentEvent extends $pb.GeneratedMessage {
     $core.String? name,
     $core.List<$core.int>? participantId,
     $core.List<$core.int>? commitment,
+    $core.List<$core.int>? ceremonyId,
   }) {
     final result = create();
     if (name != null) result.name = name;
     if (participantId != null) result.participantId = participantId;
     if (commitment != null) result.commitment = commitment;
+    if (ceremonyId != null) result.ceremonyId = ceremonyId;
     return result;
   }
 
@@ -1705,6 +1707,8 @@ class DkgCommitmentEvent extends $pb.GeneratedMessage {
         2, _omitFieldNames ? '' : 'participantId', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
         3, _omitFieldNames ? '' : 'commitment', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        4, _omitFieldNames ? '' : 'ceremonyId', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1754,16 +1758,27 @@ class DkgCommitmentEvent extends $pb.GeneratedMessage {
   $core.bool hasCommitment() => $_has(2);
   @$pb.TagNumber(3)
   void clearCommitment() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.List<$core.int> get ceremonyId => $_getN(3);
+  @$pb.TagNumber(4)
+  set ceremonyId($core.List<$core.int> value) => $_setBytes(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasCeremonyId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCeremonyId() => $_clearField(4);
 }
 
 class DkgRejectEvent extends $pb.GeneratedMessage {
   factory DkgRejectEvent({
     $core.String? name,
     $core.List<$core.int>? participantId,
+    $core.List<$core.int>? ceremonyId,
   }) {
     final result = create();
     if (name != null) result.name = name;
     if (participantId != null) result.participantId = participantId;
+    if (ceremonyId != null) result.ceremonyId = ceremonyId;
     return result;
   }
 
@@ -1783,6 +1798,8 @@ class DkgRejectEvent extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'name')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'participantId', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        3, _omitFieldNames ? '' : 'ceremonyId', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1823,6 +1840,15 @@ class DkgRejectEvent extends $pb.GeneratedMessage {
   $core.bool hasParticipantId() => $_has(1);
   @$pb.TagNumber(2)
   void clearParticipantId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get ceremonyId => $_getN(2);
+  @$pb.TagNumber(3)
+  set ceremonyId($core.List<$core.int> value) => $_setBytes(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCeremonyId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCeremonyId() => $_clearField(3);
 }
 
 class DkgRound2ShareEvent extends $pb.GeneratedMessage {
@@ -1831,6 +1857,7 @@ class DkgRound2ShareEvent extends $pb.GeneratedMessage {
     $core.List<$core.int>? commitmentSetSignature,
     $core.List<$core.int>? senderId,
     $core.List<$core.int>? encryptedSecret,
+    $core.List<$core.int>? ceremonyId,
   }) {
     final result = create();
     if (name != null) result.name = name;
@@ -1838,6 +1865,7 @@ class DkgRound2ShareEvent extends $pb.GeneratedMessage {
       result.commitmentSetSignature = commitmentSetSignature;
     if (senderId != null) result.senderId = senderId;
     if (encryptedSecret != null) result.encryptedSecret = encryptedSecret;
+    if (ceremonyId != null) result.ceremonyId = ceremonyId;
     return result;
   }
 
@@ -1861,6 +1889,8 @@ class DkgRound2ShareEvent extends $pb.GeneratedMessage {
         3, _omitFieldNames ? '' : 'senderId', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
         4, _omitFieldNames ? '' : 'encryptedSecret', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        5, _omitFieldNames ? '' : 'ceremonyId', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1920,6 +1950,15 @@ class DkgRound2ShareEvent extends $pb.GeneratedMessage {
   $core.bool hasEncryptedSecret() => $_has(3);
   @$pb.TagNumber(4)
   void clearEncryptedSecret() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.List<$core.int> get ceremonyId => $_getN(4);
+  @$pb.TagNumber(5)
+  set ceremonyId($core.List<$core.int> value) => $_setBytes(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasCeremonyId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearCeremonyId() => $_clearField(5);
 }
 
 class DkgAckEvent extends $pb.GeneratedMessage {

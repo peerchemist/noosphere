@@ -1,11 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:noosphere_client/noosphere_client.dart';
 import 'package:test/test.dart';
 
 import '../data.dart';
 import '../support/key_generation.dart';
 
-final oldVersionHex =
-    "035582770be7cf86a6328765af71fd359dce106204b099e9853f99d83022e3ea5104000a0000000000000000000000000000000000000000000000000000000000000000010384a901676249450c2d2fd440e85eb08fbd176aaf2e38ff97b73e4b6d5e4c241f000000000000000000000000000000000000000000000000000000000000000202fe75ca3fa68401630bf2a01a340ea57782c6fd16be347ebca7bb459cecf7ec8800000000000000000000000000000000000000000000000000000000000000030225f4458d071caece540ee096157f0979e1be9e85aa69ce83899f4d60b746363f0000000000000000000000000000000000000000000000000000000000000004037b7ab42b7e78e5a8eeec164745e6a2a74d70db4026936b24e12fcde10a05d4fc0000000000000000000000000000000000000000000000000000000000000005029d31dd521001760121c8463af7388c760a488c1b63e0b390f2ddddba64cf18070000000000000000000000000000000000000000000000000000000000000006023709ea3deaff2b05808452f5e73c3498827269fef8bb6d883dd4d45d27048ee00000000000000000000000000000000000000000000000000000000000000007029304d84bb0da8d2d0e6ceee3ff042e1a611d1e64c55efb96461c150e1068dc74000000000000000000000000000000000000000000000000000000000000000803588f4d66a21d7ac2b359847887edafe6922ebab393228a1f5fb8024abedf5b53000000000000000000000000000000000000000000000000000000000000000903803e02d574edb91593cc6f747eb3df57db0dda54e2de830f2c1a30661cc8bae4000000000000000000000000000000000000000000000000000000000000000a02fe323c7eaf26c8b4519eb77d987ffe8a0fda5b617c241353dc53ea612e51ecbd00000000000000000000000000000000000000000000000000000000000000013da4009ba798bae5f75b69eb17ed9c3166bfb6a7bcdfd98e9a69ee32d21652940854657374204b6579134465736372697074696f6e20666f72206b65790200000000000000000000000000000000000000000000000000000000000000000201318ebf69651d9a3a131ec15df35f0ae27aa45aec5c776411f854a1b57cff8f3151f9a727a3d20ae879b1efbec60f3fad47c94ff2d6db9b4f1d56431d350385cb0000000000000000000000000000000000000000000000000000000000000006006b100ec9fc7cceb0a53ee6cb7e84617cf0790ea971f2703449fc2dcfd7d95ab27221e2c782e73e06f6c939259018d08cc1c8019de3bf1304c2819b7c5182a1a4";
+final testCeremonyId = Uint8List(32);
+final testTranscriptHash = Uint8List(32);
 
 void main() {
   group("FrostKeyWithDetails", () {
@@ -24,6 +26,8 @@ void main() {
         keyInfo: keyInfos.first,
         name: name,
         description: description,
+        ceremonyId: testCeremonyId,
+        transcriptHash: testTranscriptHash,
       );
       final groupKey = details.keyInfo.groupKey;
 
@@ -32,7 +36,12 @@ void main() {
           SignedDkgAck(
             signer: ids[i],
             signed: Signed.sign(
-              obj: DkgAck(groupKey: groupKey, accepted: accepted),
+              obj: DkgAck(
+                groupKey: groupKey,
+                accepted: accepted,
+                ceremonyId: testCeremonyId,
+                transcriptHash: testTranscriptHash,
+              ),
               key: getPrivkey(i),
             ),
           ),
@@ -147,6 +156,8 @@ void main() {
         keyInfo: infos.first,
         name: "Some key",
         description: "",
+        ceremonyId: testCeremonyId,
+        transcriptHash: testTranscriptHash,
       );
       expect(details.addSecretShare(ids[1], infos.first.private.share), isNull);
     });
@@ -156,6 +167,8 @@ void main() {
         keyInfo: generateNewKey(3).first,
         name: "Some key",
         description: "",
+        ceremonyId: testCeremonyId,
+        transcriptHash: testTranscriptHash,
       );
 
       for (final accepted in [true, false]) {
@@ -166,6 +179,8 @@ void main() {
               obj: DkgAck(
                 groupKey: details.keyInfo.groupKey,
                 accepted: accepted,
+                ceremonyId: testCeremonyId,
+                transcriptHash: testTranscriptHash,
               ),
               key: getPrivkey(1),
             ),
@@ -185,19 +200,63 @@ void main() {
       }
     });
 
-    test("can read data from before v3.0.0", () {
-      final details = FrostKeyWithDetails.fromHex(oldVersionHex);
-      expect(details.acks, hasLength(2));
-      expect(details.name, "Test Key");
-      expect(details.secretShareTimes, isEmpty);
-      expect(details.claimedToHave, isEmpty);
-      expect(
-        details.keyConstruction,
-        isA<KeyConstructionProgress>().having(
-          (construction) => construction.secrets,
-          ".secrets",
-          isEmpty,
+    test('preserves contextual ACK signatures and ceremony metadata', () {
+      final ceremonyId = Uint8List(32)..first = 1;
+      final transcriptHash = Uint8List(32)..last = 2;
+      final keyInfo = generateNewKey(3).first;
+      final ack = SignedDkgAck(
+        signer: ids[1],
+        signed: Signed.sign(
+          obj: DkgAck(
+            groupKey: keyInfo.groupKey,
+            accepted: true,
+            ceremonyId: ceremonyId,
+            transcriptHash: transcriptHash,
+          ),
+          key: getPrivkey(1),
         ),
+      );
+      final details = FrostKeyWithDetails(
+        keyInfo: keyInfo,
+        name: 'contextual',
+        description: '',
+        ceremonyId: ceremonyId,
+        transcriptHash: transcriptHash,
+      ).addOrReplaceAck(ack);
+
+      final restored = ClientStorageSnapshot(
+        keys: [details],
+        sigNonces: const {},
+        preparedOperations: const {},
+        rejectedRequests: const {},
+      ).keys.single;
+
+      expect(restored.ceremonyId, ceremonyId);
+      expect(restored.transcriptHash, transcriptHash);
+      expect(restored.acks.single.toBytes(), ack.toBytes());
+      expect(restored.acks.single.signed.verify(getPrivkey(1).pubkey), isTrue);
+    });
+
+    test('malformed key storage fails decoding', () {
+      expect(
+        () => FrostKeyWithDetails.fromBytes(Uint8List.fromList([0xde, 0xad])),
+        throwsA(anything),
+      );
+    });
+
+    test('trailing key storage data fails decoding', () {
+      final details = FrostKeyWithDetails(
+        keyInfo: generateNewKey(2).first,
+        name: 'strict format',
+        description: '',
+        ceremonyId: testCeremonyId,
+        transcriptHash: testTranscriptHash,
+      );
+      expect(
+        () => FrostKeyWithDetails.fromBytes(
+          Uint8List.fromList([...details.toBytes(), 0]),
+        ),
+        throwsFormatException,
       );
     });
   });

@@ -46,13 +46,18 @@ class DkgRound2Contribution {
     required Map<Identifier, DkgEncryptedSecret> secrets,
   }) : secrets = Map.unmodifiable(secrets);
 
-  DkgRound2ShareEvent shareFor(String name, Identifier sender, Identifier id) =>
-      DkgRound2ShareEvent(
-        name: name,
-        commitmentSetSignature: commitmentSetSignature,
-        sender: sender,
-        secret: secrets[id]!,
-      );
+  DkgRound2ShareEvent shareFor(
+    String name,
+    Uint8List ceremonyId,
+    Identifier sender,
+    Identifier id,
+  ) => DkgRound2ShareEvent(
+    name: name,
+    ceremonyId: ceremonyId,
+    commitmentSetSignature: commitmentSetSignature,
+    sender: sender,
+    secret: secrets[id]!,
+  );
 }
 
 class DkgState implements Expirable {
@@ -95,4 +100,24 @@ class DkgState implements Expirable {
     DkgRound2State(:final commitments) => commitments,
     _ => throw StateError('Unknown DKG round'),
   };
+}
+
+enum DkgTerminalOutcome { rejected, expired, completed }
+
+/// Compact replay-prevention record retained after delivery data is removed.
+class TerminalDkg implements Expirable {
+  TerminalDkg({
+    required Uint8List ceremonyId,
+    required this.name,
+    required this.outcome,
+    required this.expiry,
+  }) : ceremonyId = Uint8List.fromList(ceremonyId).asUnmodifiableView() {
+    if (ceremonyId.length != 32) throw ArgumentError.value(ceremonyId);
+  }
+
+  final Uint8List ceremonyId;
+  final String name;
+  final DkgTerminalOutcome outcome;
+  @override
+  final Expiry expiry;
 }

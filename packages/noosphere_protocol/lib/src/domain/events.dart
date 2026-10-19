@@ -104,17 +104,22 @@ class NewDkgEvent extends Event implements DetailsEvent {
 /// 2 can be commenced.
 class DkgCommitmentEvent extends Event {
   final String name;
+  final Uint8List ceremonyId;
   final Identifier participant;
   final DkgPublicCommitment commitment;
 
   DkgCommitmentEvent({
     required this.name,
+    required Uint8List ceremonyId,
     required this.participant,
     required this.commitment,
-  });
+  }) : ceremonyId = Uint8List.fromList(ceremonyId).asUnmodifiableView() {
+    if (ceremonyId.length != 32) throw ArgumentError.value(ceremonyId);
+  }
   DkgCommitmentEvent.fromReader(cl.BytesReader reader)
     : this(
         name: reader.readString(),
+        ceremonyId: reader.readSlice(32),
         participant: reader.readIdentifier(),
         commitment: DkgPublicCommitment.fromBytes(reader.readVarSlice()),
       );
@@ -124,6 +129,7 @@ class DkgCommitmentEvent extends Event {
   @override
   void write(cl.Writer writer) {
     writer.writeString(name);
+    writer.writeSlice(ceremonyId);
     writer.writeIdentifier(participant);
     writer.writeVarSlice(commitment.toBytes());
   }
@@ -135,16 +141,28 @@ class DkgCommitmentEvent extends Event {
 /// alongside a [ParticipantStatusEvent] without this event being given.
 class DkgRejectEvent extends Event {
   final String name;
+  final Uint8List ceremonyId;
   final Identifier participant;
-  DkgRejectEvent({required this.name, required this.participant});
+  DkgRejectEvent({
+    required this.name,
+    required Uint8List ceremonyId,
+    required this.participant,
+  }) : ceremonyId = Uint8List.fromList(ceremonyId).asUnmodifiableView() {
+    if (ceremonyId.length != 32) throw ArgumentError.value(ceremonyId);
+  }
   DkgRejectEvent.fromReader(cl.BytesReader reader)
-    : this(name: reader.readString(), participant: reader.readIdentifier());
+    : this(
+        name: reader.readString(),
+        ceremonyId: reader.readSlice(32),
+        participant: reader.readIdentifier(),
+      );
   factory DkgRejectEvent.fromBytes(Uint8List bytes) =>
       readNoosphere(bytes, DkgRejectEvent.fromReader);
 
   @override
   void write(cl.Writer writer) {
     writer.writeString(name);
+    writer.writeSlice(ceremonyId);
     writer.writeIdentifier(participant);
   }
 }
@@ -152,19 +170,24 @@ class DkgRejectEvent extends Event {
 /// The data from a given participant for the second round of the DKG.
 class DkgRound2ShareEvent extends Event {
   final String name;
+  final Uint8List ceremonyId;
   final cl.SchnorrSignature commitmentSetSignature;
   final Identifier sender;
   final DkgEncryptedSecret secret;
 
   DkgRound2ShareEvent({
     required this.name,
+    required Uint8List ceremonyId,
     required this.commitmentSetSignature,
     required this.sender,
     required this.secret,
-  });
+  }) : ceremonyId = Uint8List.fromList(ceremonyId).asUnmodifiableView() {
+    if (ceremonyId.length != 32) throw ArgumentError.value(ceremonyId);
+  }
   DkgRound2ShareEvent.fromReader(cl.BytesReader reader)
     : this(
         name: reader.readString(),
+        ceremonyId: reader.readSlice(32),
         commitmentSetSignature: reader.readSignature(),
         sender: reader.readIdentifier(),
         secret: DkgEncryptedSecret(ECCiphertext.fromReader(reader)),
@@ -175,6 +198,7 @@ class DkgRound2ShareEvent extends Event {
   @override
   void write(cl.Writer writer) {
     writer.writeString(name);
+    writer.writeSlice(ceremonyId);
     writer.writeSignature(commitmentSetSignature);
     writer.writeIdentifier(sender);
     secret.ciphertext.write(writer);

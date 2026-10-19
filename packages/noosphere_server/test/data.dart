@@ -38,11 +38,15 @@ NewDkgDetails getDkgDetails({
   String description = "",
   int threshold = 2,
   Expiry? expiry,
+  Uint8List? attemptId,
+  Uint8List? groupFingerprint,
 }) => NewDkgDetails.allowNegativeExpiry(
   name: name,
   description: description,
   threshold: threshold,
   expiry: expiry ?? futureExpiry,
+  groupFingerprint: groupFingerprint ?? groupConfig.fingerprint,
+  attemptId: attemptId ?? Uint8List(32),
 );
 
 Signed<T> signObject<T extends Signable>(T details, [int i = 0]) =>

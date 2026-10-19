@@ -79,7 +79,11 @@ void main() {
       commitment: getDkgPart1(0).public,
     );
 
-    final snapshot = (await api.getDkg(sid: login.id, name: details.name))!;
+    final snapshot = (await api.getDkg(
+      sid: login.id,
+      name: details.name,
+      ceremonyId: details.ceremonyId,
+    ))!;
     expect(snapshot.stage, DkgCeremonyStage.collectingCommitments);
     expect(snapshot.commitments.single.$1, ids.first);
     expect(snapshot.shares, isEmpty);

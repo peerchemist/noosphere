@@ -53,6 +53,7 @@ void main() {
           description: 'x' * 1000,
           threshold: 2,
           expiry: Expiry(const Duration(hours: 1)),
+          groupFingerprint: group.fingerprint,
         ),
       );
     }
@@ -87,6 +88,7 @@ void main() {
         description: '',
         threshold: 2,
         expiry: Expiry(const Duration(hours: 1)),
+        groupFingerprint: group.fingerprint,
       ),
     );
     // This operation needs the retained client persistence provider.

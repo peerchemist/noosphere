@@ -557,7 +557,12 @@ void main() {
     final found = await api1.requestDkgAcks(
       sid: login1.id,
       requests: {
-        DkgAckRequest(ids: {ids[0], ids[2]}, groupPublicKey: groupPublicKey),
+        DkgAckRequest(
+          ids: {ids[0], ids[2]},
+          groupPublicKey: groupPublicKey,
+          ceremonyId: Uint8List(32),
+          transcriptHash: Uint8List(32),
+        ),
       },
     );
     expect(found, {ack});

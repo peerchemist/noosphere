@@ -67,6 +67,7 @@ void main() {
       description: 'successor key',
       threshold: 2,
       expiry: Expiry.fromTime(DateTime.utc(2030, 1, 1, 12)),
+      groupFingerprint: Uint8List(32),
     );
     final plan = GroupTransitionKeyPlan(
       keyId: 'primary',
@@ -80,6 +81,7 @@ void main() {
       description: details.description,
       threshold: 2,
       expiry: Expiry.fromTime(DateTime.utc(2030, 1, 1, 13)),
+      groupFingerprint: Uint8List(32),
     );
 
     expect(plan.matchesDkgDetails(details), isTrue);
@@ -92,6 +94,7 @@ void main() {
       description: 'historical transition attempt',
       threshold: 2,
       expiry: Expiry.fromTime(DateTime.utc(2020)),
+      groupFingerprint: Uint8List(32),
     );
 
     final decoded = NewDkgDetails.fromBytesAllowExpired(details.toBytes());

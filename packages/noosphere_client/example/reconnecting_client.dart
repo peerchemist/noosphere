@@ -125,6 +125,7 @@ Future<void> main(List<String> arguments) async {
         description: 'Requested by reconnecting_client.dart',
         threshold: 2,
         expiry: ns.Expiry(const Duration(hours: 1)),
+        groupFingerprint: clientConfig.group.fingerprint,
       ),
     );
     stdout.writeln('Requested a DKG. The request is not retried on reconnect.');

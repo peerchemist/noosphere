@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
@@ -10,6 +11,7 @@ import 'signed.dart';
 /// Details of DKG requested by a participant. This is signed by the participant
 /// and sent to the other participants.
 class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
+  static const int currentProtocolVersion = 3;
   static const int minNameLength = 3;
   static const int maxNameLength = 40;
   static const int maxDescLength = 1000;
@@ -26,13 +28,27 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
   /// The requested expiry of the DKG
   final Expiry expiry;
 
+  /// Protocol context authenticated by the creator.
+  final int protocolVersion;
+
+  /// Fingerprint of the exact intended group roster and identity keys.
+  final Uint8List groupFingerprint;
+
+  /// Unique identity for this attempt, even when display fields are reused.
+  final Uint8List attemptId;
+
   NewDkgDetails._({
     required this.name,
     required this.description,
     required this.threshold,
     required this.expiry,
+    required this.protocolVersion,
+    required Uint8List groupFingerprint,
+    required Uint8List attemptId,
     bool allowNegativeExpiry = false,
-  }) {
+  }) : groupFingerprint = Uint8List.fromList(groupFingerprint)
+           .asUnmodifiableView(),
+       attemptId = Uint8List.fromList(attemptId).asUnmodifiableView() {
     if (name.length < minNameLength || name.length > maxNameLength) {
       throw ArgumentError.value(name, "name");
     }
@@ -41,6 +57,19 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
     }
     if (threshold < 2 || threshold > 0xffff) {
       throw ArgumentError.value(threshold, "threshold");
+    }
+    if (protocolVersion != currentProtocolVersion) {
+      throw ArgumentError.value(
+        protocolVersion,
+        'protocolVersion',
+        'unsupported DKG protocol version',
+      );
+    }
+    if (groupFingerprint.length != 32) {
+      throw ArgumentError.value(groupFingerprint, 'groupFingerprint');
+    }
+    if (attemptId.length != 32) {
+      throw ArgumentError.value(attemptId, 'attemptId');
     }
     if (!allowNegativeExpiry) {
       expiry.requireNotExpired();
@@ -60,11 +89,17 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
     required String description,
     required int threshold,
     required Expiry expiry,
+    required Uint8List groupFingerprint,
+    Uint8List? attemptId,
+    int protocolVersion = currentProtocolVersion,
   }) : this._(
          name: name,
          description: description,
          threshold: threshold,
          expiry: expiry,
+         protocolVersion: protocolVersion,
+         groupFingerprint: groupFingerprint,
+         attemptId: attemptId ?? _newAttemptId(),
        );
 
   /// Should only be used in tests
@@ -73,16 +108,25 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
     required String description,
     required int threshold,
     required Expiry expiry,
+    required Uint8List groupFingerprint,
+    Uint8List? attemptId,
+    int protocolVersion = currentProtocolVersion,
   }) : this._(
          name: name,
          description: description,
          threshold: threshold,
          expiry: expiry,
+         protocolVersion: protocolVersion,
+         groupFingerprint: groupFingerprint,
+         attemptId: attemptId ?? _newAttemptId(),
          allowNegativeExpiry: true,
        );
 
   NewDkgDetails.fromReader(cl.BytesReader reader)
     : this(
+        protocolVersion: reader.readUInt16(),
+        groupFingerprint: reader.readSlice(32),
+        attemptId: reader.readSlice(32),
         name: reader.readString(),
         description: reader.readString(),
         threshold: reader.readUInt16(),
@@ -93,7 +137,7 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
   factory NewDkgDetails.fromBytes(Uint8List bytes) =>
       readNoosphere(bytes, NewDkgDetails.fromReader);
 
-  /// Decodes persisted historical details without requiring a live expiry.
+  /// Decodes current-format persisted details without requiring a live expiry.
   ///
   /// Callers must still reject expired details before starting or approving a
   /// DKG. This constructor is intended for audit records and recovery state.
@@ -106,6 +150,9 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
     cl.BytesReader reader, {
     required bool allowNegativeExpiry,
   }) : this._(
+         protocolVersion: reader.readUInt16(),
+         groupFingerprint: reader.readSlice(32),
+         attemptId: reader.readSlice(32),
          name: reader.readString(),
          description: reader.readString(),
          threshold: reader.readUInt16(),
@@ -113,9 +160,9 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
          allowNegativeExpiry: allowNegativeExpiry,
        );
 
-  static final _hasher = cl.getTaggedHasher("NewDkgDetails");
+  static final _hasher = cl.getTaggedHasher("NoosphereNewDkgDetailsV3");
   static final _transcriptHasher = cl.getTaggedHasher(
-    "NoosphereDkgTranscriptV2",
+    "NoosphereDkgTranscriptV3",
   );
 
   @override
@@ -129,6 +176,9 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
 
   @override
   void write(cl.Writer writer) {
+    writer.writeUInt16(protocolVersion);
+    writer.writeSlice(groupFingerprint);
+    writer.writeSlice(attemptId);
     writer.writeString(name);
     writer.writeString(description);
     writer.writeUInt16(threshold);
@@ -142,4 +192,9 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
       _transcriptHasher(
         Uint8List.fromList([...ceremonyId, ...commitments.hash]),
       );
+}
+
+Uint8List _newAttemptId() {
+  final random = Random.secure();
+  return Uint8List.fromList(List.generate(32, (_) => random.nextInt(256)));
 }

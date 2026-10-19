@@ -9,6 +9,8 @@ import '../../support/data.dart';
 List<int> genRepeatUtf8(int n) => List.generate(n, (i) => 48 + (i % 10));
 
 Uint8List validBytes = Uint8List.fromList([
+  // Protocol, group fingerprint, attempt ID
+  3, 0, ...List.filled(32, 1), ...List.filled(32, 2),
   // Name
   40, ...genRepeatUtf8(40),
   // Description
@@ -29,12 +31,16 @@ void main() {
         String description = "",
         int threshold = 2,
         Expiry? expiry,
+        Uint8List? groupFingerprint,
+        int protocolVersion = NewDkgDetails.currentProtocolVersion,
       }) => expect(
         () => NewDkgDetails(
           name: name,
           description: description,
           threshold: threshold,
           expiry: expiry ?? futureExpiry,
+          groupFingerprint: groupFingerprint ?? groupConfig.fingerprint,
+          protocolVersion: protocolVersion,
         ),
         throwsArgumentError,
       );
@@ -47,6 +53,8 @@ void main() {
       expectInvalid(threshold: 1);
       expectInvalid(threshold: 0x10000);
       expectInvalid(expiry: Expiry(Duration(seconds: -1)));
+      expectInvalid(groupFingerprint: Uint8List(31));
+      expectInvalid(protocolVersion: 2);
     });
 
     test("can be read and written", () {
@@ -62,6 +70,9 @@ void main() {
         Iterable.generate(100, (_) => "0123456789").join(),
       );
       expect(details.threshold, 2);
+      expect(details.protocolVersion, 3);
+      expect(details.groupFingerprint, List.filled(32, 1));
+      expect(details.attemptId, List.filled(32, 2));
       expect(details.expiry.time.millisecondsSinceEpoch, expiryTimestamp);
     });
 
@@ -85,6 +96,30 @@ void main() {
       expectInvalidSig(getDkgDetails(description: "1"));
       expectInvalidSig(getDkgDetails(threshold: 3));
       expectInvalidSig(getDkgDetails(expiry: Expiry(Duration(minutes: 2))));
+      expectInvalidSig(
+        getDkgDetails(groupFingerprint: Uint8List(32)..last = 1),
+      );
+      expectInvalidSig(getDkgDetails(attemptId: Uint8List(32)..last = 1));
+    });
+
+    test('same-name attempts receive distinct ceremony identities', () {
+      final first = NewDkgDetails(
+        name: 'same-name',
+        description: '',
+        threshold: 2,
+        expiry: futureExpiry,
+        groupFingerprint: groupConfig.fingerprint,
+      );
+      final second = NewDkgDetails(
+        name: 'same-name',
+        description: '',
+        threshold: 2,
+        expiry: first.expiry,
+        groupFingerprint: groupConfig.fingerprint,
+      );
+
+      expect(cl.bytesEqual(first.attemptId, second.attemptId), isFalse);
+      expect(cl.bytesEqual(first.ceremonyId, second.ceremonyId), isFalse);
     });
   });
 }

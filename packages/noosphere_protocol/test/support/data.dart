@@ -27,11 +27,15 @@ NewDkgDetails getDkgDetails({
   String description = "",
   int threshold = 2,
   Expiry? expiry,
+  Uint8List? attemptId,
+  Uint8List? groupFingerprint,
 }) => NewDkgDetails.allowNegativeExpiry(
   name: name,
   description: description,
   threshold: threshold,
   expiry: expiry ?? futureExpiry,
+  groupFingerprint: groupFingerprint ?? groupConfig.fingerprint,
+  attemptId: attemptId ?? Uint8List(32),
 );
 
 final expiryBytes = [0, 0, 0xdc, 0xc2, 0x08, 0xb2, 0x1e, 0];

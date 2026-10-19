@@ -77,9 +77,7 @@ class ServerPersistentState {
   );
   final Map<cl.ECCompressedPublicKey, KeySharingState> secretShares = {};
 
-  /// Attempts found during restoration. DKG attempts are aborted; signing
-  /// attempts remain blocked until their signed request expires.
-  final Map<String, NewDkgEvent> interruptedDkgs = {};
+  final Map<String, TerminalDkg> terminalDkgs = {};
   final Map<SignaturesRequestId, SignaturesRequestEvent> blockedSignatures = {};
   final cancelledSignatures =
       ExpirableMap<SignaturesRequestId, CancelledSignaturesRequest>(
@@ -187,9 +185,6 @@ class ServerState {
               ),
           ],
         },
-      for (final value in persistent.interruptedDkgs.values)
-        if (!value.expiry.isExpired)
-          {'status': 'interrupted', 'event': bytes(value.toBytes())},
     ];
     final signing = <Map<String, Object?>>[
       for (final value in sigRequests.values)
@@ -272,6 +267,16 @@ class ServerState {
                     'expiry': entry.value.expiry.time.microsecondsSinceEpoch,
                   },
             ],
+            'terminalDkg': [
+              for (final record in persistent.terminalDkgs.values)
+                if (!record.expiry.isExpired)
+                  {
+                    'ceremonyId': bytes(record.ceremonyId),
+                    'name': record.name,
+                    'outcome': record.outcome.name,
+                    'expiry': record.expiry.time.microsecondsSinceEpoch,
+                  },
+            ],
             if (persistent.publicFeed case final feed?)
               'publicFeed': feed.toJson(),
           }),
@@ -280,9 +285,9 @@ class ServerState {
     );
   }
 
-  /// Restores durable values. Returns true when active attempts were converted
-  /// to their restart-safe interrupted/blocked representation and the upgraded
-  /// snapshot must be written before requests are accepted.
+  /// Restores durable values. Returns true when expiry or restart recovery
+  /// changed current-version state and it must be rewritten before requests are
+  /// accepted.
   bool restore(ServerStateSnapshot snapshot, {PublicFeedConfig? publicFeed}) {
     Uint8List bytes(Object? value) => base64Decode(value! as String);
     Identifier id(Object? value) => Identifier.fromBytes(bytes(value));
@@ -317,86 +322,87 @@ class ServerState {
       );
     }
 
-    for (final raw in root['dkg']! as List) {
+    for (final raw in root['terminalDkg']! as List) {
       final record = raw as Map;
-      if (record['status'] == 'resumable') {
-        final signedBytes = bytes(record['details']);
-        final detailsLength = signedBytes.length - 64;
-        final signedDetails = Signed<NewDkgDetails>(
-          obj: NewDkgDetails.fromBytesAllowExpired(
-            Uint8List.sublistView(signedBytes, 0, detailsLength),
-          ),
-          signature: cl.SchnorrSignature(
-            Uint8List.sublistView(signedBytes, detailsLength),
-          ),
-        );
-        if (signedDetails.obj.expiry.isExpired) {
-          persistent.publicFeed?.finish(
-            'dkg:${signedDetails.obj.name}',
-            PublicFeedLifecycle.expired,
-          );
-          changed = true;
-          continue;
-        }
-        final commitments = <(Identifier, DkgPublicCommitment)>[
-          for (final commitmentRaw in record['commitments']! as List)
-            (
-              id((commitmentRaw as Map)['participant']),
-              DkgPublicCommitment.fromBytes(bytes(commitmentRaw['commitment'])),
-            ),
-        ];
-        final restored = DkgState(
-          details: signedDetails,
-          creator: id(record['creator']),
-          commitments: commitments,
-        );
-        if (record['round'] == 2) {
-          final round2 = DkgRound2State(
-            expectedHash: bytes(record['expectedHash']),
-            commitments: commitments,
-            participantCount: record['participantCount'] as int,
-          );
-          for (final contributionRaw in record['contributions']! as List) {
-            final contribution = contributionRaw as Map;
-            final sender = id(contribution['sender']);
-            round2.contributions[sender] = DkgRound2Contribution(
-              commitmentSetSignature: cl.SchnorrSignature(
-                bytes(contribution['signature']),
-              ),
-              secrets: {
-                for (final secretRaw in contribution['secrets']! as List)
-                  id((secretRaw as Map)['recipient']): DkgEncryptedSecret(
-                    ECCiphertext.fromBytes(bytes(secretRaw['ciphertext'])),
-                  ),
-              },
-            );
-          }
-          restored.round = round2;
-        }
-        for (final encoded in record['completionAcks']! as List) {
-          final ack = SignedDkgAck.fromBytes(bytes(encoded));
-          restored.completionAcks[ack.signer] = ack.signed;
-        }
-        nameToDkg[signedDetails.obj.name] = restored;
+      final expiry = Expiry.fromTime(
+        DateTime.fromMicrosecondsSinceEpoch(record['expiry']! as int),
+      );
+      if (expiry.isExpired) {
+        changed = true;
         continue;
       }
-      final event = NewDkgEvent.fromBytes(bytes(record['event']));
-      if (event.expiry.isExpired) {
+      final terminal = TerminalDkg(
+        ceremonyId: bytes(record['ceremonyId']),
+        name: record['name']! as String,
+        outcome: DkgTerminalOutcome.values.byName(record['outcome']! as String),
+        expiry: expiry,
+      );
+      persistent.terminalDkgs[cl.bytesToHex(terminal.ceremonyId)] = terminal;
+    }
+
+    for (final raw in root['dkg']! as List) {
+      final record = raw as Map;
+      if (record['status'] != 'resumable') {
+        throw const FormatException('Invalid server state snapshot.');
+      }
+      final signedBytes = bytes(record['details']);
+      final detailsLength = signedBytes.length - 64;
+      final signedDetails = Signed<NewDkgDetails>(
+        obj: NewDkgDetails.fromBytesAllowExpired(
+          Uint8List.sublistView(signedBytes, 0, detailsLength),
+        ),
+        signature: cl.SchnorrSignature(
+          Uint8List.sublistView(signedBytes, detailsLength),
+        ),
+      );
+      if (signedDetails.obj.expiry.isExpired) {
         persistent.publicFeed?.finish(
-          'dkg:${event.details.obj.name}',
+          'dkg:${signedDetails.obj.name}',
           PublicFeedLifecycle.expired,
         );
         changed = true;
         continue;
       }
-      persistent.interruptedDkgs[event.details.obj.name] = event;
-      if (record['status'] == 'active') {
-        persistent.publicFeed?.finish(
-          'dkg:${event.details.obj.name}',
-          PublicFeedLifecycle.cancelled,
+      final commitments = <(Identifier, DkgPublicCommitment)>[
+        for (final commitmentRaw in record['commitments']! as List)
+          (
+            id((commitmentRaw as Map)['participant']),
+            DkgPublicCommitment.fromBytes(bytes(commitmentRaw['commitment'])),
+          ),
+      ];
+      final restored = DkgState(
+        details: signedDetails,
+        creator: id(record['creator']),
+        commitments: commitments,
+      );
+      if (record['round'] == 2) {
+        final round2 = DkgRound2State(
+          expectedHash: bytes(record['expectedHash']),
+          commitments: commitments,
+          participantCount: record['participantCount'] as int,
         );
-        changed = true;
+        for (final contributionRaw in record['contributions']! as List) {
+          final contribution = contributionRaw as Map;
+          final sender = id(contribution['sender']);
+          round2.contributions[sender] = DkgRound2Contribution(
+            commitmentSetSignature: cl.SchnorrSignature(
+              bytes(contribution['signature']),
+            ),
+            secrets: {
+              for (final secretRaw in contribution['secrets']! as List)
+                id((secretRaw as Map)['recipient']): DkgEncryptedSecret(
+                  ECCiphertext.fromBytes(bytes(secretRaw['ciphertext'])),
+                ),
+            },
+          );
+        }
+        restored.round = round2;
       }
+      for (final encoded in record['completionAcks']! as List) {
+        final ack = SignedDkgAck.fromBytes(bytes(encoded));
+        restored.completionAcks[ack.signer] = ack.signed;
+      }
+      nameToDkg[signedDetails.obj.name] = restored;
     }
     for (final raw in root['signing']! as List) {
       final record = raw as Map;

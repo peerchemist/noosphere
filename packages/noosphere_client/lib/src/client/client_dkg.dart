@@ -111,13 +111,25 @@ extension _ClientDkg on Client {
     bool tolerateMissingSecret = false,
   }) async {
     final local = _state.nameToDkg[name];
+    if (local == null) return;
     final snapshot = await api.getDkg(
       sid: _state.sessionID,
       name: name,
-      ceremonyId: local?.details.ceremonyId,
+      ceremonyId: local.details.ceremonyId,
     );
     if (snapshot == null || snapshot.expiry.isExpired) return;
     Client._checkSigned(config, snapshot.details, snapshot.creator);
+    if (snapshot.details.obj.protocolVersion != noosphereRoastProtocolVersion ||
+        !cl.bytesEqual(
+          snapshot.details.obj.groupFingerprint,
+          config.group.fingerprint,
+        ) ||
+        !cl.bytesEqual(
+          local.details.ceremonyId,
+          snapshot.details.obj.ceremonyId,
+        )) {
+      throw ServerMisbehaviour.changedDkgTranscript();
+    }
     Client._checkIdentifierSet(
       config,
       Client._idsFromCommitments(snapshot.commitments),
@@ -125,43 +137,40 @@ extension _ClientDkg on Client {
     Client._checkIdentifierSet(config, snapshot.shareContributors);
     Client._checkIdentifierSet(config, snapshot.completedParticipants);
 
-    final storedKey = _keys.values
-        .where(
-          (key) =>
-              key.name == name &&
-              (snapshot.groupPublicKey == null ||
-                  key.groupKey == snapshot.groupPublicKey),
-        )
-        .firstOrNull;
-    if (storedKey != null) {
+    await local.synchronized(() async {
+      // Rejection may have completed while the snapshot RPC was in flight.
+      if (!identical(_state.nameToDkg[name], local)) return;
+
       final commitments = DkgCommitmentSet(snapshot.commitments);
-      await api.sendDkgAcks(
-        sid: _state.sessionID,
-        acks: {
-          await _createDkgAck(
-            storedKey.groupKey,
-            true,
-            ceremonyId: snapshot.ceremonyId,
-            transcriptHash: snapshot.details.obj.hashWithCommitments(
-              commitments,
-            ),
-          ),
-        },
+      final transcriptHash = snapshot.details.obj.hashWithCommitments(
+        commitments,
       );
-      _state.nameToDkg.remove(name);
-      return;
-    }
-
-    final dkg =
-        _state.nameToDkg[name] ??
-        _addDkgToState(
-          config: config,
-          details: snapshot.details.obj,
-          creator: snapshot.creator,
-          commitments: snapshot.commitments,
+      final storedKey = _keys.values
+          .where(
+            (key) =>
+                cl.bytesEqual(key.ceremonyId, snapshot.ceremonyId) &&
+                cl.bytesEqual(key.transcriptHash, transcriptHash) &&
+                (snapshot.groupPublicKey == null ||
+                    key.groupKey == snapshot.groupPublicKey),
+          )
+          .firstOrNull;
+      if (storedKey != null) {
+        await api.sendDkgAcks(
+          sid: _state.sessionID,
+          acks: {
+            await _createDkgAck(
+              storedKey.groupKey,
+              true,
+              ceremonyId: snapshot.ceremonyId,
+              transcriptHash: transcriptHash,
+            ),
+          },
         );
+        _state.nameToDkg.remove(name);
+        return;
+      }
 
-    await dkg.synchronized(() async {
+      final dkg = local;
       if (!cl.bytesEqual(
         dkg.details.ceremonyId,
         snapshot.details.obj.ceremonyId,
@@ -173,9 +182,9 @@ extension _ClientDkg on Client {
         for (final commitment in dkg.commitments) commitment.$1: commitment.$2,
       };
       for (final commitment in snapshot.commitments) {
-        final local = localCommitments[commitment.$1];
-        if (local != null &&
-            !cl.bytesEqual(local.toBytes(), commitment.$2.toBytes())) {
+        final previous = localCommitments[commitment.$1];
+        if (previous != null &&
+            !cl.bytesEqual(previous.toBytes(), commitment.$2.toBytes())) {
           throw ServerMisbehaviour.changedDkgTranscript();
         }
       }
@@ -256,6 +265,8 @@ extension _ClientDkg on Client {
         keyInfo: keyInfo,
         name: dkg.details.name,
         description: dkg.details.description,
+        ceremonyId: dkg.details.ceremonyId,
+        transcriptHash: dkg.details.hashWithCommitments(round2.commitmentSet),
       ),
     );
 
@@ -280,8 +291,8 @@ extension _ClientDkg on Client {
   Future<SignedDkgAck> _createDkgAck(
     cl.ECCompressedPublicKey groupKey,
     bool accept, {
-    Uint8List? ceremonyId,
-    Uint8List? transcriptHash,
+    required Uint8List ceremonyId,
+    required Uint8List transcriptHash,
   }) async {
     final ack = SignedDkgAck(
       signer: config.id,
@@ -311,6 +322,10 @@ extension _ClientDkg on Client {
     await _runKeyDetailsSyncIfExists(ack.signed.obj.groupKey, (key) async {
       // Only do the expensive signature check if we have the key
       Client._checkSigned(config, ack.signed, ack.signer);
+      if (!cl.bytesEqual(ack.signed.obj.ceremonyId, key.ceremonyId) ||
+          !cl.bytesEqual(ack.signed.obj.transcriptHash, key.transcriptHash)) {
+        throw ServerMisbehaviour.changedDkgTranscript();
+      }
 
       // Add/Update ACK for key
       await _store.addOrReplaceFrostKey(key.addOrReplaceAck(ack));
@@ -337,6 +352,11 @@ extension _ClientDkg on Client {
           if (!requests.any(
             (req) =>
                 req.groupPublicKey == ack.signed.obj.groupKey &&
+                cl.bytesEqual(req.ceremonyId, ack.signed.obj.ceremonyId) &&
+                cl.bytesEqual(
+                  req.transcriptHash,
+                  ack.signed.obj.transcriptHash,
+                ) &&
                 req.ids.contains(ack.signer),
           )) {
             throw ServerMisbehaviour.ackNotRequested();
@@ -348,6 +368,10 @@ extension _ClientDkg on Client {
       });
 
   Future<void> _requestDkg(NewDkgDetails details) async {
+    if (details.protocolVersion != noosphereRoastProtocolVersion ||
+        !cl.bytesEqual(details.groupFingerprint, config.group.fingerprint)) {
+      throw ArgumentError.value(details, 'details', 'wrong group or protocol');
+    }
     // Check expiry
     if (!config.dkgExpiryAcceptable(details.expiry)) {
       throw ArgumentError.value(

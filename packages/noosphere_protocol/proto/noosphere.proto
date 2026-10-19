@@ -138,11 +138,13 @@ message DkgCommitmentEvent {
   string name = 1;
   bytes participant_id = 2;
   bytes commitment = 3;
+  bytes ceremony_id = 4;
 }
 
 message DkgRejectEvent {
   string name = 1;
   bytes participant_id = 2;
+  bytes ceremony_id = 3;
 }
 
 message DkgRound2ShareEvent {
@@ -150,6 +152,7 @@ message DkgRound2ShareEvent {
   bytes commitment_set_signature = 2;
   bytes sender_id = 3;
   bytes encrypted_secret = 4;
+  bytes ceremony_id = 5;
 }
 
 message DkgAckEvent {

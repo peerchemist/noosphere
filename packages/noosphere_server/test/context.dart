@@ -134,6 +134,8 @@ class MockUnrequestedAckApi extends ServerApiHandler {
           DkgAck(
             groupKey: cl.ECCompressedPublicKey.fromPubkey(getPrivkey(0).pubkey),
             accepted: false,
+            ceremonyId: Uint8List(32),
+            transcriptHash: Uint8List(32),
           ),
           9,
         ),
@@ -200,6 +202,30 @@ class LostBeforeSignaturesRequestApi extends ServerApiHandler {
   }) async {
     requestCalls++;
     throw StateError('signature request was lost before reaching the server');
+  }
+}
+
+class DelayedGetDkgApi extends ServerApiHandler {
+  final fetched = Completer<void>();
+  final release = Completer<void>();
+
+  DelayedGetDkgApi()
+    : super(config: serverConfig, persistence: newServerPersistence());
+
+  @override
+  Future<DkgCeremonySnapshot?> getDkg({
+    required SessionID sid,
+    required String name,
+    required Uint8List ceremonyId,
+  }) async {
+    final snapshot = await super.getDkg(
+      sid: sid,
+      name: name,
+      ceremonyId: ceremonyId,
+    );
+    if (!fetched.isCompleted) fetched.complete();
+    await release.future;
+    return snapshot;
   }
 }
 

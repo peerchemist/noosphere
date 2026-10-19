@@ -23,29 +23,17 @@ class SignedDkgAck with cl.Writable, NoosphereWritable {
       readNoosphere(bytes, SignedDkgAck.fromReader);
 
   @override
-  /// Equal when the signer, group key and ceremony transcript are the same
-  /// regardless of acceptance.
+  /// Equal only when the complete signed value is byte-for-byte identical.
+  /// This keeps conflicting values visible when a batch is represented as a
+  /// set so the receiver can reject the whole batch before mutation.
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is SignedDkgAck &&
           signer == other.signer &&
-          signed.obj.groupKey == other.signed.obj.groupKey &&
-          cl.bytesEqual(
-            signed.obj.ceremonyId ?? Uint8List(0),
-            other.signed.obj.ceremonyId ?? Uint8List(0),
-          ) &&
-          cl.bytesEqual(
-            signed.obj.transcriptHash ?? Uint8List(0),
-            other.signed.obj.transcriptHash ?? Uint8List(0),
-          ));
+          cl.bytesEqual(signed.toBytes(), other.signed.toBytes()));
 
   @override
-  int get hashCode => Object.hash(
-    signer,
-    signed.obj.groupKey,
-    Object.hashAll(signed.obj.ceremonyId ?? const []),
-    Object.hashAll(signed.obj.transcriptHash ?? const []),
-  );
+  int get hashCode => Object.hash(signer, Object.hashAll(signed.toBytes()));
 
   @override
   void write(cl.Writer writer) {

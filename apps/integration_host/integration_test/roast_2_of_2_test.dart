@@ -79,6 +79,7 @@ void main() {
           description: 'Native Flutter 2-of-2 integration test',
           threshold: 2,
           expiry: Expiry(const Duration(hours: 1)),
+          groupFingerprint: group.fingerprint,
         ),
       );
       await secondSawDkg.timeout(const Duration(seconds: 15));

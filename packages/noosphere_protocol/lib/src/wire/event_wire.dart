@@ -40,12 +40,14 @@ wire.EventMessage encodeEvent(domain.Event event) => switch (event) {
       name: event.name,
       participantId: event.participant.toBytes(),
       commitment: event.commitment.toBytes(),
+      ceremonyId: event.ceremonyId,
     ),
   ),
   domain.DkgRejectEvent() => wire.EventMessage(
     dkgReject: wire.DkgRejectEvent(
       name: event.name,
       participantId: event.participant.toBytes(),
+      ceremonyId: event.ceremonyId,
     ),
   ),
   domain.DkgRound2ShareEvent() => wire.EventMessage(
@@ -54,6 +56,7 @@ wire.EventMessage encodeEvent(domain.Event event) => switch (event) {
       commitmentSetSignature: event.commitmentSetSignature.data,
       senderId: event.sender.toBytes(),
       encryptedSecret: event.secret.ciphertext.toBytes(),
+      ceremonyId: event.ceremonyId,
     ),
   ),
   domain.DkgAckEvent() => wire.EventMessage(
@@ -147,6 +150,7 @@ domain.Event decodeEvent(wire.EventMessage event) {
     ),
     wire.EventMessage_Event.dkgCommitment => domain.DkgCommitmentEvent(
       name: event.dkgCommitment.name,
+      ceremonyId: _bytes(event.dkgCommitment.ceremonyId),
       participant: _identifier(event.dkgCommitment.participantId),
       commitment: DkgPublicCommitment.fromBytes(
         _bytes(event.dkgCommitment.commitment),
@@ -154,10 +158,12 @@ domain.Event decodeEvent(wire.EventMessage event) {
     ),
     wire.EventMessage_Event.dkgReject => domain.DkgRejectEvent(
       name: event.dkgReject.name,
+      ceremonyId: _bytes(event.dkgReject.ceremonyId),
       participant: _identifier(event.dkgReject.participantId),
     ),
     wire.EventMessage_Event.dkgRound2Share => domain.DkgRound2ShareEvent(
       name: event.dkgRound2Share.name,
+      ceremonyId: _bytes(event.dkgRound2Share.ceremonyId),
       commitmentSetSignature: cl.SchnorrSignature(
         _bytes(event.dkgRound2Share.commitmentSetSignature),
       ),

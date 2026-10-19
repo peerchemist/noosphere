@@ -1,8 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
-import 'package:noosphere_protocol/api/types/dkg_ack.dart';
-import 'package:noosphere_protocol/api/types/signed.dart';
 import 'package:noosphere_protocol/api/types/signed_dkg_ack.dart';
 import 'package:noosphere_protocol/common/serial.dart';
 import 'package:frosty/frosty.dart';
@@ -10,10 +8,16 @@ import 'package:frosty/frosty.dart';
 import 'key_construction.dart';
 
 class FrostKeyWithDetails with cl.Writable {
+  static final _formatPrefix = Uint8List.fromList([0, 0x4e, 0x53, 0x4b, 1]);
+
   final ParticipantKeyInfo keyInfo;
   final String name;
   final String description;
   final Set<SignedDkgAck> acks;
+
+  /// Public transcript context of the ceremony that created this key.
+  final Uint8List ceremonyId;
+  final Uint8List transcriptHash;
 
   /// A map of participant identifiers that are having the secret shared to.
   /// This maps to the last time the secret was shared. If a participant's
@@ -34,74 +38,60 @@ class FrostKeyWithDetails with cl.Writable {
     required this.name,
     required this.description,
     required Set<SignedDkgAck> acks,
+    required Uint8List ceremonyId,
+    required Uint8List transcriptHash,
     required Map<Identifier, DateTime> secretShareTimes,
     required Set<Identifier> claimedToHave,
     required this.keyConstruction,
   }) : acks = Set.unmodifiable(acks),
+       ceremonyId = Uint8List.fromList(ceremonyId).asUnmodifiableView(),
+       transcriptHash = Uint8List.fromList(transcriptHash).asUnmodifiableView(),
        secretShareTimes = Map.unmodifiable(secretShareTimes),
-       claimedToHave = Set.unmodifiable(claimedToHave);
+       claimedToHave = Set.unmodifiable(claimedToHave) {
+    if (ceremonyId.length != 32 || transcriptHash.length != 32) {
+      throw ArgumentError('ceremony context must contain 32-byte values');
+    }
+  }
 
   FrostKeyWithDetails({
     required ParticipantKeyInfo keyInfo,
     required String name,
     required String description,
+    required Uint8List ceremonyId,
+    required Uint8List transcriptHash,
   }) : this._(
          keyInfo: keyInfo,
          name: name,
          description: description,
          acks: {},
+         ceremonyId: ceremonyId,
+         transcriptHash: transcriptHash,
          secretShareTimes: {},
          claimedToHave: {},
          keyConstruction: KeyConstructionProgress(),
        );
 
-  /// This will read data from before version 3.0.0 if there is no additional
-  /// trailing data.
   factory FrostKeyWithDetails.fromReader(cl.BytesReader reader) {
+    final prefix = reader.readSlice(_formatPrefix.length);
+    if (!cl.bytesEqual(prefix, _formatPrefix)) {
+      throw const FormatException('Malformed FrostKeyWithDetails');
+    }
     final keyInfo = ParticipantKeyInfo.fromReader(reader);
     final name = reader.readString();
     final description = reader.readString();
-
-    // Reuse the group key that was already read to keyInfo
-    final acks = Iterable.generate(
-      reader.readUInt16(),
-      (_) => SignedDkgAck(
-        signer: reader.readIdentifier(),
-        signed: Signed(
-          obj: DkgAck(groupKey: keyInfo.groupKey, accepted: reader.readBool()),
-          signature: reader.readSignature(),
-        ),
-      ),
-    ).toSet();
-
-    if (reader.atEnd) {
-      // Old data, add empty defaults
-      return FrostKeyWithDetails._(
-        keyInfo: keyInfo,
-        name: name,
-        description: description,
-        acks: acks,
-        secretShareTimes: {},
-        claimedToHave: {},
-        keyConstruction: KeyConstructionProgress(),
-      );
-    }
-
-    // Fields added in v3.0.0
-
+    final acks = reader.readWritableVector(SignedDkgAck.fromBytes).toSet();
     return FrostKeyWithDetails._(
       keyInfo: keyInfo,
       name: name,
       description: description,
       acks: acks,
-
+      ceremonyId: reader.readSlice(32),
+      transcriptHash: reader.readSlice(32),
       secretShareTimes: reader.readMap(
         () => reader.readIdentifier(),
         () => reader.readTime(),
       ),
-
       claimedToHave: reader.readIdentifierVector().toSet(),
-
       keyConstruction: reader.readBool()
           ? KeyConstructionProgress.fromReader(reader)
           : KeyConstructionComplete.fromReader(reader),
@@ -109,10 +99,8 @@ class FrostKeyWithDetails with cl.Writable {
   }
 
   /// Convenience constructor to construct from serialised [bytes].
-  /// This will read data from before version 3.0.0 if there is no additional
-  /// trailing data.
   factory FrostKeyWithDetails.fromBytes(Uint8List bytes) =>
-      FrostKeyWithDetails.fromReader(cl.BytesReader(bytes));
+      readNoosphere(bytes, FrostKeyWithDetails.fromReader);
 
   /// Convenience constructor to construct from encoded [hex].
   factory FrostKeyWithDetails.fromHex(String hex) =>
@@ -131,17 +119,17 @@ class FrostKeyWithDetails with cl.Writable {
 
   @override
   void write(cl.Writer writer) {
+    writer.writeSlice(_formatPrefix);
     keyInfo.write(writer);
     writer.writeString(name);
     writer.writeString(description);
 
-    // Write ACKs without including the group key as that is already included
-    writer.writeUInt16(acks.length);
-    for (final ack in acks) {
-      writer.writeSlice(ack.signer.toBytes());
-      writer.writeBool(ack.signed.obj.accepted);
-      writer.writeSignature(ack.signed.signature);
-    }
+    // Preserve the exact signed payload.
+    writer.writeWritableVector(acks);
+
+    writer
+      ..writeSlice(ceremonyId)
+      ..writeSlice(transcriptHash);
 
     writer.writeMap(
       secretShareTimes,
@@ -165,13 +153,31 @@ class FrostKeyWithDetails with cl.Writable {
     name: name,
     description: description,
     acks: acks ?? this.acks,
+    ceremonyId: ceremonyId,
+    transcriptHash: transcriptHash,
     secretShareTimes: secretShareTimes ?? this.secretShareTimes,
     claimedToHave: claimedToHave ?? this.claimedToHave,
     keyConstruction: keyConstruction ?? this.keyConstruction,
   );
 
-  FrostKeyWithDetails addOrReplaceAck(SignedDkgAck ack) =>
-      _mutate(acks: {...acks.where((other) => other != ack), ack});
+  FrostKeyWithDetails addOrReplaceAck(SignedDkgAck ack) => _mutate(
+    acks: {
+      ...acks.where(
+        (other) =>
+            other.signer != ack.signer ||
+            other.signed.obj.groupKey != ack.signed.obj.groupKey ||
+            !cl.bytesEqual(
+              other.signed.obj.ceremonyId,
+              ack.signed.obj.ceremonyId,
+            ) ||
+            !cl.bytesEqual(
+              other.signed.obj.transcriptHash,
+              ack.signed.obj.transcriptHash,
+            ),
+      ),
+      ack,
+    },
+  );
 
   FrostKeyWithDetails addOrReplaceSecretShareTimes(
     Set<Identifier> participants,

@@ -20,6 +20,7 @@ void main() {
       description: 'test key',
       threshold: 2,
       expiry: expiry,
+      groupFingerprint: Uint8List(32),
     );
     final signedDkgDetails = Signed.sign(obj: dkgDetails, key: firstKey);
     final dkgCommitment = DkgPart1(
@@ -35,13 +36,20 @@ void main() {
     final ack = SignedDkgAck(
       signer: firstId,
       signed: Signed.sign(
-        obj: DkgAck(groupKey: groupKey, accepted: true),
+        obj: DkgAck(
+          groupKey: groupKey,
+          accepted: true,
+          ceremonyId: dkgDetails.ceremonyId,
+          transcriptHash: Uint8List(32),
+        ),
         key: firstKey,
       ),
     );
     final ackRequest = DkgAckRequest(
       ids: {firstId, secondId},
       groupPublicKey: groupKey,
+      ceremonyId: dkgDetails.ceremonyId,
+      transcriptHash: Uint8List(32),
     );
     final signaturesDetails = SignaturesRequestDetails(
       requiredSigs: [
@@ -78,12 +86,18 @@ void main() {
       ),
       DkgCommitmentEvent(
         name: dkgDetails.name,
+        ceremonyId: dkgDetails.ceremonyId,
         participant: firstId,
         commitment: dkgCommitment,
       ),
-      DkgRejectEvent(name: dkgDetails.name, participant: secondId),
+      DkgRejectEvent(
+        name: dkgDetails.name,
+        ceremonyId: dkgDetails.ceremonyId,
+        participant: secondId,
+      ),
       DkgRound2ShareEvent(
         name: dkgDetails.name,
+        ceremonyId: dkgDetails.ceremonyId,
         commitmentSetSignature: signature,
         sender: firstId,
         secret: DkgEncryptedSecret(ciphertext),

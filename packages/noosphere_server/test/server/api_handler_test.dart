@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_server/noosphere_server.dart';
+import 'package:noosphere_server/testing.dart';
 import 'package:noosphere_server/src/server/state/client_session.dart';
 import 'package:noosphere_server/src/server/state/dkg.dart';
 import 'package:noosphere_server/src/server/state/signatures_coordination.dart';
@@ -398,54 +399,119 @@ void main() {
         );
       });
 
-      test(
-        "creator replaces an interrupted attempt with the same name",
-        () async {
-          final details = signObject(getDkgDetails(name: "interrupted"));
-          ctx.api.debugState.persistent.interruptedDkgs[details.obj.name] =
-              NewDkgEvent(
-                details: details,
-                creator: ids.first,
-                commitments: const [],
-              );
+      test('rejected proposal cannot be replayed across restart', () async {
+        final persistence = InMemoryServerPersistence();
+        var api = ServerApiHandler(
+          config: serverConfig,
+          persistence: persistence,
+        );
 
-          await ctx.api.requestNewDkg(
-            sid: client.sid,
+        Future<SessionID> login() async {
+          final challenge = await api.login(
+            groupFingerprint: groupConfig.fingerprint,
+            participantId: ids.first,
+          );
+          return (await api.respondToChallenge(signObject(challenge.challenge)))
+              .id;
+        }
+
+        final details = signObject(getDkgDetails(name: 'terminal-replay'));
+        var sid = await login();
+        await api.requestNewDkg(
+          sid: sid,
+          signedDetails: details,
+          commitment: commitment,
+        );
+        await api.rejectDkg(
+          sid: sid,
+          name: details.obj.name,
+          ceremonyId: details.obj.ceremonyId,
+        );
+        await expectInvalid(
+          () => api.submitDkgCommitment(
+            sid: sid,
+            name: details.obj.name,
+            ceremonyId: details.obj.ceremonyId,
+            commitment: commitment,
+          ),
+        );
+
+        final possessionAck = SignedDkgAck(
+          signer: ids.first,
+          signed: signObject(
+            DkgAck(
+              groupKey: groupPublicKey,
+              accepted: true,
+              ceremonyId: details.obj.ceremonyId,
+              transcriptHash: Uint8List(32),
+            ),
+          ),
+        );
+        await api.sendDkgAcks(sid: sid, acks: {possessionAck});
+        await api.rejectDkg(
+          sid: sid,
+          name: details.obj.name,
+          ceremonyId: details.obj.ceremonyId,
+        );
+
+        api = ServerApiHandler(config: serverConfig, persistence: persistence);
+        sid = await login();
+        expect(api.debugState.dkgAckCache.values, isEmpty);
+        await api.sendDkgAcks(sid: sid, acks: {possessionAck});
+        expect(
+          api.debugState.dkgAckCache[groupPublicKey]!.acks[ids.first]!
+              .toBytes(),
+          possessionAck.signed.toBytes(),
+        );
+        await expectInvalid(
+          () => api.requestNewDkg(
+            sid: sid,
             signedDetails: details,
             commitment: commitment,
-          );
+          ),
+        );
 
-          expect(
-            ctx.api.debugState.persistent.interruptedDkgs,
-            isNot(contains(details.obj.name)),
-          );
-          expect(ctx.api.debugState.nameToDkg[details.obj.name], isNotNull);
-        },
-      );
+        final replacement = signObject(
+          getDkgDetails(
+            name: details.obj.name,
+            attemptId: Uint8List(32)..last = 1,
+          ),
+        );
+        await api.requestNewDkg(
+          sid: sid,
+          signedDetails: replacement,
+          commitment: commitment,
+        );
+        expect(
+          api.debugState.nameToDkg[details.obj.name]!.details.toBytes(),
+          replacement.toBytes(),
+        );
+      });
 
-      test(
-        "another participant cannot replace an interrupted attempt",
-        () async {
-          const name = "interrupted";
-          ctx.api.debugState.persistent.interruptedDkgs[name] = NewDkgEvent(
-            details: signObject(getDkgDetails(name: name)),
-            creator: ids.first,
-            commitments: const [],
-          );
-          final other = await ctx.login(1);
-
-          await expectInvalid(
-            () => ctx.api.requestNewDkg(
-              sid: other.sid,
-              signedDetails: signObject(getDkgDetails(name: name), 1),
-              commitment: getDkgPart1(1).public,
-            ),
-          );
-
-          expect(ctx.api.debugState.persistent.interruptedDkgs, contains(name));
-          expect(ctx.api.debugState.nameToDkg[name], isNull);
-        },
-      );
+      test('proposal is bound to the exact group fingerprint', () async {
+        final otherGroup = GroupConfig(
+          id: 'other-group',
+          participants: groupConfig.participants,
+        );
+        final api = ServerApiHandler(
+          config: ServerConfig(group: otherGroup),
+          persistence: InMemoryServerPersistence(),
+        );
+        final challenge = await api.login(
+          groupFingerprint: otherGroup.fingerprint,
+          participantId: ids.first,
+        );
+        final sid = (await api.respondToChallenge(
+          signObject(challenge.challenge),
+        )).id;
+        await expectInvalid(
+          () => api.requestNewDkg(
+            sid: sid,
+            signedDetails: signObject(getDkgDetails(name: 'wrong-group')),
+            commitment: commitment,
+          ),
+        );
+      });
 
       test("success", () async {
         // Add other participant session to obtain an event
@@ -501,7 +567,11 @@ void main() {
 
       test("invalid request", () async {
         await expectInvalid(
-          () => ctx.api.rejectDkg(sid: SessionID(), name: "123"),
+          () => ctx.api.rejectDkg(
+            sid: SessionID(),
+            name: "123",
+            ceremonyId: getDkgDetails().ceremonyId,
+          ),
         );
       });
 
@@ -509,9 +579,17 @@ void main() {
         void expectExists(bool exists) =>
             expect(ctx.api.debugState.nameToDkg.containsKey("123"), exists);
 
-        await ctx.api.rejectDkg(sid: client.sid, name: "other");
+        await ctx.api.rejectDkg(
+          sid: client.sid,
+          name: "other",
+          ceremonyId: getDkgDetails(name: 'other').ceremonyId,
+        );
         expectExists(true);
-        await ctx.api.rejectDkg(sid: client.sid, name: "123");
+        await ctx.api.rejectDkg(
+          sid: client.sid,
+          name: "123",
+          ceremonyId: getDkgDetails().ceremonyId,
+        );
         expectExists(false);
 
         // Expect reject event to other participant but not to rejecting
@@ -586,6 +664,7 @@ void main() {
           () => ctx.api.submitDkgCommitment(
             sid: SessionID(),
             name: "123",
+            ceremonyId: getDkgDetails().ceremonyId,
             commitment: commitments[1].public,
           ),
         );
@@ -594,6 +673,7 @@ void main() {
           () => ctx.api.submitDkgCommitment(
             sid: ctx.clients[1].sid,
             name: "abc",
+            ceremonyId: getDkgDetails(name: 'abc').ceremonyId,
             commitment: commitments[1].public,
           ),
         );
@@ -601,6 +681,7 @@ void main() {
         await ctx.api.submitDkgCommitment(
           sid: ctx.clients.first.sid,
           name: "123",
+          ceremonyId: getDkgDetails().ceremonyId,
           commitment: commitments.first.public,
         );
         // DKG is the wrong round
@@ -608,6 +689,7 @@ void main() {
           () => ctx.api.submitDkgCommitment(
             sid: ctx.clients[1].sid,
             name: "round2",
+            ceremonyId: getDkgDetails(name: 'round2').ceremonyId,
             commitment: commitments[1].public,
           ),
         );
@@ -620,6 +702,7 @@ void main() {
           await ctx.api.submitDkgCommitment(
             sid: ctx.clients[i].sid,
             name: "123",
+            ceremonyId: getDkgDetails().ceremonyId,
             commitment: commitments[i].public,
           );
 
@@ -702,6 +785,7 @@ void main() {
           () => ctx.api.submitDkgRound2(
             sid: SessionID(),
             name: "round2",
+            ceremonyId: getDkgDetails(name: 'round2').ceremonyId,
             commitmentSetSignature: commitmentSetSigs.last,
             secrets: secretMaps.last,
           ),
@@ -710,6 +794,7 @@ void main() {
         await ctx.api.submitDkgRound2(
           sid: ctx.clients.last.sid,
           name: "round2",
+          ceremonyId: getDkgDetails(name: 'round2').ceremonyId,
           commitmentSetSignature: commitmentSetSigs.last,
           secrets: secretMaps.last,
         );
@@ -720,6 +805,7 @@ void main() {
             () => ctx.api.submitDkgRound2(
               sid: ctx.clients.first.sid,
               name: badDkg,
+              ceremonyId: getDkgDetails(name: badDkg).ceremonyId,
               commitmentSetSignature: commitmentSetSigs.first,
               secrets: secretMaps.first,
             ),
@@ -731,6 +817,7 @@ void main() {
           () => ctx.api.submitDkgRound2(
             sid: ctx.clients.first.sid,
             name: "round2",
+            ceremonyId: getDkgDetails(name: 'round2').ceremonyId,
             commitmentSetSignature: commitmentSetSigs.last,
             secrets: secretMaps.first,
           ),
@@ -757,6 +844,7 @@ void main() {
             () => ctx.api.submitDkgRound2(
               sid: ctx.clients.first.sid,
               name: "round2",
+              ceremonyId: getDkgDetails(name: 'round2').ceremonyId,
               commitmentSetSignature: commitmentSetSigs.first,
               secrets: badSecrets,
             ),
@@ -772,6 +860,7 @@ void main() {
           await ctx.api.submitDkgRound2(
             sid: ctx.clients[i].sid,
             name: "round2",
+            ceremonyId: getDkgDetails(name: 'round2').ceremonyId,
             commitmentSetSignature: commitmentSetSigs[i],
             secrets: secretMaps[i],
           );
@@ -893,6 +982,62 @@ void main() {
           expect(ackMap[ids.last]!.obj.accepted, false);
         }
       });
+
+      test(
+        'possession ACK survives ceremony expiry and cache eviction',
+        () async {
+          final config = ServerConfig(
+            group: groupConfig,
+            minDkgRequestTTL: const Duration(milliseconds: 1),
+            maxDkgRequestTTL: const Duration(seconds: 1),
+            ackCacheTTL: const Duration(milliseconds: 5),
+          );
+          final api = ServerApiHandler(
+            config: config,
+            persistence: newServerPersistence(),
+          );
+          final challenge = await api.login(
+            groupFingerprint: groupConfig.fingerprint,
+            participantId: ids.first,
+          );
+          final session = await api.respondToChallenge(
+            signObject(challenge.challenge),
+          );
+          final details = signObject(
+            getDkgDetails(
+              name: 'expiring-possession',
+              expiry: Expiry(const Duration(milliseconds: 20)),
+            ),
+          );
+          await api.requestNewDkg(
+            sid: session.id,
+            signedDetails: details,
+            commitment: getDkgPart1(0).public,
+          );
+          final ack = SignedDkgAck(
+            signer: ids.first,
+            signed: signObject(
+              DkgAck(
+                groupKey: groupPublicKey,
+                accepted: true,
+                ceremonyId: details.obj.ceremonyId,
+                transcriptHash: Uint8List(32),
+              ),
+            ),
+          );
+
+          await Future<void>.delayed(const Duration(milliseconds: 40));
+          await api.sendDkgAcks(sid: session.id, acks: {ack});
+          expect(api.debugState.nameToDkg.values, isEmpty);
+          expect(api.debugState.persistent.terminalDkgs, isNotEmpty);
+          expect(api.debugState.dkgAckCache[groupPublicKey], isNotNull);
+
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          expect(api.debugState.dkgAckCache[groupPublicKey], isNull);
+          await api.sendDkgAcks(sid: session.id, acks: {ack});
+          expect(api.debugState.dkgAckCache[groupPublicKey], isNotNull);
+        },
+      );
     });
 
     group(".requestDkgAcks()", () {
@@ -933,6 +1078,8 @@ void main() {
           DkgAckRequest(
             ids: idIs.map((i) => ids[i]).toSet(),
             groupPublicKey: key ?? groupPublicKey,
+            ceremonyId: Uint8List(32),
+            transcriptHash: Uint8List(32),
           );
 
       test("invalid request", () async {
@@ -951,7 +1098,12 @@ void main() {
           () => ctx.api.requestDkgAcks(
             sid: ctx.clients.first.sid,
             requests: {
-              DkgAckRequest(ids: {badId}, groupPublicKey: groupPublicKey),
+              DkgAckRequest(
+                ids: {badId},
+                groupPublicKey: groupPublicKey,
+                ceremonyId: Uint8List(32),
+                transcriptHash: Uint8List(32),
+              ),
             },
           ),
         );

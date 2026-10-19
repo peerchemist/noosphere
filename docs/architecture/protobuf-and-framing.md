@@ -15,7 +15,8 @@ framing helpers through `package:noosphere_protocol/wire.dart`.
 | `noosphere/roast-enrollment/1` | Invite enrollment |
 
 ALPN selects the wire protocol. `LoginRequest.protocol_version` is a separate
-domain check. Peers must implement compatible message and state semantics.
+domain check and is currently exactly `3`. Only the current DKG proposal,
+event, ACK and storage grammars are defined; other bytes are malformed input.
 
 ## RPC framing
 

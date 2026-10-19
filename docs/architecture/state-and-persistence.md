@@ -26,6 +26,11 @@ In-memory providers are test utilities, not production durability.
 operations and rejections from one consistent snapshot. The provider is already
 bound to a participant/setup namespace; methods do not repeat a group ID.
 
+`FrostKeyWithDetails` uses one explicit versioned format containing mandatory
+ceremony ID and transcript hash plus the complete bytes of every contextual
+signed ACK. The decoder defines only this grammar; any other bytes are simply
+malformed input with no protocol meaning.
+
 FROST nonce replacement and the corresponding outgoing operation must be one
 atomic `prepareSignaturesOperation` transaction:
 
@@ -57,12 +62,12 @@ An uncertain cancellation write blocks signing until storage is reloaded.
 ## Coordinator and room storage
 
 `ServerPersistence` atomically loads/writes an opaque `ServerStateSnapshot` by
-group ID. Version 2 snapshots restore active DKG commitments, the frozen
-transcript, recipient-encrypted round-two mailboxes and completion
-acknowledgements. Old version 1 DKG attempts remain interrupted because their
-snapshot did not contain enough data to resume safely. Signing attempts remain
-blocked after restart. A write with an unknown outcome latches the handler
-closed until storage is reloaded.
+group ID. The snapshot grammar is version 3 and restores active DKG commitments, the frozen
+transcript, recipient-encrypted round-two mailboxes, completion
+acknowledgements and DKG terminal records. Any input that does not form a
+current snapshot is reported as malformed. Signing attempts remain blocked
+after restart. A write with an unknown outcome latches the handler closed until
+storage is reloaded.
 
 Noosphere does not select or operate a database. The calling application owns
 the `ServerPersistence` implementation and decides how snapshots are encrypted,
@@ -87,6 +92,20 @@ rejection remain available; the client never substitutes fresh randomness.
 Once Frosty supports secret export/import, those private bytes must flow
 exclusively through a caller-provided storage implementation.
 
+Rejected or expired ceremonies leave terminal records keyed by ceremony ID.
+Those records are retained for `maxDkgRequestTTL` from terminalization and are
+written through the same caller-provided `ServerPersistence`; replaying the
+same signed proposal cannot revive it during that bound. A replacement requires
+a new attempt ID and may reuse only the display name.
+
+## Protocol v3 source breaks
+
+Only the protocol v3 grammar is defined. DKG events have mandatory ceremony
+IDs, authenticated DKG fetch/mutation APIs require a ceremony ID, ACK requests
+require ceremony and transcript context, Frost-key storage uses the current
+versioned encoding, and coordinator persistence uses snapshot version 3. Other
+bytes have no defined meaning and fail ordinary parsing or validation.
+
 `RoomPersistence` atomically stores room records. Invite consumption and
 participant insertion are one write. Room write failure similarly blocks
 mutations until reopen/reload.
@@ -110,8 +129,7 @@ later, so a replacement must wait or reconcile before trusting a new load.
 | --- | --- |
 | Session/challenge/connection | Discard and authenticate again |
 | Client DKG temporary secret | Fail explicitly if its published contribution exists; never regenerate it |
-| Coordinator DKG (snapshot v2) | Restore its exact stage, accepted payloads and completion acknowledgements |
-| Coordinator DKG (snapshot v1) | Restore as interrupted; creator may replace it |
+| Coordinator DKG (snapshot v3) | Restore its exact stage, accepted payloads and completion acknowledgements |
 | Coordinator signing request | Block ID until expiry; do not resume rounds |
 | Completed signatures | Restore and redeliver until expiry |
 | Cancelled signing request | Retain only ID and original expiry; reconcile all clients through snapshots |
@@ -119,7 +137,8 @@ later, so a replacement must wait or reconcile before trusting a new load.
 | Client prepared signing operation | Block pending reconciliation |
 | Durable rejection | Re-send when proposal reappears |
 | Used/revoked invite and frozen room | Preserve |
-| DKG ACK cache | Rebuild from participant key records |
+| DKG terminal record | Retain through caller persistence for `maxDkgRequestTTL` after rejection/expiry |
+| DKG ACK cache | Ephemeral; contextual possession ACKs repopulate it from participant key records |
 
 Completion can be redelivered, so application side effects must be idempotent.
 Use durable records and external outcomes—not a missing event or discarded

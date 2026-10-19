@@ -189,12 +189,19 @@ class ServerApiHandler implements ApiRequestInterface {
     var changed = false;
     final expiredDkgs = _state.nameToDkg.removeExpired();
     for (final entry in expiredDkgs) {
+      _retainTerminalDkg(entry.value, DkgTerminalOutcome.expired);
       _state.persistent.publicFeed?.finish(
         'dkg:${entry.key}',
         PublicFeedLifecycle.expired,
       );
     }
     changed = expiredDkgs.isNotEmpty || changed;
+    final terminalDkgBefore = _state.persistent.terminalDkgs.length;
+    _state.persistent.terminalDkgs.removeWhere(
+      (_, value) => value.expiry.isExpired,
+    );
+    changed =
+        _state.persistent.terminalDkgs.length != terminalDkgBefore || changed;
     final expiredSigning = _state.sigRequests.removeExpired();
     for (final entry in expiredSigning) {
       _state.persistent.publicFeed?.finish(
@@ -213,13 +220,6 @@ class ServerApiHandler implements ApiRequestInterface {
     );
     changed =
         _state.persistent.terminalSignatures.length != terminalBefore ||
-        changed;
-    final interruptedBefore = _state.persistent.interruptedDkgs.length;
-    _state.persistent.interruptedDkgs.removeWhere(
-      (_, event) => event.expiry.isExpired,
-    );
-    changed =
-        _state.persistent.interruptedDkgs.length != interruptedBefore ||
         changed;
     final blockedBefore = _state.persistent.blockedSignatures.length;
     _state.persistent.blockedSignatures.removeWhere(
@@ -266,6 +266,21 @@ class ServerApiHandler implements ApiRequestInterface {
 
   int get _participantN => config.group.participants.length;
 
+  String _dkgCeremonyKey(Uint8List ceremonyId) => cl.bytesToHex(ceremonyId);
+
+  void _retainTerminalDkg(DkgState dkg, DkgTerminalOutcome outcome) {
+    final record = TerminalDkg(
+      ceremonyId: dkg.details.obj.ceremonyId,
+      name: dkg.details.obj.name,
+      outcome: outcome,
+      // Every accepted proposal expires within maxDkgRequestTTL, so retaining
+      // for that duration makes replay impossible until its signature is also
+      // unusable by the normal expiry checks.
+      expiry: Expiry(config.maxDkgRequestTTL),
+    );
+    _state.persistent.terminalDkgs[_dkgCeremonyKey(record.ceremonyId)] = record;
+  }
+
   ClientSession getSession(SessionID id) {
     final session = _state.clientSessions[id];
     if (session == null) throw InvalidRequest.noSession();
@@ -289,10 +304,9 @@ class ServerApiHandler implements ApiRequestInterface {
     return dkg;
   }
 
-  DkgState _getDkgForCeremony(String name, Uint8List? ceremonyId) {
+  DkgState _getDkgForCeremony(String name, Uint8List ceremonyId) {
     final dkg = _getDkg(name);
-    if (ceremonyId != null &&
-        !cl.bytesEqual(dkg.details.obj.ceremonyId, ceremonyId)) {
+    if (!cl.bytesEqual(dkg.details.obj.ceremonyId, ceremonyId)) {
       throw InvalidRequest.noDkg();
     }
     return dkg;
@@ -345,14 +359,14 @@ class ServerApiHandler implements ApiRequestInterface {
   Future<void> rejectDkg({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
   }) => _rejectDkg(sid: sid, name: name, ceremonyId: ceremonyId);
 
   @override
   Future<void> submitDkgCommitment({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
     required DkgPublicCommitment commitment,
   }) => _submitDkgCommitment(
     sid: sid,
@@ -365,7 +379,7 @@ class ServerApiHandler implements ApiRequestInterface {
   Future<void> submitDkgRound2({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
     required cl.SchnorrSignature commitmentSetSignature,
     required Map<Identifier, DkgEncryptedSecret> secrets,
   }) => _submitDkgRound2(
@@ -380,7 +394,7 @@ class ServerApiHandler implements ApiRequestInterface {
   Future<DkgCeremonySnapshot?> getDkg({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
   }) => _getDkgSnapshot(sid: sid, name: name, ceremonyId: ceremonyId);
 
   @override

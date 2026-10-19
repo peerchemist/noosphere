@@ -173,6 +173,10 @@ class Client {
     _checkDetailsEvent(config, dkg);
 
     final details = dkg.details.obj;
+    if (details.protocolVersion != noosphereRoastProtocolVersion ||
+        !cl.bytesEqual(details.groupFingerprint, config.group.fingerprint)) {
+      throw ServerMisbehaviour.changedDkgTranscript();
+    }
     if (details.threshold > config.groupN) {
       throw ServerMisbehaviour.invalidDkgThreshold();
     }

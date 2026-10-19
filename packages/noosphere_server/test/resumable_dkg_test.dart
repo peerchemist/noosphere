@@ -54,6 +54,7 @@ void main() {
       description: 'participants never overlap',
       threshold: 2,
       expiry: Expiry(const Duration(hours: 1)),
+      groupFingerprint: group.fingerprint,
     );
     final signedDetails = Signed.sign(obj: details, key: identityKeys[0]);
     final part1 = List.generate(
@@ -71,12 +72,17 @@ void main() {
 
     session = await login(1);
     expect(
-      (await server.getDkg(sid: session.id, name: details.name))!.stage,
+      (await server.getDkg(
+        sid: session.id,
+        name: details.name,
+        ceremonyId: details.ceremonyId,
+      ))!.stage,
       DkgCeremonyStage.collectingCommitments,
     );
     await server.submitDkgCommitment(
       sid: session.id,
       name: details.name,
+      ceremonyId: details.ceremonyId,
       commitment: part1[1].public,
     );
     await disconnect(session);
@@ -86,12 +92,14 @@ void main() {
     await server.submitDkgCommitment(
       sid: session.id,
       name: details.name,
+      ceremonyId: details.ceremonyId,
       commitment: part1[2].public,
     );
     await expectLater(
       server.submitDkgCommitment(
         sid: session.id,
         name: details.name,
+        ceremonyId: details.ceremonyId,
         commitment: DkgPart1(identifier: ids[2], threshold: 2, n: 3).public,
       ),
       throwsA(isA<InvalidRequest>()),
@@ -100,6 +108,7 @@ void main() {
     await server.submitDkgCommitment(
       sid: session.id,
       name: details.name,
+      ceremonyId: details.ceremonyId,
       commitment: part1[2].public,
     );
     await disconnect(session);
@@ -138,6 +147,7 @@ void main() {
       await server.submitDkgRound2(
         sid: session.id,
         name: details.name,
+        ceremonyId: details.ceremonyId,
         commitmentSetSignature: signatures[sender],
         secrets: ciphertexts[sender],
       );
@@ -145,6 +155,7 @@ void main() {
       await server.submitDkgRound2(
         sid: session.id,
         name: details.name,
+        ceremonyId: details.ceremonyId,
         commitmentSetSignature: signatures[sender],
         secrets: ciphertexts[sender],
       );
@@ -161,6 +172,7 @@ void main() {
           server.submitDkgRound2(
             sid: session.id,
             name: details.name,
+            ceremonyId: details.ceremonyId,
             commitmentSetSignature: signatures[sender],
             secrets: conflicting,
           ),
@@ -174,6 +186,7 @@ void main() {
         final progress = (await server.getDkg(
           sid: next.id,
           name: details.name,
+          ceremonyId: details.ceremonyId,
         ))!;
         expect(progress.stage, DkgCeremonyStage.collectingShares);
         expect(progress.shareContributors, {ids[0]});
@@ -187,6 +200,7 @@ void main() {
       final snapshot = (await server.getDkg(
         sid: session.id,
         name: details.name,
+        ceremonyId: details.ceremonyId,
       ))!;
       expect(snapshot.stage, DkgCeremonyStage.awaitingCompletion);
       expect(snapshot.shareContributors, ids.toSet());
@@ -287,6 +301,47 @@ void main() {
         signed: Signed.sign(obj: ack, key: identityKeys[i]),
       );
       completionAcks.add(signedAck);
+      if (i == 0) {
+        final invalidLaterAck = SignedDkgAck(
+          signer: ids[1],
+          signed: Signed.sign(
+            obj: DkgAck(
+              groupKey: participantKeys[i].groupKey,
+              accepted: true,
+              ceremonyId: details.ceremonyId,
+              transcriptHash: Uint8List(32),
+            ),
+            key: identityKeys[1],
+          ),
+        );
+        await expectLater(
+          server.sendDkgAcks(
+            sid: session.id,
+            acks: {signedAck, invalidLaterAck},
+          ),
+          throwsA(isA<InvalidRequest>()),
+        );
+        expect(
+          (await server.getDkg(
+            sid: session.id,
+            name: details.name,
+            ceremonyId: details.ceremonyId,
+          ))!.completedParticipants,
+          isEmpty,
+          reason: 'a rejected batch must not mutate the live ceremony',
+        );
+        await restart();
+        session = await login(i);
+        expect(
+          (await server.getDkg(
+            sid: session.id,
+            name: details.name,
+            ceremonyId: details.ceremonyId,
+          ))!.completedParticipants,
+          isEmpty,
+          reason: 'restart must agree with the pre-request durable state',
+        );
+      }
       await server.sendDkgAcks(sid: session.id, acks: {signedAck});
       await disconnect(session);
     }
@@ -296,6 +351,7 @@ void main() {
     final completed = (await server.getDkg(
       sid: session.id,
       name: details.name,
+      ceremonyId: details.ceremonyId,
     ))!;
     expect(completed.stage, DkgCeremonyStage.completed);
     expect(completed.completedParticipants, ids.toSet());
@@ -364,6 +420,7 @@ void main() {
         description: '',
         threshold: 2,
         expiry: Expiry(const Duration(hours: 1)),
+        groupFingerprint: group.fingerprint,
       );
       final p1 = [
         DkgPart1(identifier: ids[0], threshold: 2, n: 2),
@@ -379,6 +436,7 @@ void main() {
       await server.submitDkgCommitment(
         sid: login1.id,
         name: details.name,
+        ceremonyId: details.ceremonyId,
         commitment: p1[1].public,
       );
       final commitments = DkgCommitmentSet([
@@ -398,6 +456,7 @@ void main() {
       await server.submitDkgRound2(
         sid: login0.id,
         name: details.name,
+        ceremonyId: details.ceremonyId,
         commitmentSetSignature: cl.SchnorrSignature.sign(
           keys[0],
           details.hashWithCommitments(commitments),
@@ -408,10 +467,12 @@ void main() {
       final senderView = (await server.getDkg(
         sid: login0.id,
         name: details.name,
+        ceremonyId: details.ceremonyId,
       ))!;
       final recipientView = (await server.getDkg(
         sid: login1.id,
         name: details.name,
+        ceremonyId: details.ceremonyId,
       ))!;
       expect(senderView.shares, isEmpty);
       expect(recipientView.shares, hasLength(1));

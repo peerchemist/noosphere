@@ -134,6 +134,7 @@ void main() async {
       description: "This is an example key",
       threshold: threshold,
       expiry: Expiry(Duration(hours: 1)),
+      groupFingerprint: groupConfig.fingerprint,
     ),
   );
 

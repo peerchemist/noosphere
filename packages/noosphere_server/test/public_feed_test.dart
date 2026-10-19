@@ -45,6 +45,16 @@ Future<SessionID> _login(ServerApiHandler handler, int i) async {
   return session.id;
 }
 
+NewDkgDetails _dkgDetails(
+  ServerApiHandler handler,
+  String name, {
+  Expiry? expiry,
+}) => getDkgDetails(
+  name: name,
+  expiry: expiry,
+  groupFingerprint: handler.config.group.fingerprint,
+);
+
 Future<void> _dkg(
   ServerApiHandler handler,
   SessionID sid,
@@ -52,7 +62,7 @@ Future<void> _dkg(
   Expiry? expiry,
 }) => handler.requestNewDkg(
   sid: sid,
-  signedDetails: signObject(getDkgDetails(name: name, expiry: expiry)),
+  signedDetails: signObject(_dkgDetails(handler, name, expiry: expiry)),
   commitment: DkgPart1(identifier: ids[0], threshold: 2, n: 2).public,
 );
 
@@ -173,7 +183,11 @@ void main() {
       100,
     ))!.entries.single.eventId;
     await _dkg(handler, sid, 'pending-b');
-    await handler.rejectDkg(sid: sid, name: 'pending-a');
+    await handler.rejectDkg(
+      sid: sid,
+      name: 'pending-a',
+      ceremonyId: _dkgDetails(handler, 'pending-a').ceremonyId,
+    );
     final page = (await handler.getPublicFeed(id, 0, 100))!;
     expect(page.entries.single.cursor, 3);
     expect(page.entries.single.eventId, eventId);
@@ -437,7 +451,7 @@ void main() {
     );
     final sid0 = await _login(handler, 0);
     final sid1 = await _login(handler, 1);
-    final details = signObject(getDkgDetails(name: 'secret-description'));
+    final details = signObject(_dkgDetails(handler, 'secret-description'));
     final parts = List.generate(
       2,
       (i) => DkgPart1(identifier: ids[i], threshold: 2, n: 2),
@@ -458,6 +472,7 @@ void main() {
     await handler.submitDkgCommitment(
       sid: sid1,
       name: details.obj.name,
+      ceremonyId: details.obj.ceremonyId,
       commitment: parts[1].public,
     );
     final commitments = DkgCommitmentSet(
@@ -473,6 +488,7 @@ void main() {
       await handler.submitDkgRound2(
         sid: i == 0 ? sid0 : sid1,
         name: details.obj.name,
+        ceremonyId: details.obj.ceremonyId,
         commitmentSetSignature: cl.SchnorrSignature.sign(
           getPrivkey(i),
           details.obj.hashWithCommitments(commitments),
@@ -543,7 +559,11 @@ void main() {
       reqId: signing.obj.id,
       replies: [],
     );
-    await handler.rejectDkg(sid: sid1, name: details.obj.name);
+    await handler.rejectDkg(
+      sid: sid1,
+      name: details.obj.name,
+      ceremonyId: details.obj.ceremonyId,
+    );
     final page = (await handler.getPublicFeed(id, 0, 100))!;
     expect(page.entries.map((e) => e.cursor), [1, 2, 3, 4]);
     expect(page.entries.map((e) => e.state), [
@@ -579,8 +599,17 @@ void main() {
       );
       final sid = await _login(handler, 0);
       await _dkg(handler, sid, 'rejected');
-      await handler.rejectDkg(sid: sid, name: 'rejected');
-      await handler.rejectDkg(sid: sid, name: 'rejected');
+      final rejectedId = _dkgDetails(handler, 'rejected').ceremonyId;
+      await handler.rejectDkg(
+        sid: sid,
+        name: 'rejected',
+        ceremonyId: rejectedId,
+      );
+      await handler.rejectDkg(
+        sid: sid,
+        name: 'rejected',
+        ceremonyId: rejectedId,
+      );
       final signing = signObject(getSignaturesDetails());
       await handler.requestSignatures(
         sid: sid,
@@ -669,7 +698,11 @@ void main() {
     final sid = await _login(handler, 0);
     for (var i = 0; i < 3; i++) {
       await _dkg(handler, sid, 'retained-$i');
-      await handler.rejectDkg(sid: sid, name: 'retained-$i');
+      await handler.rejectDkg(
+        sid: sid,
+        name: 'retained-$i',
+        ceremonyId: _dkgDetails(handler, 'retained-$i').ceremonyId,
+      );
     }
     final page = (await handler.getPublicFeed(id, 0, 2))!;
     expect(page.entries.map((e) => e.cursor), [4, 5]);
@@ -794,6 +827,7 @@ void main() {
         getDkgDetails(
           name: 'PRIVATE_DKG_NAME',
           description: 'PRIVATE_PROPOSAL_CONTENT',
+          groupFingerprint: handler.config.group.fingerprint,
         ),
       );
       final commitment = DkgPart1(
@@ -869,42 +903,48 @@ void main() {
     },
   );
 
-  test('legacy snapshots default to disabled/empty; explicit opt-in persists and cannot rotate its ID', () async {
-    final persistence = InMemoryServerPersistence();
-    final config = _config(null);
-    final legacy = ServerStateSnapshot.fromBytes(
-      Uint8List.fromList(
-        utf8.encode(
-          '{"version":1,"dkg":[],"signing":[],"completed":[],"shares":[],"cancelled":[],"terminalSigning":[]}',
+  test(
+    'snapshots without a feed allow explicit opt-in without ID rotation',
+    () async {
+      final persistence = InMemoryServerPersistence();
+      final config = _config(null);
+      final empty = ServerStateSnapshot.fromBytes(
+        Uint8List.fromList(
+          utf8.encode(
+            '{"version":3,"dkg":[],"signing":[],"completed":[],"shares":[],"cancelled":[],"terminalSigning":[],"terminalDkg":[]}',
+          ),
         ),
-      ),
-    );
-    await persistence.write(config.group.id, legacy);
-    final old = ServerApiHandler(config: config, persistence: persistence);
-    await old.ready;
-    expect(old.debugState.persistent.publicFeed, isNull);
-    final id = PublicFeedId.generate();
-    expect(await old.getPublicFeed(id, 0, 100), isNull);
-    final enabled = ServerApiHandler(
-      config: _config(PublicFeedConfig(feedId: id)),
-      persistence: persistence,
-    );
-    await enabled.ready;
-    expect((await enabled.getPublicFeed(id, 0, 100))!.entries, isEmpty);
-    expect(
-      (jsonDecode(utf8.decode(enabled.state.toBytes()))
-          as Map)['publicFeed']['feedId'],
-      id.hex,
-    );
-    final disabled = ServerApiHandler(config: config, persistence: persistence);
-    await disabled.ready;
-    expect(await disabled.getPublicFeed(id, 0, 100), isNull);
-    final rotated = ServerApiHandler(
-      config: _config(PublicFeedConfig(feedId: PublicFeedId.generate())),
-      persistence: persistence,
-    );
-    await expectLater(rotated.ready, throwsStateError);
-  });
+      );
+      await persistence.write(config.group.id, empty);
+      final old = ServerApiHandler(config: config, persistence: persistence);
+      await old.ready;
+      expect(old.debugState.persistent.publicFeed, isNull);
+      final id = PublicFeedId.generate();
+      expect(await old.getPublicFeed(id, 0, 100), isNull);
+      final enabled = ServerApiHandler(
+        config: _config(PublicFeedConfig(feedId: id)),
+        persistence: persistence,
+      );
+      await enabled.ready;
+      expect((await enabled.getPublicFeed(id, 0, 100))!.entries, isEmpty);
+      expect(
+        (jsonDecode(utf8.decode(enabled.state.toBytes()))
+            as Map)['publicFeed']['feedId'],
+        id.hex,
+      );
+      final disabled = ServerApiHandler(
+        config: config,
+        persistence: persistence,
+      );
+      await disabled.ready;
+      expect(await disabled.getPublicFeed(id, 0, 100), isNull);
+      final rotated = ServerApiHandler(
+        config: _config(PublicFeedConfig(feedId: PublicFeedId.generate())),
+        persistence: persistence,
+      );
+      await expectLater(rotated.ready, throwsStateError);
+    },
+  );
 
   test(
     'failed atomic writes cannot expose uncommitted journal entries',
@@ -961,7 +1001,11 @@ void main() {
     final creation = _dkg(handler, sid, 'overlap');
     await persistence.entered.future;
     expect((await handler.getPublicFeed(id, 0, 100))!.entries, isEmpty);
-    final rejection = handler.rejectDkg(sid: sid, name: 'overlap');
+    final rejection = handler.rejectDkg(
+      sid: sid,
+      name: 'overlap',
+      ceremonyId: _dkgDetails(handler, 'overlap').ceremonyId,
+    );
     await pumpEventQueue();
     expect(persistence.writes, 2); // Initial snapshot and the blocked creation.
     expect((await handler.getPublicFeed(id, 0, 100))!.entries, isEmpty);
@@ -976,7 +1020,6 @@ void main() {
       (await restored.getPublicFeed(id, 0, 100))!.entries.map((e) => e.state),
       [PublicFeedLifecycle.requested, PublicFeedLifecycle.rejected],
     );
-    expect(restored.debugState.persistent.interruptedDkgs, isEmpty);
     await handler.shutdown();
   });
 }

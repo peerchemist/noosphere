@@ -51,9 +51,11 @@ void main() {
   );
 
   test('DKG details retain timestamp units and field order', () {
-    // Name "key", description "demo", LE u16 threshold 2, LE u64
-    // milliseconds 1000000000000 (2001-09-09T01:46:40Z).
-    const golden = '036b65790464656d6f02000010a5d4e8000000';
+    // Protocol, group, attempt, display fields, threshold, and expiry.
+    const golden =
+        '0300${'0000000000000000000000000000000000000000000000000000000000000000'}'
+        '${'0101010101010101010101010101010101010101010101010101010101010101'}'
+        '036b65790464656d6f02000010a5d4e8000000';
     final details = NewDkgDetails.allowNegativeExpiry(
       name: 'key',
       description: 'demo',
@@ -61,6 +63,8 @@ void main() {
       expiry: Expiry.fromTime(
         DateTime.fromMillisecondsSinceEpoch(1000000000000, isUtc: true),
       ),
+      groupFingerprint: Uint8List(32),
+      attemptId: Uint8List(32)..fillRange(0, 32, 1),
     );
     expect(details.toHex(), golden);
     final decoded = NewDkgDetails.fromBytesAllowExpired(cl.hexToBytes(golden));
@@ -71,7 +75,7 @@ void main() {
   test('login protobuf and operation-prefixed stream retain fixed wire bytes', () async {
     // Two short opaque byte fields are sufficient to test protobuf layout;
     // they are deliberately not valid authentication credentials.
-    const loginHex = '0a02aabb120201021802';
+    const loginHex = '0a02aabb120201021803';
     final login = wire.LoginRequest(
       groupFingerprint: [0xaa, 0xbb],
       participantId: [1, 2],
@@ -80,7 +84,7 @@ void main() {
     expect(cl.bytesToHex(login.writeToBuffer()), loginHex);
     expect(
       wire.LoginRequest.fromBuffer(cl.hexToBytes(loginHex)).protocolVersion,
-      2,
+      3,
     );
     // Operation 1 is a one-byte QUIC varint, followed directly by LoginRequest.
     const streamHex = '01$loginHex';

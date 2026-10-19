@@ -52,9 +52,35 @@ extension _ClientEvents on Client {
             commitments: ev.commitments,
           );
 
-          final dkg = existing == null
-              ? setNew()
-              : await existing.synchronized(setNew);
+          if (existing != null) {
+            if (!cl.bytesEqual(
+              existing.details.ceremonyId,
+              details.ceremonyId,
+            )) {
+              // Delayed traffic for an attempt that has already been replaced.
+              return;
+            }
+            await existing.synchronized(() {
+              final known = {
+                for (final entry in existing.commitments) entry.$1: entry.$2,
+              };
+              for (final entry in ev.commitments) {
+                final previous = known[entry.$1];
+                if (previous != null &&
+                    !cl.bytesEqual(previous.toBytes(), entry.$2.toBytes())) {
+                  throw ServerMisbehaviour.changedDkgTranscript();
+                }
+                if (previous == null &&
+                    existing.round is ClientDkgRound1State) {
+                  existing.round1.commitments.add(entry);
+                }
+              }
+            });
+            _sendEvent(UpdatedDkgClientEvent(existing.progress(config.id)));
+            return;
+          }
+
+          final dkg = setNew();
 
           _sendEvent(UpdatedDkgClientEvent(dkg.progress(config.id)));
 
@@ -62,6 +88,7 @@ extension _ClientEvents on Client {
           Client._checkOtherParticipantId(config, ev.participant);
 
           await _runDkgSyncIfExists(ev.name, (dkg) {
+            if (!cl.bytesEqual(dkg.details.ceremonyId, ev.ceremonyId)) return;
             _state.nameToDkg.remove(ev.name);
             _sendEvent(
               RejectedDkgClientEvent(
@@ -75,15 +102,24 @@ extension _ClientEvents on Client {
           Client._checkOtherParticipantId(config, ev.participant);
 
           await _runDkgSyncIfExists(ev.name, (dkg) async {
+            if (!cl.bytesEqual(dkg.details.ceremonyId, ev.ceremonyId)) return;
+            final existing = dkg.commitments
+                .where((c) => c.$1 == ev.participant)
+                .firstOrNull;
+            if (existing != null) {
+              if (!cl.bytesEqual(
+                existing.$2.toBytes(),
+                ev.commitment.toBytes(),
+              )) {
+                throw ServerMisbehaviour.changedDkgTranscript();
+              }
+              return;
+            }
             if (dkg.round is! ClientDkgRound1State) {
               throw ServerMisbehaviour.commitmentNotRound1();
             }
 
             final round1 = dkg.round1;
-
-            if (round1.commitments.any((c) => c.$1 == ev.participant)) {
-              throw ServerMisbehaviour.duplicateCommitment();
-            }
 
             round1.commitments.add((ev.participant, ev.commitment));
 
@@ -101,6 +137,7 @@ extension _ClientEvents on Client {
           // processing ACKs for it
           await _dkgAckLock.synchronized(
             () => _runDkgSyncIfExists(ev.name, (dkg) async {
+              if (!cl.bytesEqual(dkg.details.ceremonyId, ev.ceremonyId)) return;
               if (dkg.missingSecret) return;
               if (dkg.round is! ClientDkgRound2State) {
                 throw ServerMisbehaviour.secretNotRound2();
@@ -173,7 +210,12 @@ extension _ClientEvents on Client {
             final Set<SignedDkgAck> toSend = {};
 
             for (final req in ev.requests) {
-              final DkgAckRequest(:ids, :groupPublicKey) = req;
+              final DkgAckRequest(
+                :ids,
+                :groupPublicKey,
+                :ceremonyId,
+                :transcriptHash,
+              ) = req;
 
               Client._checkIdentifierSet(config, ids);
 
@@ -182,7 +224,14 @@ extension _ClientEvents on Client {
                 toSend.addAll(_store.getAcksForRequest(req));
               } else if (ids.contains(config.id)) {
                 // Haven't got key so send our own NACK
-                toSend.add(await _createDkgAck(groupPublicKey, false));
+                toSend.add(
+                  await _createDkgAck(
+                    groupPublicKey,
+                    false,
+                    ceremonyId: ceremonyId,
+                    transcriptHash: transcriptHash,
+                  ),
+                );
               }
             }
 

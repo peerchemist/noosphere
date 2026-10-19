@@ -22,6 +22,7 @@ extension _ServerDkg on ServerApiHandler {
             if (contribution.key != recipient)
               contribution.value.shareFor(
                 dkg.details.obj.name,
+                dkg.details.obj.ceremonyId,
                 contribution.key,
                 recipient,
               ),
@@ -34,14 +35,12 @@ extension _ServerDkg on ServerApiHandler {
   Future<DkgCeremonySnapshot?> _getDkgSnapshot({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
   }) async {
     await _prepare();
     final recipient = getSession(sid).participantId;
     final dkg = _state.nameToDkg[name];
-    return dkg == null ||
-            (ceremonyId != null &&
-                !cl.bytesEqual(dkg.details.obj.ceremonyId, ceremonyId))
+    return dkg == null || !cl.bytesEqual(dkg.details.obj.ceremonyId, ceremonyId)
         ? null
         : _dkgSnapshot(dkg, recipient);
   }
@@ -54,6 +53,13 @@ extension _ServerDkg on ServerApiHandler {
     await _prepare();
     final session = getSession(sid);
     final details = signedDetails.obj;
+
+    if (details.protocolVersion != ServerApiHandler.currentProtocolVersion) {
+      throw InvalidRequest.invalidProtoVersion();
+    }
+    if (!cl.bytesEqual(details.groupFingerprint, config.group.fingerprint)) {
+      throw InvalidRequest.groupMismatch();
+    }
 
     // Check threshold
     if (details.threshold > _participantN) {
@@ -71,16 +77,15 @@ extension _ServerDkg on ServerApiHandler {
     if (!signedDetails.verify(_getParticipantPubkeyForSession(session))) {
       throw InvalidRequest.invalidDkgReqSig();
     }
-
-    // Active attempts cannot be replaced. A creator may, however, atomically
-    // replace their own interrupted attempt after a server restart because it
-    // can no longer be resumed.
-    final interrupted = _state.persistent.interruptedDkgs[details.name];
-    if (_state.nameToDkg.containsKey(details.name) ||
-        (interrupted != null && interrupted.creator != session.participantId)) {
+    if (_state.persistent.terminalDkgs.containsKey(
+      _dkgCeremonyKey(details.ceremonyId),
+    )) {
       throw InvalidRequest.dkgRequestExists();
     }
-    _state.persistent.interruptedDkgs.remove(details.name);
+
+    if (_state.nameToDkg.containsKey(details.name)) {
+      throw InvalidRequest.dkgRequestExists();
+    }
 
     // Create event to share with participants
     final commitments = [(session.participantId, commitment)];
@@ -112,16 +117,16 @@ extension _ServerDkg on ServerApiHandler {
   Future<void> _rejectDkg({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
   }) async {
     await _prepare();
     final participantId = getSession(sid).participantId;
     final dkg = _state.nameToDkg[name];
-    if (dkg == null ||
-        (ceremonyId != null &&
-            !cl.bytesEqual(dkg.details.obj.ceremonyId, ceremonyId))) {
+    if (dkg == null || !cl.bytesEqual(dkg.details.obj.ceremonyId, ceremonyId)) {
+      // Rejection retries remain successful without affecting a replacement.
       return;
     }
+    _retainTerminalDkg(dkg, DkgTerminalOutcome.rejected);
     if (_state.nameToDkg.remove(name) != null) {
       _state.persistent.publicFeed?.finish(
         'dkg:$name',
@@ -130,7 +135,11 @@ extension _ServerDkg on ServerApiHandler {
       await _persist();
       // Send an event to all other participants that the DKG was removed
       _state.sendEventToOthers(
-        DkgRejectEvent(name: name, participant: participantId),
+        DkgRejectEvent(
+          name: name,
+          ceremonyId: dkg.details.obj.ceremonyId,
+          participant: participantId,
+        ),
         sid,
       );
     }
@@ -139,7 +148,7 @@ extension _ServerDkg on ServerApiHandler {
   Future<void> _submitDkgCommitment({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
     required DkgPublicCommitment commitment,
   }) async {
     await _prepare();
@@ -173,7 +182,12 @@ extension _ServerDkg on ServerApiHandler {
 
     // Send commitment to other participants
     _state.sendEventToOthers(
-      DkgCommitmentEvent(name: name, participant: pid, commitment: commitment),
+      DkgCommitmentEvent(
+        name: name,
+        ceremonyId: dkg.details.obj.ceremonyId,
+        participant: pid,
+        commitment: commitment,
+      ),
       sid,
     );
   }
@@ -181,7 +195,7 @@ extension _ServerDkg on ServerApiHandler {
   Future<void> _submitDkgRound2({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
     required cl.SchnorrSignature commitmentSetSignature,
     required Map<Identifier, DkgEncryptedSecret> secrets,
   }) async {
@@ -242,6 +256,7 @@ extension _ServerDkg on ServerApiHandler {
         otherSess.sendEvent(
           DkgRound2ShareEvent(
             name: name,
+            ceremonyId: dkg.details.obj.ceremonyId,
             commitmentSetSignature: commitmentSetSignature,
             sender: session.participantId,
             secret: secrets[otherSess.participantId]!,
@@ -258,72 +273,85 @@ extension _ServerDkg on ServerApiHandler {
     await _prepare();
     getSession(sid);
 
-    // Verify signatures
-    if (acks.any(
-      (ack) => !ack.signed.verify(_getParticipantPubkeyForId(ack.signer)),
-    )) {
-      throw InvalidRequest.invalidDkgAckSignature();
-    }
-
-    final Set<SignedDkgAck> newAcks = {};
-    var completionChanged = false;
-
+    final batchByKey = <String, SignedDkgAck>{};
+    final completionAdds = <DkgState, Map<Identifier, Signed<DkgAck>>>{};
     for (final ack in acks) {
+      if (!ack.signed.verify(_getParticipantPubkeyForId(ack.signer))) {
+        throw InvalidRequest.invalidDkgAckSignature();
+      }
       final value = ack.signed.obj;
-      if (value.ceremonyId != null) {
-        if (!value.accepted) throw InvalidRequest.invalidDkgAckSignature();
-        final dkg = _state.nameToDkg.values.firstWhereOrNull(
-          (candidate) => cl.bytesEqual(
-            candidate.details.obj.ceremonyId,
-            value.ceremonyId!,
-          ),
-        );
-        if (dkg == null ||
+      final batchKey = '${ack.signer}:${value.groupKey.hex}';
+      final inBatch = batchByKey[batchKey];
+      if (inBatch != null && !cl.bytesEqual(inBatch.toBytes(), ack.toBytes())) {
+        throw InvalidRequest.invalidDkgAckSignature();
+      }
+      batchByKey[batchKey] = ack;
+
+      final dkg = _state.nameToDkg.values.firstWhereOrNull(
+        (candidate) =>
+            cl.bytesEqual(candidate.details.obj.ceremonyId, value.ceremonyId),
+      );
+      // An ACK is a completion claim only while its exact ceremony is
+      // retained. Afterwards it remains a signed key-possession statement.
+      if (dkg != null) {
+        if (!value.accepted ||
             dkg.round is! DkgRound2State ||
             !dkg.round2.allSharesSubmitted ||
             !dkg.round2.contributions.containsKey(ack.signer) ||
-            !cl.bytesEqual(dkg.round2.expectedHash, value.transcriptHash!)) {
+            !cl.bytesEqual(dkg.round2.expectedHash, value.transcriptHash)) {
           throw InvalidRequest.invalidDkgAckSignature();
         }
-        final expectedKey = dkg.completedGroupKey;
+        final planned = completionAdds[dkg] ??= {};
+        final expectedKey =
+            dkg.completedGroupKey ?? planned.values.firstOrNull?.obj.groupKey;
         if (expectedKey != null && expectedKey != value.groupKey) {
           throw InvalidRequest.invalidDkgAckSignature();
         }
-        final previous = dkg.completionAcks[ack.signer];
-        if (previous != null) {
-          if (!cl.bytesEqual(previous.toBytes(), ack.signed.toBytes())) {
-            throw InvalidRequest.invalidDkgAckSignature();
-          }
-        } else {
-          dkg.completionAcks[ack.signer] = ack.signed;
-          completionChanged = true;
-          if (dkg.completed) {
-            _state.persistent.publicFeed?.finish(
-              'dkg:${dkg.details.obj.name}',
-              PublicFeedLifecycle.completed,
-            );
-          }
+        final previous = dkg.completionAcks[ack.signer] ?? planned[ack.signer];
+        if (previous != null &&
+            !cl.bytesEqual(previous.toBytes(), ack.signed.toBytes())) {
+          throw InvalidRequest.invalidDkgAckSignature();
         }
+        if (previous == null) planned[ack.signer] = ack.signed;
       }
+    }
 
-      final ackCache = _state.dkgAckCache[ack.signed.obj.groupKey] ??=
-          DkgAckCache(Expiry(config.ackCacheTTL));
-
-      // If ACK already exists in cache, override if changing from false to true
-      // Otherwise do nothing and continue
-      final prevAck = ackCache.acks[ack.signer]?.obj;
-      if (prevAck != null && (prevAck.accepted || !ack.signed.obj.accepted)) {
+    final cacheAdds =
+        <cl.ECCompressedPublicKey, Map<Identifier, Signed<DkgAck>>>{};
+    final Set<SignedDkgAck> newAcks = {};
+    for (final ack in acks) {
+      final key = ack.signed.obj.groupKey;
+      final prevAck = _state.dkgAckCache[key]?.acks[ack.signer]?.obj;
+      final sameContext =
+          prevAck != null &&
+          cl.bytesEqual(prevAck.ceremonyId, ack.signed.obj.ceremonyId) &&
+          cl.bytesEqual(prevAck.transcriptHash, ack.signed.obj.transcriptHash);
+      if (sameContext && (prevAck.accepted || !ack.signed.obj.accepted)) {
         continue;
       }
-
-      // Add new ACK to cache
-      ackCache.acks[ack.signer] = ack.signed;
-
-      // Record as new ACK to send
+      (cacheAdds[key] ??= {})[ack.signer] = ack.signed;
       newAcks.add(ack);
     }
 
-    if (completionChanged) await _persist();
+    for (final entry in completionAdds.entries) {
+      entry.key.completionAcks.addAll(entry.value);
+      if (entry.key.completed) {
+        _state.persistent.publicFeed?.finish(
+          'dkg:${entry.key.details.obj.name}',
+          PublicFeedLifecycle.completed,
+        );
+      }
+    }
+    for (final entry in cacheAdds.entries) {
+      final cache = _state.dkgAckCache[entry.key] ??= DkgAckCache(
+        Expiry(config.ackCacheTTL),
+      );
+      cache.acks.addAll(entry.value);
+    }
+
+    if (completionAdds.values.any((values) => values.isNotEmpty)) {
+      await _persist();
+    }
 
     // Do not send events if there are no new ACKs
     if (newAcks.isEmpty) return;
@@ -375,7 +403,9 @@ extension _ServerDkg on ServerApiHandler {
       final Set<Identifier> idsToReq = {};
       for (final id in request.ids) {
         final ack = cache.acks[id];
-        if (ack == null) {
+        if (ack == null ||
+            !cl.bytesEqual(ack.obj.ceremonyId, request.ceremonyId) ||
+            !cl.bytesEqual(ack.obj.transcriptHash, request.transcriptHash)) {
           idsToReq.add(id);
         } else {
           have.add(SignedDkgAck(signer: id, signed: ack));
@@ -385,7 +415,12 @@ extension _ServerDkg on ServerApiHandler {
       // If we have any missing ACKs, add a request
       if (idsToReq.isNotEmpty) {
         need.add(
-          DkgAckRequest(ids: idsToReq, groupPublicKey: request.groupPublicKey),
+          DkgAckRequest(
+            ids: idsToReq,
+            groupPublicKey: request.groupPublicKey,
+            ceremonyId: request.ceremonyId,
+            transcriptHash: request.transcriptHash,
+          ),
         );
       }
     }

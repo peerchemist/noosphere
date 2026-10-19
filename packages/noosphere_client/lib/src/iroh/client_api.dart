@@ -264,14 +264,14 @@ final class IrohClientApi implements ApiRequestInterface {
   Future<void> rejectDkg({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
   }) async {
     await _rpc(
       protocol.RoastOperation.rejectDkg,
       protocol.DkgReference(
         sid: sid.toBytes(),
         name: name,
-        ceremonyId: ceremonyId ?? const [],
+        ceremonyId: ceremonyId,
       ),
       protocol.RejectDkgResponse.fromBuffer,
     );
@@ -281,7 +281,7 @@ final class IrohClientApi implements ApiRequestInterface {
   Future<void> submitDkgCommitment({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
     required DkgPublicCommitment commitment,
   }) async {
     await _rpc(
@@ -290,7 +290,7 @@ final class IrohClientApi implements ApiRequestInterface {
         sid: sid.toBytes(),
         name: name,
         commitment: commitment.toBytes(),
-        ceremonyId: ceremonyId ?? const [],
+        ceremonyId: ceremonyId,
       ),
       protocol.SubmitDkgCommitmentResponse.fromBuffer,
     );
@@ -300,7 +300,7 @@ final class IrohClientApi implements ApiRequestInterface {
   Future<void> submitDkgRound2({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
     required coinlib.SchnorrSignature commitmentSetSignature,
     required Map<Identifier, DkgEncryptedSecret> secrets,
   }) async {
@@ -309,7 +309,7 @@ final class IrohClientApi implements ApiRequestInterface {
       protocol.DkgRound2(
         sid: sid.toBytes(),
         name: name,
-        ceremonyId: ceremonyId ?? const [],
+        ceremonyId: ceremonyId,
         commitmentSetSignature: commitmentSetSignature.data,
         secrets: secrets.entries.map(
           (entry) => protocol.DkgSecret(
@@ -326,14 +326,14 @@ final class IrohClientApi implements ApiRequestInterface {
   Future<DkgCeremonySnapshot?> getDkg({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
   }) async {
     final response = await _rpc(
       protocol.RoastOperation.getDkg,
       protocol.DkgReference(
         sid: sid.toBytes(),
         name: name,
-        ceremonyId: ceremonyId ?? const [],
+        ceremonyId: ceremonyId,
       ),
       protocol.Bytes.fromBuffer,
     );

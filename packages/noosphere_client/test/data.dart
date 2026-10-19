@@ -26,11 +26,14 @@ NewDkgDetails getDkgDetails({
   String description = "",
   int threshold = 2,
   Expiry? expiry,
+  Uint8List? attemptId,
 }) => NewDkgDetails.allowNegativeExpiry(
   name: name,
   description: description,
   threshold: threshold,
   expiry: expiry ?? futureExpiry,
+  groupFingerprint: groupConfig.fingerprint,
+  attemptId: attemptId ?? Uint8List(32),
 );
 
 ClientConfig getClientConfig(int i) =>

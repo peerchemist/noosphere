@@ -20,56 +20,34 @@ class DkgAck with cl.Writable, NoosphereWritable, Signable {
   static final _hasher = cl.getTaggedHasher("DkgAck");
   final cl.ECCompressedPublicKey groupKey;
   final bool accepted;
-  final Uint8List? ceremonyId;
-  final Uint8List? transcriptHash;
-  final bool _legacyEncoding;
+  final Uint8List ceremonyId;
+  final Uint8List transcriptHash;
 
   DkgAck({
     required this.groupKey,
     required this.accepted,
-    Uint8List? ceremonyId,
-    Uint8List? transcriptHash,
-    this._legacyEncoding = false,
-  }) : ceremonyId = ceremonyId == null
-           ? null
-           : Uint8List.fromList(ceremonyId).asUnmodifiableView(),
-       transcriptHash = transcriptHash == null
-           ? null
-           : Uint8List.fromList(transcriptHash).asUnmodifiableView() {
-    if ((ceremonyId == null) != (transcriptHash == null)) {
-      throw ArgumentError(
-        'ceremonyId and transcriptHash must either both be present or absent',
-      );
-    }
+    required Uint8List ceremonyId,
+    required Uint8List transcriptHash,
+  }) : ceremonyId = Uint8List.fromList(ceremonyId).asUnmodifiableView(),
+       transcriptHash = Uint8List.fromList(transcriptHash)
+           .asUnmodifiableView() {
     for (final (name, value) in [
       ('ceremonyId', ceremonyId),
       ('transcriptHash', transcriptHash),
     ]) {
-      if (value != null && value.length != 32) {
+      if (value.length != 32) {
         throw ArgumentError.value(value, name, 'not 32 bytes');
       }
     }
   }
-  factory DkgAck.fromReader(cl.BytesReader reader) {
-    final groupKey = reader.readPubKey();
-    final accepted = reader.readBool();
-    // Legacy acknowledgements are embedded in Signed<DkgAck>, so exactly the
-    // 64-byte signature remains after the historical two fields.
-    if (reader.bytes.lengthInBytes - reader.offset == 64) {
-      return DkgAck(
-        groupKey: groupKey,
-        accepted: accepted,
-        legacyEncoding: true,
+
+  DkgAck.fromReader(cl.BytesReader reader)
+    : this(
+        groupKey: reader.readPubKey(),
+        accepted: reader.readBool(),
+        ceremonyId: reader.readSlice(32),
+        transcriptHash: reader.readSlice(32),
       );
-    }
-    final hasContext = reader.readBool();
-    return DkgAck(
-      groupKey: groupKey,
-      accepted: accepted,
-      ceremonyId: hasContext ? reader.readSlice(32) : null,
-      transcriptHash: hasContext ? reader.readSlice(32) : null,
-    );
-  }
 
   @override
   Uint8List get uncachedSigHash => _hasher(toBytes());
@@ -78,12 +56,8 @@ class DkgAck with cl.Writable, NoosphereWritable, Signable {
   void write(cl.Writer writer) {
     writer.writePubKey(groupKey);
     writer.writeBool(accepted);
-    if (_legacyEncoding) return;
-    writer.writeBool(ceremonyId != null);
-    if (ceremonyId != null) {
-      writer
-        ..writeSlice(ceremonyId!)
-        ..writeSlice(transcriptHash!);
-    }
+    writer
+      ..writeSlice(ceremonyId)
+      ..writeSlice(transcriptHash);
   }
 }

@@ -54,6 +54,7 @@ void main() {
           description: 'must arrive in the initial snapshot',
           threshold: 2,
           expiry: Expiry(const Duration(hours: 1)),
+          groupFingerprint: group.fingerprint,
         ),
       );
 
@@ -78,6 +79,7 @@ void main() {
           description: 'must arrive over the live event stream',
           threshold: 2,
           expiry: Expiry(const Duration(hours: 1)),
+          groupFingerprint: group.fingerprint,
         ),
       );
       await event.timeout(const Duration(seconds: 15));
@@ -93,6 +95,7 @@ void main() {
             description: 'a disconnected mutation must not be queued',
             threshold: 2,
             expiry: Expiry(const Duration(hours: 1)),
+            groupFingerprint: group.fingerprint,
           ),
         ),
         throwsA(anything),

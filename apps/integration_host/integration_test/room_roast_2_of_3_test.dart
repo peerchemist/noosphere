@@ -132,6 +132,7 @@ void main() {
           description: 'Enrolled native 2-of-3 integration test',
           threshold: 2,
           expiry: Expiry(const Duration(hours: 1)),
+          groupFingerprint: group.fingerprint,
         ),
       );
       await Future.wait(proposals).timeout(const Duration(seconds: 15));

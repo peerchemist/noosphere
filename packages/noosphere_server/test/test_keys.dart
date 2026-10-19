@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_client/testing.dart';
@@ -25,10 +27,17 @@ SignedDkgAck getDkgAck(
   int i,
   bool accepted, {
   cl.ECCompressedPublicKey? groupKey,
+  Uint8List? ceremonyId,
+  Uint8List? transcriptHash,
 }) => SignedDkgAck(
   signer: ids[i],
   signed: Signed.sign(
-    obj: DkgAck(groupKey: groupKey ?? groupPublicKey, accepted: accepted),
+    obj: DkgAck(
+      groupKey: groupKey ?? groupPublicKey,
+      accepted: accepted,
+      ceremonyId: ceremonyId ?? Uint8List(32),
+      transcriptHash: transcriptHash ?? Uint8List(32),
+    ),
     key: getPrivkey(i),
   ),
 );
@@ -40,6 +49,12 @@ InMemoryClientStorage storeWithKeyAndAcks(int i, Set<SignedDkgAck> acks) =>
           keyInfo: ParticipantKeyInfo.fromHex(keyInfoHex[i]),
           name: "123",
           description: "Desc",
+          ceremonyId: acks.isEmpty
+              ? Uint8List(32)
+              : acks.first.signed.obj.ceremonyId,
+          transcriptHash: acks.isEmpty
+              ? Uint8List(32)
+              : acks.first.signed.obj.transcriptHash,
         ),
         (details, ack) => details.addOrReplaceAck(ack),
       ),

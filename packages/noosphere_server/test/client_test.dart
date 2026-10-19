@@ -96,6 +96,7 @@ void main() {
       String? altName,
     }) => DkgRound2ShareEvent(
       name: altName ?? "123",
+      ceremonyId: getDkgDetails(name: altName ?? "123").ceremonyId,
       commitmentSetSignature: cl.SchnorrSignature.sign(
         getPrivkey(sender),
         commonHash,
@@ -359,6 +360,7 @@ void main() {
           tc1,
           DkgCommitmentEvent(
             name: '123',
+            ceremonyId: getDkgDetails().ceremonyId,
             participant: ids[i],
             commitment: dummyPart1s[i].public,
           ),
@@ -408,6 +410,27 @@ void main() {
       await expectFail(getDkgDetails(threshold: 11));
     });
 
+    test('same-name unrelated key does not approve a fresh attempt', () async {
+      final creator = await ctx.login(1);
+      final details = getDkgDetails(attemptId: Uint8List(32)..last = 9);
+      await ctx.api.requestNewDkg(
+        sid: creator.sid,
+        signedDetails: signObject(details, 1),
+        commitment: getDkgPart1(1).public,
+      );
+
+      final client = await login(
+        0,
+        storage: storeWithKeyAndAcks(0, {getDkgAck(0, true)}),
+      );
+      expect(client.client.dkgRequests, hasLength(1));
+      expect(client.client.acceptedDkgs, isEmpty);
+      expect(
+        client.client.dkgRequests.single.details.ceremonyId,
+        details.ceremonyId,
+      );
+    });
+
     Future<void> expectNoRaceCondition(Future<void> Function() f) async {
       final futures = List.generate(20, (_) => f());
 
@@ -427,6 +450,24 @@ void main() {
       // Only one should succeed with the rest giving ArgumentError
       final TestClient(:client) = await login(0);
       expectNoRaceCondition(() => client.requestDkg(getDkgDetails()));
+    });
+
+    test('concurrent refresh cannot revive a rejected ceremony', () async {
+      final api = DelayedGetDkgApi();
+      ctx = TestContext(api);
+      final creator = await login(0);
+      final participant = await login(1);
+      await creator.client.requestDkg(getDkgDetails(name: 'refresh-race'));
+      await participant.evCollector.getExpectOneEvent<UpdatedDkgClientEvent>();
+
+      final refresh = participant.client.refreshDkg('refresh-race');
+      await api.fetched.future;
+      await participant.client.rejectDkg('refresh-race');
+      api.release.complete();
+      await refresh;
+
+      expectNoDkgs(participant.client);
+      expect(api.debugState.nameToDkg['refresh-race'], isNull);
     });
 
     test("handles incorrect DKG request event", () async {
@@ -499,32 +540,50 @@ void main() {
       expect(ev.progress.expiry.time, client.dkgRequests.first.expiry.time);
     });
 
-    test("DKGs can be replaced with same name", () async {
-      final tc = await login(5);
+    test(
+      "same-name DKG replacement requires terminalizing the old ceremony",
+      () async {
+        final tc = await login(5);
 
-      final ev1 = NewDkgEvent(
-        details: dkgDetails,
-        creator: ids.first,
-        commitments: [],
-      );
+        final ev1 = NewDkgEvent(
+          details: dkgDetails,
+          creator: ids.first,
+          commitments: [],
+        );
 
-      final ev2 = NewDkgEvent(
-        details: signObject(getDkgDetails(), 1),
-        creator: ids[1],
-        commitments: [],
-      );
+        final ev2 = NewDkgEvent(
+          details: signObject(
+            getDkgDetails(attemptId: Uint8List(32)..last = 2),
+            1,
+          ),
+          creator: ids[1],
+          commitments: [],
+        );
 
-      ctx.api.debugState.sendEventToAll(ev1);
-      await tc.evCollector.getExpectOneEvent<UpdatedDkgClientEvent>();
+        ctx.api.debugState.sendEventToAll(ev1);
+        await tc.evCollector.getExpectOneEvent<UpdatedDkgClientEvent>();
 
-      ctx.api.debugState.sendEventToAll(ev2);
-      final ev = await tc.evCollector
-          .getExpectOneEvent<UpdatedDkgClientEvent>();
-      expect(ev.progress.details.name, "123");
-      expect(ev.progress.creator, ids[1]);
-      expect(tc.client.dkgRequests, hasLength(1));
-      expect(tc.client.dkgRequests.first.creator, ids[1]);
-    });
+        ctx.api.debugState.sendEventToAll(ev2);
+        await tc.evCollector.expectNoEventsOrError();
+        expect(tc.client.dkgRequests.single.creator, ids.first);
+
+        ctx.api.debugState.sendEventToAll(
+          DkgRejectEvent(
+            name: '123',
+            ceremonyId: ev1.details.obj.ceremonyId,
+            participant: ids[4],
+          ),
+        );
+        await tc.evCollector.getExpectOneEvent<RejectedDkgClientEvent>();
+        ctx.api.debugState.sendEventToAll(ev2);
+        final ev = await tc.evCollector
+            .getExpectOneEvent<UpdatedDkgClientEvent>();
+        expect(ev.progress.details.name, "123");
+        expect(ev.progress.creator, ids[1]);
+        expect(tc.client.dkgRequests, hasLength(1));
+        expect(tc.client.dkgRequests.first.creator, ids[1]);
+      },
+    );
 
     test("ignore DKG that doesn't exist", () async {
       final TestClient(:client) = await login(0);
@@ -565,7 +624,11 @@ void main() {
       for (final badId in [badId, ids.first]) {
         await expectBadEvent(
           await login(0),
-          DkgRejectEvent(name: "123", participant: badId),
+          DkgRejectEvent(
+            name: "123",
+            ceremonyId: getDkgDetails().ceremonyId,
+            participant: badId,
+          ),
         );
       }
     });
@@ -574,12 +637,17 @@ void main() {
       final TestClient(:evCollector) = await login(0);
 
       ctx.api.debugState.sendEventToAll(
-        DkgRejectEvent(name: "noexist", participant: ids.last),
+        DkgRejectEvent(
+          name: "noexist",
+          ceremonyId: getDkgDetails(name: 'noexist').ceremonyId,
+          participant: ids.last,
+        ),
       );
 
       ctx.api.debugState.sendEventToAll(
         DkgCommitmentEvent(
           name: "noexist",
+          ceremonyId: getDkgDetails(name: 'noexist').ceremonyId,
           participant: ids.last,
           commitment: getDkgPart1(0).public,
         ),
@@ -720,6 +788,7 @@ void main() {
         tc,
         DkgCommitmentEvent(
           name: "123",
+          ceremonyId: getDkgDetails().ceremonyId,
           participant: badId,
           commitment: getDkgPart1(1).public,
         ),
@@ -735,6 +804,7 @@ void main() {
         ctx.api.debugState.sendEventToAll(
           DkgCommitmentEvent(
             name: "123",
+            ceremonyId: getDkgDetails().ceremonyId,
             participant: ids[1],
             commitment: getDkgPart1(1).public,
           ),
@@ -765,6 +835,7 @@ void main() {
         await login(0),
         DkgCommitmentEvent(
           name: "123",
+          ceremonyId: getDkgDetails().ceremonyId,
           participant: ids.first,
           commitment: getDkgPart1(0).public,
         ),
@@ -780,6 +851,7 @@ void main() {
         ctx.api.debugState.sendEventToAll(
           DkgCommitmentEvent(
             name: "123",
+            ceremonyId: getDkgDetails().ceremonyId,
             participant: ids[i],
             commitment: getDkgPart1(i == 4 ? 0 : i).public,
           ),
@@ -846,6 +918,7 @@ void main() {
           await ctx.api.submitDkgCommitment(
             sid: ctx.clients[i].sid,
             name: "123",
+            ceremonyId: dkgDetails.obj.ceremonyId,
             commitment: part1s[i].public,
           );
         }
@@ -860,6 +933,7 @@ void main() {
           tc,
           DkgCommitmentEvent(
             name: "123",
+            ceremonyId: getDkgDetails().ceremonyId,
             participant: ids.first,
             commitment: getDkgPart1(0).public,
           ),
@@ -895,7 +969,11 @@ void main() {
       test(
         "handles rejection on round 2",
         () => expectDkgRejectionOnEvent(
-          DkgRejectEvent(name: "123", participant: ids.first),
+          DkgRejectEvent(
+            name: "123",
+            ceremonyId: getDkgDetails().ceremonyId,
+            participant: ids.first,
+          ),
           DkgFault.none,
         ),
       );
@@ -924,6 +1002,7 @@ void main() {
         () => expectDkgRejectionOnEvent(
           DkgRound2ShareEvent(
             name: "123",
+            ceremonyId: getDkgDetails().ceremonyId,
             commitmentSetSignature: cl.SchnorrSignature.sign(
               getPrivkey(0),
               commonHash,
@@ -1135,10 +1214,48 @@ void main() {
       await expectBadEvent(
         await loginWithOwnAck(0),
         DkgAckRequestEvent({
-          DkgAckRequest(ids: {badId}, groupPublicKey: groupPublicKey),
+          DkgAckRequest(
+            ids: {badId},
+            groupPublicKey: groupPublicKey,
+            ceremonyId: Uint8List(32),
+            transcriptHash: Uint8List(32),
+          ),
         }),
       );
     });
+
+    test(
+      'forwards a stored contextual possession ACK without a ceremony',
+      () async {
+        final ceremonyId = Uint8List(32)..first = 1;
+        final transcriptHash = Uint8List(32)..last = 2;
+        final ack = SignedDkgAck(
+          signer: ids.first,
+          signed: signObject(
+            DkgAck(
+              groupKey: groupPublicKey,
+              accepted: true,
+              ceremonyId: ceremonyId,
+              transcriptHash: transcriptHash,
+            ),
+          ),
+        );
+        final tc = await login(0, storage: storeWithKeyAndAcks(0, {ack}));
+        ctx.api.debugState.sendEventToAll(
+          DkgAckRequestEvent({
+            DkgAckRequest(
+              ids: {ids.first},
+              groupPublicKey: groupPublicKey,
+              ceremonyId: ceremonyId,
+              transcriptHash: transcriptHash,
+            ),
+          }),
+        );
+        await tc.evCollector.expectNoError();
+        final cached = ctx.api.debugState.dkgAckCache[groupPublicKey]!;
+        expect(cached.acks[ids.first]!.toBytes(), ack.signed.toBytes());
+      },
+    );
 
     test("handles unrequested ACK", () async {
       final tc = await TestClient.login(
@@ -1228,6 +1345,8 @@ void main() {
                 keyInfo: infosForKeys[j][i],
                 name: j == 0 ? "3-of-10" : "6-of-10",
                 description: "",
+                ceremonyId: Uint8List(32),
+                transcriptHash: Uint8List(32),
               ),
             );
           }
@@ -1522,6 +1641,8 @@ void main() {
             keyInfo: otherKey,
             name: "other key",
             description: "",
+            ceremonyId: Uint8List(32),
+            transcriptHash: Uint8List(32),
           ),
         );
 

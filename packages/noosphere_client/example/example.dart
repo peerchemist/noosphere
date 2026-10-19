@@ -43,6 +43,7 @@ void main(List<String> args) async {
   final configBytes = await File(configFile).readAsBytes();
   final nativeLibrary = argResults.option('native-library');
   final key = cl.ECPrivateKey.fromHex(argResults.option('key')!);
+  final clientConfig = ns.ClientConfig.fromBytes(configBytes);
 
   await Iroh.init(libraryPath: nativeLibrary);
   final api = await transport.IrohClientApi.connect(
@@ -56,7 +57,7 @@ void main(List<String> args) async {
   );
 
   final client = await ns.Client.login(
-    config: ns.ClientConfig.fromBytes(configBytes),
+    config: clientConfig,
     api: api,
     store: InMemoryClientStorage(),
     getPrivateKey: (_) async => key,
@@ -70,6 +71,7 @@ void main(List<String> args) async {
       description: 'A DKG request for example purposes',
       threshold: 2,
       expiry: ns.Expiry(Duration(hours: 1)),
+      groupFingerprint: clientConfig.group.fingerprint,
     ),
   );
 

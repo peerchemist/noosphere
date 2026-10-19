@@ -85,7 +85,6 @@ void main() {
       expect(restored.state.toBytes().first, firstByte);
 
       expect(restored.debugState.nameToDkg.containsKey('restart-dkg'), isTrue);
-      expect(restored.debugState.persistent.interruptedDkgs, isEmpty);
       expect(restored.debugState.sigRequests.values, isEmpty);
       expect(
         restored.debugState.persistent.blockedSignatures,
@@ -113,39 +112,33 @@ void main() {
     },
   );
 
-  test('version 1 active DKG snapshots migrate to interrupted records', () {
-    final details = signObject(getDkgDetails(name: 'legacy-dkg'));
-    final event = NewDkgEvent(
-      details: details,
-      creator: ids.first,
-      commitments: [
-        (
-          ids.first,
-          DkgPart1(identifier: ids.first, threshold: 2, n: ids.length).public,
-        ),
-      ],
+  test('malformed coordinator snapshots fail decoding', () {
+    expect(
+      () => ServerStateSnapshot.fromBytes(
+        Uint8List.fromList(utf8.encode('not a coordinator snapshot')),
+      ),
+      throwsFormatException,
     );
-    final snapshot = ServerStateSnapshot.fromBytes(
-      Uint8List.fromList(
-        utf8.encode(
-          jsonEncode({
-            'version': 1,
-            'dkg': [
-              {'status': 'active', 'event': base64Encode(event.toBytes())},
-            ],
-            'signing': <Object?>[],
-            'completed': <Object?>[],
-            'shares': <Object?>[],
-            'cancelled': <Object?>[],
-            'terminalSigning': <Object?>[],
-          }),
+    expect(
+      () => ServerStateSnapshot.fromBytes(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode({
+              'version': 3,
+              'dkg': [
+                {'status': 'gibberish'},
+              ],
+              'signing': <Object?>[],
+              'completed': <Object?>[],
+              'shares': <Object?>[],
+              'cancelled': <Object?>[],
+              'terminalSigning': <Object?>[],
+              'terminalDkg': <Object?>[],
+            }),
+          ),
         ),
       ),
+      throwsFormatException,
     );
-    final state = ServerState();
-
-    expect(state.restore(snapshot), isTrue);
-    expect(state.nameToDkg.values, isEmpty);
-    expect(state.persistent.interruptedDkgs, contains('legacy-dkg'));
   });
 }

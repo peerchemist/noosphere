@@ -99,7 +99,7 @@ final class LocalCoordinatorApi implements ApiRequestInterface {
   Future<void> rejectDkg({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
   }) => _ready(
     sid,
     (handler) =>
@@ -110,7 +110,7 @@ final class LocalCoordinatorApi implements ApiRequestInterface {
   Future<void> submitDkgCommitment({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
     required DkgPublicCommitment commitment,
   }) => _ready(
     sid,
@@ -126,7 +126,7 @@ final class LocalCoordinatorApi implements ApiRequestInterface {
   Future<void> submitDkgRound2({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
     required cl.SchnorrSignature commitmentSetSignature,
     required Map<Identifier, DkgEncryptedSecret> secrets,
   }) => _ready(
@@ -144,7 +144,7 @@ final class LocalCoordinatorApi implements ApiRequestInterface {
   Future<DkgCeremonySnapshot?> getDkg({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
   }) => _ready(
     sid,
     (handler) => handler.getDkg(sid: sid, name: name, ceremonyId: ceremonyId),

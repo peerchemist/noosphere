@@ -68,6 +68,8 @@ void main() {
                 keyInfo: key,
                 name: 'key',
                 description: '',
+                ceremonyId: Uint8List(32),
+                transcriptHash: Uint8List(32),
               ),
         ];
         final persistence = MemoryServerPersistence();

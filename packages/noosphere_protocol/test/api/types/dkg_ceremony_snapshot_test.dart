@@ -94,4 +94,25 @@ void main() {
     expect(first, isNot(differentTranscript));
     expect({first, differentTranscript}, hasLength(2));
   });
+
+  test('malformed acknowledgement bytes fail decoding', () {
+    final groupKey = cl.ECCompressedPublicKey.fromPubkey(getPrivkey(1).pubkey);
+    final signed = Signed.sign(
+      obj: DkgAck(
+        groupKey: groupKey,
+        accepted: true,
+        ceremonyId: Uint8List(32),
+        transcriptHash: Uint8List(32),
+      ),
+      key: getPrivkey(0),
+    ).toBytes();
+
+    expect(
+      () => Signed<DkgAck>.fromBytes(
+        Uint8List.sublistView(signed, 0, signed.length - 1),
+        DkgAck.fromReader,
+      ),
+      throwsA(anything),
+    );
+  });
 }

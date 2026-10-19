@@ -460,13 +460,15 @@ const DkgCommitmentEvent$json = {
     {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
     {'1': 'participant_id', '3': 2, '4': 1, '5': 12, '10': 'participantId'},
     {'1': 'commitment', '3': 3, '4': 1, '5': 12, '10': 'commitment'},
+    {'1': 'ceremony_id', '3': 4, '4': 1, '5': 12, '10': 'ceremonyId'},
   ],
 };
 
 /// Descriptor for `DkgCommitmentEvent`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List dkgCommitmentEventDescriptor = $convert.base64Decode(
     'ChJEa2dDb21taXRtZW50RXZlbnQSEgoEbmFtZRgBIAEoCVIEbmFtZRIlCg5wYXJ0aWNpcGFudF'
-    '9pZBgCIAEoDFINcGFydGljaXBhbnRJZBIeCgpjb21taXRtZW50GAMgASgMUgpjb21taXRtZW50');
+    '9pZBgCIAEoDFINcGFydGljaXBhbnRJZBIeCgpjb21taXRtZW50GAMgASgMUgpjb21taXRtZW50'
+    'Eh8KC2NlcmVtb255X2lkGAQgASgMUgpjZXJlbW9ueUlk');
 
 @$core.Deprecated('Use dkgRejectEventDescriptor instead')
 const DkgRejectEvent$json = {
@@ -474,13 +476,14 @@ const DkgRejectEvent$json = {
   '2': [
     {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
     {'1': 'participant_id', '3': 2, '4': 1, '5': 12, '10': 'participantId'},
+    {'1': 'ceremony_id', '3': 3, '4': 1, '5': 12, '10': 'ceremonyId'},
   ],
 };
 
 /// Descriptor for `DkgRejectEvent`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List dkgRejectEventDescriptor = $convert.base64Decode(
     'Cg5Ea2dSZWplY3RFdmVudBISCgRuYW1lGAEgASgJUgRuYW1lEiUKDnBhcnRpY2lwYW50X2lkGA'
-    'IgASgMUg1wYXJ0aWNpcGFudElk');
+    'IgASgMUg1wYXJ0aWNpcGFudElkEh8KC2NlcmVtb255X2lkGAMgASgMUgpjZXJlbW9ueUlk');
 
 @$core.Deprecated('Use dkgRound2ShareEventDescriptor instead')
 const DkgRound2ShareEvent$json = {
@@ -496,6 +499,7 @@ const DkgRound2ShareEvent$json = {
     },
     {'1': 'sender_id', '3': 3, '4': 1, '5': 12, '10': 'senderId'},
     {'1': 'encrypted_secret', '3': 4, '4': 1, '5': 12, '10': 'encryptedSecret'},
+    {'1': 'ceremony_id', '3': 5, '4': 1, '5': 12, '10': 'ceremonyId'},
   ],
 };
 
@@ -504,7 +508,7 @@ final $typed_data.Uint8List dkgRound2ShareEventDescriptor = $convert.base64Decod
     'ChNEa2dSb3VuZDJTaGFyZUV2ZW50EhIKBG5hbWUYASABKAlSBG5hbWUSOAoYY29tbWl0bWVudF'
     '9zZXRfc2lnbmF0dXJlGAIgASgMUhZjb21taXRtZW50U2V0U2lnbmF0dXJlEhsKCXNlbmRlcl9p'
     'ZBgDIAEoDFIIc2VuZGVySWQSKQoQZW5jcnlwdGVkX3NlY3JldBgEIAEoDFIPZW5jcnlwdGVkU2'
-    'VjcmV0');
+    'VjcmV0Eh8KC2NlcmVtb255X2lkGAUgASgMUgpjZXJlbW9ueUlk');
 
 @$core.Deprecated('Use dkgAckEventDescriptor instead')
 const DkgAckEvent$json = {

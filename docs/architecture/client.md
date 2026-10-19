@@ -36,6 +36,12 @@ host store.
 5. The client persists the new key before sending a completion acknowledgement
    bound to the ceremony, transcript and resulting group public key.
 
+`NewDkgDetails` protocol version 3 authenticates the target group fingerprint
+(and therefore its roster identity keys), a fresh 32-byte attempt ID, threshold,
+expiry and display metadata. Reusing a display name does not reuse an attempt.
+The canonical transcript includes that signed proposal and the complete
+commitment set.
+
 Disconnecting does not remove a commitment or reset round two. On login, the
 client fetches the durable ceremony snapshot, tolerates identical deliveries,
 rejects conflicting deliveries and resubmits the exact prepared round-two
@@ -48,6 +54,11 @@ available because Frosty 5.0.1 cannot serialize its opaque intermediate DKG
 secrets. If a host cannot restore a secret corresponding to an already
 published contribution, the ceremony is exposed as non-resumable. Explicitly
 refreshing it fails with `MissingDkgSecret`; the host may still reject it.
+
+Stored FROST keys carry the ceremony ID and transcript hash that created them.
+Recovery matches those values rather than the display name. A fetched snapshot
+must match the locally requested ceremony before the client sends an ACK or
+changes state.
 
 ## Signing
 

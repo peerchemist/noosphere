@@ -134,6 +134,7 @@ Future<void> _runScenario({
           description: 'Stale worker DKG to cancel',
           threshold: threshold,
           expiry: Expiry(const Duration(hours: 1)),
+          groupFingerprint: group.fingerprint,
         ),
       ),
     );
@@ -181,6 +182,7 @@ Future<void> _runScenario({
           description: 'Native worker integration test',
           threshold: threshold,
           expiry: Expiry(const Duration(hours: 1)),
+          groupFingerprint: group.fingerprint,
         ),
       ),
     );
@@ -214,6 +216,14 @@ Future<void> _runScenario({
         .timeout(const Duration(seconds: 15));
     for (var i = 0; i < participants; i++) {
       expect(keyEvents[i].key.groupKeyHex, frostKeys[i].groupKey.hex);
+      expect(frostKeys[i].ceremonyId, isNotNull);
+      expect(frostKeys[i].transcriptHash, isNotNull);
+      for (final ack in frostKeys[i].acks) {
+        final signer = ids.indexOf(ack.signer);
+        expect(ack.signed.verify(privateKeys[signer].pubkey), isTrue);
+        expect(ack.signed.obj.ceremonyId, frostKeys[i].ceremonyId);
+        expect(ack.signed.obj.transcriptHash, frostKeys[i].transcriptHash);
+      }
     }
 
     final messages = [
@@ -414,6 +424,7 @@ Future<void> _runScenario({
         description: 'Coordinator remains available after local signer lock',
         threshold: threshold,
         expiry: Expiry(const Duration(hours: 1)),
+        groupFingerprint: group.fingerprint,
       ),
     );
   } finally {

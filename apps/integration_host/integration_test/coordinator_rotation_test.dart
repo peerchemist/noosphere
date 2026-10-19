@@ -81,6 +81,7 @@ void main() {
           description: 'Key must survive coordinator rotation',
           threshold: 2,
           expiry: Expiry(const Duration(hours: 1)),
+          groupFingerprint: f.group.fingerprint,
         ),
       );
       final keyFutures = [

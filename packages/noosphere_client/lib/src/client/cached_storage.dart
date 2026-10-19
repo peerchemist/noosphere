@@ -120,7 +120,15 @@ class ClientCachedStorage {
 
   Set<SignedDkgAck> getAcksForRequest(DkgAckRequest request) =>
       keys[request.groupPublicKey]?.acks
-          .where((ack) => request.ids.contains(ack.signer))
+          .where(
+            (ack) =>
+                request.ids.contains(ack.signer) &&
+                cl.bytesEqual(ack.signed.obj.ceremonyId, request.ceremonyId) &&
+                cl.bytesEqual(
+                  ack.signed.obj.transcriptHash,
+                  request.transcriptHash,
+                ),
+          )
           .toSet() ??
       {};
 
@@ -130,13 +138,20 @@ class ClientCachedStorage {
       .map(
         (key) => (
           ids.where((id) => !key.acks.any((ack) => ack.signer == id)).toSet(),
-          key.groupKey,
+          key,
         ),
       )
       // Ignore keys where there are no missing ids
       .where((tuple) => tuple.$1.isNotEmpty)
-      // Create DkgAckRequests for IDs and group key
-      .map((tuple) => DkgAckRequest(ids: tuple.$1, groupPublicKey: tuple.$2))
+      // Create DkgAckRequests for IDs, group key, and ceremony context.
+      .map(
+        (tuple) => DkgAckRequest(
+          ids: tuple.$1,
+          groupPublicKey: tuple.$2.groupKey,
+          ceremonyId: tuple.$2.ceremonyId,
+          transcriptHash: tuple.$2.transcriptHash,
+        ),
+      )
       .toSet();
 
   Future<void> addSignaturesNonces({

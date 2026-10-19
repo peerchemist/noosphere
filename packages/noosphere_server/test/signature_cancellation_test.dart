@@ -297,6 +297,8 @@ void main() {
         keyInfo: f.keys[2],
         name: 'key',
         description: '',
+        ceremonyId: Uint8List(32),
+        transcriptHash: Uint8List(32),
       );
     await f.clients[0]!.cancelSignaturesRequest(request.id);
     expect(stale.signaturesRequests, isNotEmpty);
@@ -610,6 +612,8 @@ final class _Fixture(this.keys, this.persistence, this.loseResponse) {
           keyInfo: key,
           name: 'key',
           description: '',
+          ceremonyId: Uint8List(32),
+          transcriptHash: Uint8List(32),
         ),
   ];
   final clients = <int, Client>{};

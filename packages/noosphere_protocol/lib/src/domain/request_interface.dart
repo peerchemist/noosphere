@@ -125,7 +125,7 @@ abstract interface class ApiRequestInterface {
   Future<void> rejectDkg({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
   });
 
   /// Submits a public [commitment] for a DKG of the given [name]. This implies
@@ -141,7 +141,7 @@ abstract interface class ApiRequestInterface {
   Future<void> submitDkgCommitment({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
     required DkgPublicCommitment commitment,
   });
 
@@ -151,7 +151,7 @@ abstract interface class ApiRequestInterface {
   Future<void> submitDkgRound2({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
     required cl.SchnorrSignature commitmentSetSignature,
     required Map<Identifier, DkgEncryptedSecret> secrets,
   });
@@ -161,7 +161,7 @@ abstract interface class ApiRequestInterface {
   Future<DkgCeremonySnapshot?> getDkg({
     required SessionID sid,
     required String name,
-    Uint8List? ceremonyId,
+    required Uint8List ceremonyId,
   });
 
   /// Send a signed acknowledgement of a DKG.
