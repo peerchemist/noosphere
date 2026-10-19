@@ -345,13 +345,47 @@ void main() {
 
       await tc1.logout();
       await tc2.logout();
-      await expectLater(login(0), throwsA(isA<MissingDkgSecret>()));
+      tc1 = await login(0);
       tc2 = await login(1);
 
       // A participant whose host lost its private intermediate state fails
-      // explicitly. Fetching the proposal never re-approves it with new
-      // randomness. Participants that did not approve can still reconnect.
+      // explicitly when asked to resume. Login still succeeds so the host can
+      // inspect and reject the ceremony without publishing fresh randomness.
+      expectDkg(tc1.client, true, true);
+      expect(tc1.client.acceptedDkgs.single.canResume, isFalse);
+      await tc1.expectOnlyLoginEvents();
+      for (var i = 1; i < ids.length; i++) {
+        sendEventToClient(
+          tc1,
+          DkgCommitmentEvent(
+            name: '123',
+            participant: ids[i],
+            commitment: dummyPart1s[i].public,
+          ),
+        );
+      }
+      await tc1.evCollector.expectOnlyOneEventType<UpdatedDkgClientEvent>();
+      sendEventToClient(
+        tc1,
+        getRound2ShareEvent(
+          dummyCommitmentSet,
+          1,
+          0,
+          dummyPart1s[1],
+          dkgDetails.obj.hashWithCommitments(dummyCommitmentSet),
+        ),
+      );
+      await tc1.evCollector.expectNoEventsOrError();
+
+      await expectLater(
+        tc1.client.refreshDkg('123'),
+        throwsA(isA<MissingDkgSecret>()),
+      );
       expectDkg(tc2.client, false, true);
+      expect(tc2.client.dkgRequests.single.canResume, isTrue);
+
+      await tc1.client.rejectDkg('123');
+      expectNoDkgs(tc1.client);
     });
 
     test("requestDkg failure", () async {

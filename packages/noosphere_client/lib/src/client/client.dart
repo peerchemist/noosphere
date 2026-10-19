@@ -313,6 +313,9 @@ class Client {
   Future<void> acceptDkg(String name) => _acceptDkg(name);
 
   /// Reconciles one ceremony with its durable coordinator snapshot.
+  ///
+  /// Throws [MissingDkgSecret] when this participant previously contributed
+  /// but the caller did not restore the matching private intermediate state.
   Future<void> refreshDkg(String name) => _resumeDkg(name);
 
   /// Request signatures from the group

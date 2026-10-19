@@ -29,6 +29,7 @@ final class WorkerDkgStatus {
     required this.expiry,
     required this.creator,
     required this.stage,
+    this.canResume = true,
     required List<String> completedParticipants,
     required Uint8List proposalBytes,
   }) : completedParticipants = List.unmodifiable(completedParticipants),
@@ -42,6 +43,9 @@ final class WorkerDkgStatus {
 
   /// `waiting`, `round1`, or `round2`.
   final String stage;
+
+  /// Whether this signer can continue the ceremony with its local state.
+  final bool canResume;
   final List<String> completedParticipants;
 
   /// Canonical proposal bytes. Approval APIs echo these bytes so approval is

@@ -151,7 +151,8 @@ Future<void> _runScenario({
       );
     });
     final staleDkg = (await worker.snapshot('signer-0')).dkgs
-        .singleWhere((dkg) => dkg.name == dkgName && dkg.stage == 'waiting');
+        .singleWhere((dkg) => dkg.name == dkgName && !dkg.canResume);
+    expect(staleDkg.stage, 'round1');
     await timed(
       'cancelAcceptedDkg',
       () => worker.rejectDkg('signer-0', staleDkg),

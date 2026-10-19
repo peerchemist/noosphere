@@ -35,6 +35,9 @@ class ClientDkgState implements Expirable {
   @override
   final Expiry expiry;
   ClientDkgRoundState round;
+  bool missingSecret = false;
+  DkgStage? unavailableStage;
+  Set<Identifier>? unavailableCompleted;
 
   ClientDkgState({
     required this.details,
@@ -56,12 +59,17 @@ class ClientDkgState implements Expirable {
     details: details,
     expiry: expiry,
     creator: creator,
-    stage: round is ClientDkgRound1State ? DkgStage.round1 : DkgStage.round2,
-    completed: round is ClientDkgRound1State
-        ? round1.commitments.map((c) => c.$1).toSet()
-        // Add self Identifier to give consistent view of completion for both
-        // rounds whereby inclusion of self Identifier indicates client has sent
-        // the round
-        : (round2.secretShares.keys.toSet()..add(selfId)),
+    stage:
+        unavailableStage ??
+        (round is ClientDkgRound1State ? DkgStage.round1 : DkgStage.round2),
+    canResume: !missingSecret,
+    completed:
+        unavailableCompleted ??
+        (round is ClientDkgRound1State
+            ? round1.commitments.map((c) => c.$1).toSet()
+            // Add self Identifier to give consistent view of completion for
+            // both rounds whereby inclusion of self Identifier indicates the
+            // client has sent the round.
+            : (round2.secretShares.keys.toSet()..add(selfId))),
   );
 }

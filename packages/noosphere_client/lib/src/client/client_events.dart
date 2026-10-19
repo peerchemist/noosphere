@@ -101,6 +101,7 @@ extension _ClientEvents on Client {
           // processing ACKs for it
           await _dkgAckLock.synchronized(
             () => _runDkgSyncIfExists(ev.name, (dkg) async {
+              if (dkg.missingSecret) return;
               if (dkg.round is! ClientDkgRound2State) {
                 throw ServerMisbehaviour.secretNotRound2();
               }

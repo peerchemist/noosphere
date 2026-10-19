@@ -68,6 +68,7 @@ final class WorkerDtoMapper {
         expiry: progress.expiry.time,
         creator: progress.creator.toString(),
         stage: stage ?? progress.stage.name,
+        canResume: progress.canResume,
         completedParticipants: [
           for (final id in progress.completed) id.toString(),
         ],
@@ -145,6 +146,7 @@ final class WorkerDtoMapper {
               expiry: event.details.expiry.time,
               creator: event.participant?.toString() ?? '',
               stage: 'rejected',
+              canResume: false,
               completedParticipants: const [],
               proposalBytes: event.details.toBytes(),
             ),

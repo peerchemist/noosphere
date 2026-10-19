@@ -39,6 +39,7 @@ extension _ClientDkg on Client {
 
     // Not ready until all commitments received
     if (round1.commitments.length != config.groupN) return false;
+    if (dkg.missingSecret) return false;
 
     final commitmentSet = DkgCommitmentSet(round1.commitments);
 
@@ -105,7 +106,10 @@ extension _ClientDkg on Client {
     );
   }
 
-  Future<void> _resumeDkg(String name) async {
+  Future<void> _resumeDkg(
+    String name, {
+    bool tolerateMissingSecret = false,
+  }) async {
     final local = _state.nameToDkg[name];
     final snapshot = await api.getDkg(
       sid: _state.sessionID,
@@ -188,7 +192,20 @@ extension _ClientDkg on Client {
           ..clear()
           ..addAll(snapshot.commitments);
         if (serverContributed && round1.ourSecret == null) {
-          throw MissingDkgSecret(name);
+          dkg
+            ..missingSecret = true
+            ..unavailableStage = switch (snapshot.stage) {
+              DkgCeremonyStage.collectingCommitments => DkgStage.round1,
+              _ => DkgStage.round2,
+            }
+            ..unavailableCompleted = switch (snapshot.stage) {
+              DkgCeremonyStage.collectingCommitments =>
+                snapshot.commitments.map((commitment) => commitment.$1).toSet(),
+              DkgCeremonyStage.collectingShares => snapshot.shareContributors,
+              _ => snapshot.completedParticipants,
+            };
+          if (!tolerateMissingSecret) throw MissingDkgSecret(name);
+          return;
         }
         if (!serverContributed && localContribution != null) {
           round1.commitments.add(localContribution);

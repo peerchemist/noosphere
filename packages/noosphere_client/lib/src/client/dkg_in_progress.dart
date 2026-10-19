@@ -13,6 +13,10 @@ class DkgInProgress {
   final Identifier creator;
   final DkgStage stage;
 
+  /// Whether this client still has the private intermediate state required to
+  /// continue the ceremony. A non-resumable ceremony may still be rejected.
+  final bool canResume;
+
   /// List of paraticipant identifiers that have completed the stage
   final Set<Identifier> completed;
 
@@ -21,6 +25,7 @@ class DkgInProgress {
     required this.expiry,
     required this.creator,
     required this.stage,
+    this.canResume = true,
     required Set<Identifier> completed,
   }) : completed = Set.unmodifiable(completed);
 }

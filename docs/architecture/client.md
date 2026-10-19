@@ -46,8 +46,8 @@ Noosphere remains stateless with respect to durable application data: the host
 owns every storage provider. Full participant *process* restart is not yet
 available because Frosty 5.0.1 cannot serialize its opaque intermediate DKG
 secrets. If a host cannot restore a secret corresponding to an already
-published contribution, login fails with `MissingDkgSecret` instead of creating
-a replacement secret.
+published contribution, the ceremony is exposed as non-resumable. Explicitly
+refreshing it fails with `MissingDkgSecret`; the host may still reject it.
 
 ## Signing
 

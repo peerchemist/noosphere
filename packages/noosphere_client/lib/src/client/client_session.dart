@@ -132,7 +132,7 @@ Future<Client> _loginClient({
     );
   }
   for (final dkg in resp2.newDkgs) {
-    await client._resumeDkg(dkg.details.obj.name);
+    await client._resumeDkg(dkg.details.obj.name, tolerateMissingSecret: true);
   }
 
   // Snapshot signing work shares the lane with live cancellation events.

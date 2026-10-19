@@ -81,10 +81,11 @@ Participant process restart additionally requires the host to restore the
 round-one or round-two private secret and the exact pending payload. Frosty
 5.0.1 represents those secrets as opaque native handles and does not expose a
 versioned byte encoding, so noosphere cannot safely offer that persistence yet.
-Losing a private secret after publishing its commitment is reported as
-`MissingDkgSecret`; the client never substitutes fresh randomness. Once Frosty
-supports secret export/import, those private bytes must flow exclusively
-through a caller-provided storage implementation.
+Losing a private secret after publishing its commitment makes that ceremony
+non-resumable. Explicit refresh reports `MissingDkgSecret`, while login and
+rejection remain available; the client never substitutes fresh randomness.
+Once Frosty supports secret export/import, those private bytes must flow
+exclusively through a caller-provided storage implementation.
 
 `RoomPersistence` atomically stores room records. Invite consumption and
 participant insertion are one write. Room write failure similarly blocks
