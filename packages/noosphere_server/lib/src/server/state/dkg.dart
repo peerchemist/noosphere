@@ -101,23 +101,3 @@ class DkgState implements Expirable {
     _ => throw StateError('Unknown DKG round'),
   };
 }
-
-enum DkgTerminalOutcome { rejected, expired, completed, interrupted }
-
-/// Compact replay-prevention record retained after delivery data is removed.
-class TerminalDkg implements Expirable {
-  TerminalDkg({
-    required Uint8List ceremonyId,
-    required this.name,
-    required this.outcome,
-    required this.expiry,
-  }) : ceremonyId = Uint8List.fromList(ceremonyId).asUnmodifiableView() {
-    if (ceremonyId.length != 32) throw ArgumentError.value(ceremonyId);
-  }
-
-  final Uint8List ceremonyId;
-  final String name;
-  final DkgTerminalOutcome outcome;
-  @override
-  final Expiry expiry;
-}

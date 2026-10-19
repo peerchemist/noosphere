@@ -126,7 +126,7 @@ extension _ServerDkg on ServerApiHandler {
       // Rejection retries remain successful without affecting a replacement.
       return;
     }
-    _retainTerminalDkg(dkg, DkgTerminalOutcome.rejected);
+    _retainTerminalDkg(dkg);
     if (_state.nameToDkg.remove(name) != null) {
       _state.persistent.publicFeed?.finish(
         'dkg:$name',

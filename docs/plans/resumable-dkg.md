@@ -28,8 +28,7 @@ Start with `packages/noosphere_server`:
 
 - `lib/src/server/state/state.dart`: `endSession` resets round-two ceremonies
   and removes the departing participant's round-one commitment. Snapshots do
-  not preserve enough information to resume round two, and restoration moves
-  ceremonies into `interruptedDkgs`.
+  not preserve enough information to resume round two.
 - `lib/src/server/state/dkg.dart`: round two retains an expected hash and a
   list of contributors, but neither the complete commitments nor ciphertexts.
 - `lib/src/server/api_dkg.dart`: recipient validation uses live sessions;
@@ -142,8 +141,8 @@ restored secrets against the local participant and ceremony parameters.
 
 Treat exported bytes as private key material. Host storage must protect them,
 and logging, public snapshots, and coordinator persistence must exclude them.
-Define format compatibility and disposal behavior, including temporary byte
-copies. Do not replace serialization with newly generated randomness on resume.
+Define the format and disposal behavior, including temporary byte copies. Do
+not replace serialization with newly generated randomness on resume.
 
 Extend `ClientStorageInterface` and storage snapshots to atomically retain:
 
@@ -202,7 +201,7 @@ the shared commitment view and authenticated confidential share delivery that
 the implementation must maintain. Review the final transcript/envelope design
 against those requirements before release.
 
-## Compatibility and delivery order
+## Delivery order
 
 1. Define the ceremony record and invariants starting in `noosphere_server`;
    specify the required shared domain values alongside it.
@@ -210,13 +209,10 @@ against those requirements before release.
    tests with explicitly controlled participant inputs.
 3. Add Frosty intermediate-secret serialization and verify round-trip recovery.
 4. Implement client persistence, retry/reconciliation, and host provider updates.
-5. Add end-to-end non-overlap tests, then update architecture and migration docs.
+5. Add end-to-end non-overlap tests, then update the architecture docs.
 
-Version both the wire protocol and persistence format. Existing snapshots do
-not contain enough information to resume old attempts: migrate them as
-interrupted terminal attempts and require a new ceremony. Never interpret an
-old partial record as a resumable new-format ceremony. Reject incompatible
-clients explicitly instead of mixing old disconnect semantics with new ones.
+Define one wire protocol and persistence grammar for the feature. Inputs outside
+those grammars have no DKG meaning and fail ordinary parsing or validation.
 
 Server-only work is a useful first milestone but does not deliver restart-safe
 asynchronous DKG until Frosty and client persistence are available.
@@ -238,8 +234,8 @@ asynchronous DKG until Frosty and client persistence are available.
   with the same display name.
 - Verify callers cannot retrieve another participant's ciphertext mailbox and
   that snapshots/logs never contain participant intermediate private secrets.
-- Verify rejection/expiry cleanup, terminal retry behavior, migration of old
-  snapshots, and missing local secret handling.
+- Verify rejection/expiry cleanup, terminal retry behavior, malformed snapshot
+  handling, and missing local secret handling.
 - Verify a missing participant leaves the ceremony pending until its deadline;
   the signing threshold must not accidentally become the DKG completion quorum.
 - Cover both Iroh and in-process APIs and the production Flutter storage path.

@@ -28,13 +28,8 @@ bound to a participant/setup namespace; methods do not repeat a group ID.
 
 `FrostKeyWithDetails` uses one explicit versioned format containing mandatory
 ceremony ID and transcript hash plus the complete bytes of every contextual
-signed ACK. Historical unversioned key records are migrated without changing
-private key shares, sharing timestamps, claimed holders, or recovery material.
-Their compact ACK cache omitted ceremony context and is discarded; signatures
-are never reused with reconstructed payloads. A domain-separated context derived
-from the group public key identifies legacy possession only, not a new DKG.
-Login signs and persists the local participant's fresh possession ACK through
-the caller's storage; peers rebuild the remaining ACK cache normally.
+signed ACK. The decoder defines only this grammar; any other bytes are simply
+malformed input with no protocol meaning.
 
 FROST nonce replacement and the corresponding outgoing operation must be one
 atomic `prepareSignaturesOperation` transaction:
@@ -69,11 +64,8 @@ An uncertain cancellation write blocks signing until storage is reloaded.
 `ServerPersistence` atomically loads/writes an opaque `ServerStateSnapshot` by
 group ID. The snapshot grammar is version 3 and restores active DKG commitments, the frozen
 transcript, recipient-encrypted round-two mailboxes, completion
-acknowledgements and DKG terminal records. Versions 1 and 2 migrate their old
-DKG attempts to interrupted terminal records through the original signed deadline;
-they cannot resume under the new protocol. Other durable state is retained, and
-the converted version 3 snapshot is written through `ServerPersistence` before
-readiness. Signing attempts remain blocked
+acknowledgements and DKG terminal records. Any input that does not form a
+current snapshot is reported as malformed. Signing attempts remain blocked
 after restart. A write with an unknown outcome latches the handler closed until
 storage is reloaded.
 
@@ -111,10 +103,8 @@ a new attempt ID and may reuse only the display name.
 Only the protocol v3 grammar is defined. DKG events have mandatory ceremony
 IDs, authenticated DKG fetch/mutation APIs require a ceremony ID, ACK requests
 require ceremony and transcript context, Frost-key storage uses the current
-versioned encoding, and coordinator persistence uses snapshot version 3. Wire
-messages from earlier protocol versions are rejected. Storage migration is
-separate: historical key records and coordinator snapshot versions 1/2 are
-readable as described above; unsupported or malformed formats fail decoding.
+versioned encoding, and coordinator persistence uses snapshot version 3. Other
+bytes have no defined meaning and fail ordinary parsing or validation.
 
 `RoomPersistence` atomically stores room records. Invite consumption and
 participant insertion are one write. Room write failure similarly blocks

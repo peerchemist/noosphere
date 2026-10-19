@@ -77,7 +77,7 @@ class ServerPersistentState {
   );
   final Map<cl.ECCompressedPublicKey, KeySharingState> secretShares = {};
 
-  final Map<String, TerminalDkg> terminalDkgs = {};
+  final Map<String, FinalExpirable> terminalDkgs = {};
   final Map<SignaturesRequestId, SignaturesRequestEvent> blockedSignatures = {};
   final cancelledSignatures =
       ExpirableMap<SignaturesRequestId, CancelledSignaturesRequest>(
@@ -268,13 +268,11 @@ class ServerState {
                   },
             ],
             'terminalDkg': [
-              for (final record in persistent.terminalDkgs.values)
-                if (!record.expiry.isExpired)
+              for (final entry in persistent.terminalDkgs.entries)
+                if (!entry.value.expiry.isExpired)
                   {
-                    'ceremonyId': bytes(record.ceremonyId),
-                    'name': record.name,
-                    'outcome': record.outcome.name,
-                    'expiry': record.expiry.time.microsecondsSinceEpoch,
+                    'ceremonyId': bytes(cl.hexToBytes(entry.key)),
+                    'expiry': entry.value.expiry.time.microsecondsSinceEpoch,
                   },
             ],
             if (persistent.publicFeed case final feed?)
@@ -285,15 +283,14 @@ class ServerState {
     );
   }
 
-  /// Restores durable values. Returns true when format migration, expiry, or
-  /// restart recovery changed state that must be rewritten before requests are
+  /// Restores durable values. Returns true when expiry or restart recovery
+  /// changed current-version state and it must be rewritten before requests are
   /// accepted.
   bool restore(ServerStateSnapshot snapshot, {PublicFeedConfig? publicFeed}) {
     Uint8List bytes(Object? value) => base64Decode(value! as String);
     Identifier id(Object? value) => Identifier.fromBytes(bytes(value));
     final root = jsonDecode(utf8.decode(snapshot.toBytes())) as Map;
-    final legacy = root['version'] != ServerStateSnapshot.currentVersion;
-    var changed = legacy;
+    var changed = false;
     if (root['publicFeed'] case final Map<Object?, Object?> raw) {
       persistent.publicFeed = PublicFeedJournal.fromJson(raw);
     }
@@ -323,7 +320,7 @@ class ServerState {
       );
     }
 
-    for (final raw in (root['terminalDkg'] as List? ?? const [])) {
+    for (final raw in root['terminalDkg']! as List) {
       final record = raw as Map;
       final expiry = Expiry.fromTime(
         DateTime.fromMicrosecondsSinceEpoch(record['expiry']! as int),
@@ -332,59 +329,12 @@ class ServerState {
         changed = true;
         continue;
       }
-      final terminal = TerminalDkg(
-        ceremonyId: bytes(record['ceremonyId']),
-        name: record['name']! as String,
-        outcome: DkgTerminalOutcome.values.byName(record['outcome']! as String),
-        expiry: expiry,
-      );
-      persistent.terminalDkgs[cl.bytesToHex(terminal.ceremonyId)] = terminal;
+      persistent.terminalDkgs[cl.bytesToHex(bytes(record['ceremonyId']))] =
+          FinalExpirable(expiry);
     }
 
     for (final raw in root['dkg']! as List) {
       final record = raw as Map;
-      if (legacy) {
-        // Old proposals do not authenticate the v3 group/attempt context.
-        // Preserve their identity as interrupted, never resume their rounds.
-        final encoded = bytes(
-          record[record['status'] == 'resumable' ? 'details' : 'event'],
-        );
-        final reader = NoosphereBytesReader(encoded);
-        final name = reader.readString();
-        reader.readString(); // description
-        reader.readUInt16(); // threshold
-        final expiry = Expiry.fromReader(reader);
-        final ceremonyId = cl.getTaggedHasher('NewDkgDetails')(
-          Uint8List.sublistView(encoded, 0, reader.offset),
-        );
-        reader.readSignature();
-        if (record['status'] != 'resumable') {
-          reader.readIdentifier(); // creator
-          final count = reader.readUInt16();
-          for (var i = 0; i < count; i++) {
-            reader.readIdentifier();
-            DkgPublicCommitment.fromBytes(reader.readVarSlice());
-          }
-        }
-        if (!reader.atEnd) {
-          throw const FormatException('Trailing legacy DKG data');
-        }
-        persistent.publicFeed?.finish(
-          'dkg:$name',
-          expiry.isExpired
-              ? PublicFeedLifecycle.expired
-              : PublicFeedLifecycle.cancelled,
-        );
-        if (!expiry.isExpired) {
-          persistent.terminalDkgs[cl.bytesToHex(ceremonyId)] = TerminalDkg(
-            ceremonyId: ceremonyId,
-            name: name,
-            outcome: DkgTerminalOutcome.interrupted,
-            expiry: expiry,
-          );
-        }
-        continue;
-      }
       if (record['status'] != 'resumable') {
         throw const FormatException('Invalid server state snapshot.');
       }

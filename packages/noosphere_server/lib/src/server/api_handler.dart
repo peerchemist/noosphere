@@ -189,7 +189,7 @@ class ServerApiHandler implements ApiRequestInterface {
     var changed = false;
     final expiredDkgs = _state.nameToDkg.removeExpired();
     for (final entry in expiredDkgs) {
-      _retainTerminalDkg(entry.value, DkgTerminalOutcome.expired);
+      _retainTerminalDkg(entry.value);
       _state.persistent.publicFeed?.finish(
         'dkg:${entry.key}',
         PublicFeedLifecycle.expired,
@@ -268,17 +268,14 @@ class ServerApiHandler implements ApiRequestInterface {
 
   String _dkgCeremonyKey(Uint8List ceremonyId) => cl.bytesToHex(ceremonyId);
 
-  void _retainTerminalDkg(DkgState dkg, DkgTerminalOutcome outcome) {
-    final record = TerminalDkg(
-      ceremonyId: dkg.details.obj.ceremonyId,
-      name: dkg.details.obj.name,
-      outcome: outcome,
-      // Every accepted proposal expires within maxDkgRequestTTL, so retaining
-      // for that duration makes replay impossible until its signature is also
-      // unusable by the normal expiry checks.
-      expiry: Expiry(config.maxDkgRequestTTL),
+  void _retainTerminalDkg(DkgState dkg) {
+    // Every accepted proposal expires within maxDkgRequestTTL, so retaining
+    // its ID for that duration makes replay impossible until its signature is
+    // also unusable by the normal expiry checks.
+    final key = _dkgCeremonyKey(dkg.details.obj.ceremonyId);
+    _state.persistent.terminalDkgs[key] = FinalExpirable(
+      Expiry(config.maxDkgRequestTTL),
     );
-    _state.persistent.terminalDkgs[_dkgCeremonyKey(record.ceremonyId)] = record;
   }
 
   ClientSession getSession(SessionID id) {
