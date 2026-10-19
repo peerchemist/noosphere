@@ -5,6 +5,7 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_protocol/domain.dart';
 import 'package:noosphere_client/src/client/cached_storage.dart';
 import 'package:noosphere_client/src/client/dkg_in_progress.dart';
+import 'package:noosphere_client/src/client/dkg_secret_state.dart';
 import 'package:noosphere_client/src/client/frost_key_with_details.dart';
 import 'package:noosphere_client/src/client/state/sigs.dart';
 import 'package:noosphere_client/src/config/client.dart';
@@ -321,6 +322,15 @@ class Client {
   /// Throws [MissingDkgSecret] when this participant previously contributed
   /// but the caller did not restore the matching private intermediate state.
   Future<void> refreshDkg(String name) => _resumeDkg(name);
+
+  /// Exports opaque private state required to continue this DKG after restart.
+  ///
+  /// The returned bytes contain secret key material and must be encrypted at
+  /// rest. Export again after each round transition to replace stale state.
+  Uint8List exportDkgSecret(String name) => _exportDkgSecret(name);
+
+  /// Imports opaque private state and reconciles the DKG with the coordinator.
+  Future<void> importDkgSecret(Uint8List bytes) => _importDkgSecret(bytes);
 
   /// Request signatures from the group
   Future<void> requestSignatures(SignaturesRequestDetails details) =>

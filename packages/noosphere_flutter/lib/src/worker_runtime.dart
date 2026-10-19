@@ -157,6 +157,12 @@ final class _WorkerRuntime {
             proposalBytes: payload.bytes('proposal'),
             accept: false,
           );
+        case WorkerOperation.exportDkgSecret:
+          result = await _setup(setupId!)
+              .exportDkgSecret(payload.string('name'));
+        case WorkerOperation.importDkgSecret:
+          result = await _setup(setupId!)
+              .importDkgSecret(payload.bytes('state'));
         case WorkerOperation.requestSignatures:
           result = await _setup(setupId!).requestSignatures(
             SignaturesRequestDetails.fromBytes(payload.bytes('proposal')),

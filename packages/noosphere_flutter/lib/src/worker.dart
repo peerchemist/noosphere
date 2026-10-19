@@ -294,6 +294,23 @@ final class NoosphereWorker {
     payload: {'name': proposal.name, 'proposal': proposal.proposalBytes},
   ).then((_) {});
 
+  /// Exports opaque private DKG state for caller-managed encrypted storage.
+  Future<Uint8List> exportDkgSecret(String setupId, String name) async {
+    final result = await _invoke(
+      WorkerOperation.exportDkgSecret,
+      setupId: setupId,
+      payload: {'name': name},
+    );
+    return asBytes(result);
+  }
+
+  /// Restores caller-managed private DKG state and resumes the ceremony.
+  Future<void> importDkgSecret(String setupId, Uint8List state) => _invoke(
+    WorkerOperation.importDkgSecret,
+    setupId: setupId,
+    payload: {'state': Uint8List.fromList(state)},
+  ).then((_) {});
+
   Future<void> requestSignatures(
     String setupId,
     SignaturesRequestDetails proposal,

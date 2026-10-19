@@ -440,6 +440,96 @@ extension _ClientDkg on Client {
         await _doPart2IfReady(dkg);
       });
 
+  Uint8List _exportDkgSecret(String name) {
+    final dkg = _state.nameToDkg[name];
+    if (dkg == null) throw ArgumentError.value(name, 'name', 'unknown DKG');
+    final round = dkg.round;
+    if (round is ClientDkgRound1State) {
+      final secret = round.ourSecret;
+      if (secret == null ||
+          !round.commitments.any((entry) => entry.$1 == config.id)) {
+        throw MissingDkgSecret(name);
+      }
+      return DkgSecretState(
+        name: name,
+        ceremonyId: dkg.details.ceremonyId,
+        stage: DkgSecretStage.round1,
+        secret: secret.toBytes(),
+      ).toBytes();
+    }
+    if (round is ClientDkgRound2State) {
+      return DkgSecretState(
+        name: name,
+        ceremonyId: dkg.details.ceremonyId,
+        stage: DkgSecretStage.round2,
+        secret: round.ourSecret.toBytes(),
+        commitmentSet: round.commitmentSet,
+        outgoingSignature: round.outgoingSignature,
+        outgoingSecrets: round.outgoingSecrets,
+      ).toBytes();
+    }
+    throw StateError('Unknown DKG round');
+  }
+
+  Future<void> _importDkgSecret(Uint8List bytes) async {
+    final stored = DkgSecretState.fromBytes(bytes);
+    final name = stored.name;
+    final dkg = _state.nameToDkg[name];
+    if (dkg == null) throw ArgumentError.value(name, 'bytes', 'unknown DKG');
+    await dkg.synchronized(() async {
+      if (!identical(_state.nameToDkg[name], dkg)) {
+        throw ArgumentError.value(name, 'bytes', 'unknown DKG');
+      }
+      _restoreDkgSecret(dkg, stored);
+    });
+    await _resumeDkg(name);
+  }
+
+  void _restoreDkgSecret(ClientDkgState dkg, DkgSecretState stored) {
+    if (!cl.bytesEqual(dkg.details.ceremonyId, stored.ceremonyId)) {
+      throw ServerMisbehaviour.changedDkgTranscript();
+    }
+    if (!dkg.commitments.any((entry) => entry.$1 == config.id)) {
+      throw ServerMisbehaviour.changedDkgTranscript();
+    }
+    if (stored.stage == DkgSecretStage.round1) {
+      if (dkg.round is! ClientDkgRound1State) {
+        throw ServerMisbehaviour.changedDkgTranscript();
+      }
+      dkg.round1.ourSecret = DkgRound1Secret.fromBytes(stored.secret);
+    } else {
+      final commitmentSet = stored.commitmentSet!;
+      if (!cl.bytesEqual(
+        commitmentSet.toBytes(),
+        DkgCommitmentSet(dkg.commitments).toBytes(),
+      )) {
+        throw ServerMisbehaviour.changedDkgTranscript();
+      }
+      final recipients = stored.outgoingSecrets.keys.toSet();
+      if (recipients.length != config.otherIds.length ||
+          !recipients.containsAll(config.otherIds)) {
+        throw ServerMisbehaviour.changedDkgTranscript();
+      }
+      final signature = stored.outgoingSignature!;
+      if (!signature.verify(
+        Client._getParticipantPubkeyForId(config, config.id),
+        dkg.details.hashWithCommitments(commitmentSet),
+      )) {
+        throw ServerMisbehaviour.changedDkgTranscript();
+      }
+      dkg.round = ClientDkgRound2State(
+        DkgRound2Secret.fromBytes(stored.secret),
+        commitmentSet,
+        outgoingSignature: signature,
+        outgoingSecrets: stored.outgoingSecrets,
+      );
+    }
+    dkg
+      ..missingSecret = false
+      ..unavailableStage = null
+      ..unavailableCompleted = null;
+  }
+
   ClientDkgState _addDkgToState({
     required ClientConfig config,
     required NewDkgDetails details,

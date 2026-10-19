@@ -11,7 +11,7 @@ a database, encrypt wallet data or provide a durable UI event log.
 | State | Library | Host |
 | --- | --- | --- |
 | Sessions, sockets, timers | Validate and expire | Restart runtime |
-| DKG temporary secrets | Define validation and resume ordering | Retain and protect when the cryptographic provider supports export |
+| DKG temporary secrets | Expose opaque export/import and validate resume context | Export after transitions, encrypt, persist and delete |
 | FROST keys and recovery state | Define safe updates | Encrypt, namespace and persist |
 | Signing nonces/prepared operations | Enforce ordering | Commit atomically and reconcile ambiguity |
 | Coordinator attempts/results | Serialize and recover safely | Atomic store per group ID |
@@ -83,14 +83,13 @@ transcript and group key or the signed deadline expires. Fetching a ceremony is
 authoritative; live events are only progress notifications and may be replayed.
 
 Participant process restart additionally requires the host to restore the
-round-one or round-two private secret and the exact pending payload. Frosty
-5.0.1 represents those secrets as opaque native handles and does not expose a
-versioned byte encoding, so noosphere cannot safely offer that persistence yet.
-Losing a private secret after publishing its commitment makes that ceremony
-non-resumable. Explicit refresh reports `MissingDkgSecret`, while login and
-rejection remain available; the client never substitutes fresh randomness.
-Once Frosty supports secret export/import, those private bytes must flow
-exclusively through a caller-provided storage implementation.
+round-one or round-two private secret and the exact pending payload. Noosphere
+exposes opaque export/import operations but does not persist those bytes. The
+calling application must export after each round transition, protect the bytes
+in encrypted storage, import the matching current-ceremony state after restart,
+and delete it after completion or rejection. Without an import, explicit
+refresh reports `MissingDkgSecret`, while login and rejection remain available;
+the client never substitutes fresh randomness.
 
 Rejected or expired ceremonies leave terminal records keyed by ceremony ID.
 Those records are retained for `maxDkgRequestTTL` from terminalization and are

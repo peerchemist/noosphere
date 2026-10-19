@@ -50,12 +50,13 @@ commitments delivered by events while the fetch was in flight. Invalid proofs,
 ciphertexts or shares
 reject the attempt.
 
-Noosphere remains stateless with respect to durable application data: the host
-owns every storage provider. Full participant *process* restart is not yet
-available because Frosty 5.0.1 cannot serialize its opaque intermediate DKG
-secrets. If a host cannot restore a secret corresponding to an already
-published contribution, the ceremony is exposed as non-resumable. Explicitly
-refreshing it fails with `MissingDkgSecret`; the host may still reject it.
+Noosphere remains stateless with respect to durable application data. A host
+can export opaque private state with `Client.exportDkgSecret` (or the matching
+worker API), protect those bytes in its own encrypted storage, then import them
+after recreating the client. The host must export again after each DKG round
+transition. Until matching state is imported, a published contribution is
+exposed as non-resumable and explicit refresh fails with `MissingDkgSecret`;
+the host may still reject it. Noosphere never substitutes fresh randomness.
 
 Stored FROST keys carry the ceremony ID and transcript hash that created them.
 Recovery matches those values rather than the display name. A fetched snapshot

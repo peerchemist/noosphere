@@ -13,6 +13,8 @@ enum WorkerOperation {
   requestDkg,
   acceptDkg,
   rejectDkg,
+  exportDkgSecret,
+  importDkgSecret,
   requestSignatures,
   acceptSignatures,
   rejectSignatures,

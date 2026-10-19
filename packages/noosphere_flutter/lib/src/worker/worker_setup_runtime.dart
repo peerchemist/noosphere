@@ -175,6 +175,17 @@ final class WorkerSetupRuntime {
     }
   });
 
+  Future<Uint8List> exportDkgSecret(String name) => _synchronized(() async {
+    final client = _client;
+    if (client == null || _clientNode?.client?.isConnected != true) {
+      throw StateError('Signer is not connected.');
+    }
+    return client.exportDkgSecret(name);
+  });
+
+  Future<Object?> importDkgSecret(Uint8List state) =>
+      _withClient((client) => client.importDkgSecret(state));
+
   Future<Object?> requestSignatures(SignaturesRequestDetails details) =>
       _withClient((client) => client.requestSignatures(details));
 

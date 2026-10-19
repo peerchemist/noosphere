@@ -49,8 +49,10 @@ Follow each codec rather than assuming one global unit.
 
 `NewDkgDetails` defines a name, description, threshold and expiry. DKG models
 then carry round-one commitments, encrypted recipient shares and signed ACKs.
-Temporary DKG secrets are runtime-only. A DKG ACK attests possession of a key;
-it does not bind a complete membership transition.
+Temporary DKG secrets are runtime-only unless the application explicitly
+exports their opaque recovery bytes and persists them in encrypted storage.
+Noosphere does not persist them. A DKG ACK attests possession of a key; it does
+not bind a complete membership transition.
 
 `SignaturesRequestDetails` contains:
 
