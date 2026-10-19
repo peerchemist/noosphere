@@ -6,7 +6,7 @@ import 'dart:typed_data';
 /// The payload is intentionally opaque to hosts: noosphere owns its schema and
 /// validation, while the host owns atomic and durable storage of the record.
 final class ServerStateSnapshot {
-  static const currentVersion = 1;
+  static const currentVersion = 2;
 
   final Uint8List _bytes;
 
@@ -16,7 +16,7 @@ final class ServerStateSnapshot {
     final copy = Uint8List.fromList(bytes);
     final decoded = jsonDecode(utf8.decode(copy));
     if (decoded is! Map<String, dynamic> ||
-        decoded['version'] != currentVersion ||
+        (decoded['version'] != 1 && decoded['version'] != currentVersion) ||
         decoded['dkg'] is! List ||
         decoded['signing'] is! List ||
         decoded['completed'] is! List ||

@@ -124,7 +124,6 @@ class ServerApiHandler implements ApiRequestInterface {
     }
     await _prepare();
     if (!_state.endSession(session, publish: false)) return;
-    await _persist();
     _state.publishSessionEnded(session);
   }
 
@@ -181,7 +180,6 @@ class ServerApiHandler implements ApiRequestInterface {
       }
     }
     if (ended.isEmpty) return;
-    await _persist();
     for (final session in ended) {
       _state.publishSessionEnded(session);
     }
@@ -291,6 +289,15 @@ class ServerApiHandler implements ApiRequestInterface {
     return dkg;
   }
 
+  DkgState _getDkgForCeremony(String name, Uint8List? ceremonyId) {
+    final dkg = _getDkg(name);
+    if (ceremonyId != null &&
+        !cl.bytesEqual(dkg.details.obj.ceremonyId, ceremonyId)) {
+      throw InvalidRequest.noDkg();
+    }
+    return dkg;
+  }
+
   void _verifyExpiry(Expiry expiry, Duration minTTL, Duration maxTTL) {
     if (expiry.ttl.compareTo(minTTL) < 0) throw InvalidRequest.expiryTooSoon();
     if (expiry.ttl.compareTo(maxTTL) > 0) throw InvalidRequest.expiryTooLate();
@@ -335,28 +342,46 @@ class ServerApiHandler implements ApiRequestInterface {
   );
 
   @override
-  Future<void> rejectDkg({required SessionID sid, required String name}) =>
-      _rejectDkg(sid: sid, name: name);
+  Future<void> rejectDkg({
+    required SessionID sid,
+    required String name,
+    Uint8List? ceremonyId,
+  }) => _rejectDkg(sid: sid, name: name, ceremonyId: ceremonyId);
 
   @override
   Future<void> submitDkgCommitment({
     required SessionID sid,
     required String name,
+    Uint8List? ceremonyId,
     required DkgPublicCommitment commitment,
-  }) => _submitDkgCommitment(sid: sid, name: name, commitment: commitment);
+  }) => _submitDkgCommitment(
+    sid: sid,
+    name: name,
+    ceremonyId: ceremonyId,
+    commitment: commitment,
+  );
 
   @override
   Future<void> submitDkgRound2({
     required SessionID sid,
     required String name,
+    Uint8List? ceremonyId,
     required cl.SchnorrSignature commitmentSetSignature,
     required Map<Identifier, DkgEncryptedSecret> secrets,
   }) => _submitDkgRound2(
     sid: sid,
     name: name,
+    ceremonyId: ceremonyId,
     commitmentSetSignature: commitmentSetSignature,
     secrets: secrets,
   );
+
+  @override
+  Future<DkgCeremonySnapshot?> getDkg({
+    required SessionID sid,
+    required String name,
+    Uint8List? ceremonyId,
+  }) => _getDkgSnapshot(sid: sid, name: name, ceremonyId: ceremonyId);
 
   @override
   Future<void> sendDkgAcks({

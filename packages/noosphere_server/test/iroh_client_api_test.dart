@@ -460,6 +460,7 @@ void main() {
     await api1.submitDkgCommitment(
       sid: login1.id,
       name: details.obj.name,
+      ceremonyId: details.obj.ceremonyId,
       commitment: part1.public,
     );
     final commitmentEvent = await events0
@@ -467,7 +468,11 @@ void main() {
     expect(commitmentEvent.participant, ids[1]);
     expect(commitmentEvent.commitment.toBytes(), part1.public.toBytes());
 
-    await api1.rejectDkg(sid: login1.id, name: details.obj.name);
+    await api1.rejectDkg(
+      sid: login1.id,
+      name: details.obj.name,
+      ceremonyId: details.obj.ceremonyId,
+    );
     final rejectionEvent = await events0.getExpectOneEvent<DkgRejectEvent>();
     expect(rejectionEvent.name, details.obj.name);
     expect(rejectionEvent.participant, ids[1]);
@@ -489,11 +494,13 @@ void main() {
           senderKey: getPrivkey(0),
         ),
     };
-    handler.debugState.nameToDkg['iroh-round2'] = DkgState(
-      details: signObject(getDkgDetails(name: 'iroh-round2')),
-      creator: ids[0],
-      commitments: const [],
-    )..round = DkgRound2State(expectedHash: commitmentSet.hash);
+    final round2Details = signObject(getDkgDetails(name: 'iroh-round2'));
+    handler.debugState.nameToDkg['iroh-round2'] =
+        DkgState(details: round2Details, creator: ids[0], commitments: const [])
+          ..round = DkgRound2State(
+            expectedHash: commitmentSet.hash,
+            commitments: commitmentSet.list,
+          );
 
     final commitmentSetSignature = coinlib.SchnorrSignature.sign(
       getPrivkey(0),
@@ -502,6 +509,7 @@ void main() {
     await api0.submitDkgRound2(
       sid: login0.id,
       name: 'iroh-round2',
+      ceremonyId: round2Details.obj.ceremonyId,
       commitmentSetSignature: commitmentSetSignature,
       secrets: secrets,
     );
@@ -514,6 +522,31 @@ void main() {
     expect(
       round2Event.secret.ciphertext.toBytes(),
       secrets[ids[1]]!.ciphertext.toBytes(),
+    );
+    final recipientSnapshot = (await api1.getDkg(
+      sid: login1.id,
+      name: 'iroh-round2',
+      ceremonyId: round2Details.obj.ceremonyId,
+    ))!;
+    expect(recipientSnapshot.shareContributors, {ids[0]});
+    expect(recipientSnapshot.shares, hasLength(1));
+    expect(
+      recipientSnapshot.shares.single.secret.ciphertext.toBytes(),
+      secrets[ids[1]]!.ciphertext.toBytes(),
+    );
+    final senderSnapshot = (await api0.getDkg(
+      sid: login0.id,
+      name: 'iroh-round2',
+      ceremonyId: round2Details.obj.ceremonyId,
+    ))!;
+    expect(senderSnapshot.shares, isEmpty);
+    expect(
+      await api1.getDkg(
+        sid: login1.id,
+        name: 'unknown-dkg',
+        ceremonyId: Uint8List(32),
+      ),
+      isNull,
     );
 
     final ack = getDkgAck(0, true);
@@ -715,7 +748,11 @@ void main() {
     expect(cachedConstructed.single.toBytes(), constructedEvent.toBytes());
 
     await expectLater(
-      () => api0.rejectDkg(sid: login1.id, name: 'foreign-session'),
+      () => api0.rejectDkg(
+        sid: login1.id,
+        name: 'foreign-session',
+        ceremonyId: Uint8List(32),
+      ),
       throwsA(isA<IrohProtocolException>()),
     );
   }, timeout: const Timeout(Duration(minutes: 2)));

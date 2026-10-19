@@ -11,6 +11,7 @@ import 'package:noosphere_protocol/api/responses/expirable_auth_challenge.dart';
 import 'package:noosphere_protocol/api/responses/login_complete.dart';
 import 'package:noosphere_protocol/api/responses/signatures.dart';
 import 'package:noosphere_protocol/api/types/dkg_ack_request.dart';
+import 'package:noosphere_protocol/api/types/dkg_ceremony_snapshot.dart';
 import 'package:noosphere_protocol/api/types/dkg_encrypted_secret.dart';
 import 'package:noosphere_protocol/api/types/encrypted_key_share.dart';
 import 'package:noosphere_protocol/api/types/expiry.dart';
@@ -260,10 +261,18 @@ final class IrohClientApi implements ApiRequestInterface {
   }
 
   @override
-  Future<void> rejectDkg({required SessionID sid, required String name}) async {
+  Future<void> rejectDkg({
+    required SessionID sid,
+    required String name,
+    Uint8List? ceremonyId,
+  }) async {
     await _rpc(
       protocol.RoastOperation.rejectDkg,
-      protocol.DkgToReject(sid: sid.toBytes(), name: name),
+      protocol.DkgReference(
+        sid: sid.toBytes(),
+        name: name,
+        ceremonyId: ceremonyId ?? const [],
+      ),
       protocol.RejectDkgResponse.fromBuffer,
     );
   }
@@ -272,6 +281,7 @@ final class IrohClientApi implements ApiRequestInterface {
   Future<void> submitDkgCommitment({
     required SessionID sid,
     required String name,
+    Uint8List? ceremonyId,
     required DkgPublicCommitment commitment,
   }) async {
     await _rpc(
@@ -280,6 +290,7 @@ final class IrohClientApi implements ApiRequestInterface {
         sid: sid.toBytes(),
         name: name,
         commitment: commitment.toBytes(),
+        ceremonyId: ceremonyId ?? const [],
       ),
       protocol.SubmitDkgCommitmentResponse.fromBuffer,
     );
@@ -289,6 +300,7 @@ final class IrohClientApi implements ApiRequestInterface {
   Future<void> submitDkgRound2({
     required SessionID sid,
     required String name,
+    Uint8List? ceremonyId,
     required coinlib.SchnorrSignature commitmentSetSignature,
     required Map<Identifier, DkgEncryptedSecret> secrets,
   }) async {
@@ -297,6 +309,7 @@ final class IrohClientApi implements ApiRequestInterface {
       protocol.DkgRound2(
         sid: sid.toBytes(),
         name: name,
+        ceremonyId: ceremonyId ?? const [],
         commitmentSetSignature: commitmentSetSignature.data,
         secrets: secrets.entries.map(
           (entry) => protocol.DkgSecret(
@@ -307,6 +320,26 @@ final class IrohClientApi implements ApiRequestInterface {
       ),
       protocol.SubmitDkgRound2Response.fromBuffer,
     );
+  }
+
+  @override
+  Future<DkgCeremonySnapshot?> getDkg({
+    required SessionID sid,
+    required String name,
+    Uint8List? ceremonyId,
+  }) async {
+    final response = await _rpc(
+      protocol.RoastOperation.getDkg,
+      protocol.DkgReference(
+        sid: sid.toBytes(),
+        name: name,
+        ceremonyId: ceremonyId ?? const [],
+      ),
+      protocol.Bytes.fromBuffer,
+    );
+    return response.data.isEmpty
+        ? null
+        : DkgCeremonySnapshot.fromBytes(Uint8List.fromList(response.data));
   }
 
   @override

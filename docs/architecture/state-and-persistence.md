@@ -11,7 +11,7 @@ a database, encrypt wallet data or provide a durable UI event log.
 | State | Library | Host |
 | --- | --- | --- |
 | Sessions, sockets, timers | Validate and expire | Restart runtime |
-| DKG temporary secrets | Keep in memory | Treat interruption as a new attempt |
+| DKG temporary secrets | Define validation and resume ordering | Retain and protect when the cryptographic provider supports export |
 | FROST keys and recovery state | Define safe updates | Encrypt, namespace and persist |
 | Signing nonces/prepared operations | Enforce ordering | Commit atomically and reconcile ambiguity |
 | Coordinator attempts/results | Serialize and recover safely | Atomic store per group ID |
@@ -57,9 +57,34 @@ An uncertain cancellation write blocks signing until storage is reloaded.
 ## Coordinator and room storage
 
 `ServerPersistence` atomically loads/writes an opaque `ServerStateSnapshot` by
-group ID. Startup converts active DKG/signing attempts into safe interrupted or
-blocked records and persists that conversion before readiness. A write with an
-unknown outcome latches the handler closed until storage is reloaded.
+group ID. Version 2 snapshots restore active DKG commitments, the frozen
+transcript, recipient-encrypted round-two mailboxes and completion
+acknowledgements. Old version 1 DKG attempts remain interrupted because their
+snapshot did not contain enough data to resume safely. Signing attempts remain
+blocked after restart. A write with an unknown outcome latches the handler
+closed until storage is reloaded.
+
+Noosphere does not select or operate a database. The calling application owns
+the `ServerPersistence` implementation and decides how snapshots are encrypted,
+committed and retained. The coordinator snapshot never contains participant
+intermediate DKG secrets.
+
+## Resumable DKG boundary
+
+The coordinator can resume a DKG across disconnects and coordinator process
+restarts. It retains an immutable commitment transcript and caller-scoped
+encrypted-share mailboxes until every participant acknowledges the same
+transcript and group key or the signed deadline expires. Fetching a ceremony is
+authoritative; live events are only progress notifications and may be replayed.
+
+Participant process restart additionally requires the host to restore the
+round-one or round-two private secret and the exact pending payload. Frosty
+5.0.1 represents those secrets as opaque native handles and does not expose a
+versioned byte encoding, so noosphere cannot safely offer that persistence yet.
+Losing a private secret after publishing its commitment is reported as
+`MissingDkgSecret`; the client never substitutes fresh randomness. Once Frosty
+supports secret export/import, those private bytes must flow exclusively
+through a caller-provided storage implementation.
 
 `RoomPersistence` atomically stores room records. Invite consumption and
 participant insertion are one write. Room write failure similarly blocks
@@ -83,8 +108,9 @@ later, so a replacement must wait or reconcile before trusting a new load.
 | Interrupted record | Recovery |
 | --- | --- |
 | Session/challenge/connection | Discard and authenticate again |
-| Client DKG temporary secret | Start a fresh attempt |
-| Coordinator DKG | Restore as interrupted; creator may replace it |
+| Client DKG temporary secret | Fail explicitly if its published contribution exists; never regenerate it |
+| Coordinator DKG (snapshot v2) | Restore its exact stage, accepted payloads and completion acknowledgements |
+| Coordinator DKG (snapshot v1) | Restore as interrupted; creator may replace it |
 | Coordinator signing request | Block ID until expiry; do not resume rounds |
 | Completed signatures | Restore and redeliver until expiry |
 | Cancelled signing request | Retain only ID and original expiry; reconcile all clients through snapshots |

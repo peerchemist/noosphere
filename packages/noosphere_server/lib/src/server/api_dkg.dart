@@ -1,6 +1,51 @@
 part of 'api_handler.dart';
 
 extension _ServerDkg on ServerApiHandler {
+  DkgCeremonySnapshot _dkgSnapshot(DkgState dkg, Identifier recipient) {
+    final round2 = dkg.round is DkgRound2State ? dkg.round2 : null;
+    final stage = dkg.completed
+        ? DkgCeremonyStage.completed
+        : dkg.awaitingCompletion
+        ? DkgCeremonyStage.awaitingCompletion
+        : round2 == null
+        ? DkgCeremonyStage.collectingCommitments
+        : DkgCeremonyStage.collectingShares;
+    return DkgCeremonySnapshot(
+      details: dkg.details,
+      creator: dkg.creator,
+      commitments: dkg.commitments,
+      stage: stage,
+      shareContributors: round2?.contributions.keys.toSet() ?? const {},
+      shares: [
+        if (round2 != null)
+          for (final contribution in round2.contributions.entries)
+            if (contribution.key != recipient)
+              contribution.value.shareFor(
+                dkg.details.obj.name,
+                contribution.key,
+                recipient,
+              ),
+      ],
+      completedParticipants: dkg.completionAcks.keys.toSet(),
+      groupPublicKey: dkg.completedGroupKey,
+    );
+  }
+
+  Future<DkgCeremonySnapshot?> _getDkgSnapshot({
+    required SessionID sid,
+    required String name,
+    Uint8List? ceremonyId,
+  }) async {
+    await _prepare();
+    final recipient = getSession(sid).participantId;
+    final dkg = _state.nameToDkg[name];
+    return dkg == null ||
+            (ceremonyId != null &&
+                !cl.bytesEqual(dkg.details.obj.ceremonyId, ceremonyId))
+        ? null
+        : _dkgSnapshot(dkg, recipient);
+  }
+
   Future<void> _requestNewDkg({
     required SessionID sid,
     required Signed<NewDkgDetails> signedDetails,
@@ -67,9 +112,16 @@ extension _ServerDkg on ServerApiHandler {
   Future<void> _rejectDkg({
     required SessionID sid,
     required String name,
+    Uint8List? ceremonyId,
   }) async {
     await _prepare();
     final participantId = getSession(sid).participantId;
+    final dkg = _state.nameToDkg[name];
+    if (dkg == null ||
+        (ceremonyId != null &&
+            !cl.bytesEqual(dkg.details.obj.ceremonyId, ceremonyId))) {
+      return;
+    }
     if (_state.nameToDkg.remove(name) != null) {
       _state.persistent.publicFeed?.finish(
         'dkg:$name',
@@ -87,21 +139,24 @@ extension _ServerDkg on ServerApiHandler {
   Future<void> _submitDkgCommitment({
     required SessionID sid,
     required String name,
+    Uint8List? ceremonyId,
     required DkgPublicCommitment commitment,
   }) async {
     await _prepare();
     final session = getSession(sid);
     final pid = session.participantId;
 
-    // Look for round1 DKG of the name
-    final dkg = _getDkg(name);
-    if (dkg.round is! DkgRound1State) throw InvalidRequest.notRound1Dkg();
-
-    // Add commitment if it doesn't already exist for this participant
-    final commitments = dkg.round1.commitments;
-    if (commitments.any((c) => c.$1 == pid)) {
+    // Identical retries are successful even after the ceremony advanced. A
+    // conflicting retry can only be a changed local secret and must abort.
+    final dkg = _getDkgForCeremony(name, ceremonyId);
+    final existing = dkg.commitments.where((c) => c.$1 == pid).firstOrNull;
+    if (existing != null) {
+      if (cl.bytesEqual(existing.$2.toBytes(), commitment.toBytes())) return;
       throw InvalidRequest.dkgCommitmentExists();
     }
+    if (dkg.round is! DkgRound1State) throw InvalidRequest.notRound1Dkg();
+
+    final commitments = dkg.round1.commitments;
     commitments.add((pid, commitment));
 
     // If all commitments have been received, move onto round 2
@@ -109,6 +164,8 @@ extension _ServerDkg on ServerApiHandler {
       final commitmentSet = DkgCommitmentSet(commitments);
       dkg.round = DkgRound2State(
         expectedHash: dkg.details.obj.hashWithCommitments(commitmentSet),
+        commitments: commitments,
+        participantCount: _participantN,
       );
     }
 
@@ -124,14 +181,37 @@ extension _ServerDkg on ServerApiHandler {
   Future<void> _submitDkgRound2({
     required SessionID sid,
     required String name,
+    Uint8List? ceremonyId,
     required cl.SchnorrSignature commitmentSetSignature,
     required Map<Identifier, DkgEncryptedSecret> secrets,
   }) async {
     await _prepare();
     final session = getSession(sid);
-    final dkg = _getDkg(name);
+    final dkg = _getDkgForCeremony(name, ceremonyId);
     if (dkg.round is! DkgRound2State) throw InvalidRequest.notRound2Dkg();
     final round = dkg.round2;
+    final pid = session.participantId;
+
+    final previous = round.contributions[pid];
+    if (previous != null) {
+      final sameSignature = cl.bytesEqual(
+        previous.commitmentSetSignature.data,
+        commitmentSetSignature.data,
+      );
+      final sameRecipients =
+          previous.secrets.keys.toSet().containsAll(secrets.keys) &&
+          secrets.keys.toSet().containsAll(previous.secrets.keys);
+      final sameSecrets =
+          sameRecipients &&
+          secrets.entries.every(
+            (entry) => cl.bytesEqual(
+              previous.secrets[entry.key]!.ciphertext.toBytes(),
+              entry.value.ciphertext.toBytes(),
+            ),
+          );
+      if (sameSignature && sameSecrets) return;
+      throw InvalidRequest.dkgRound2Sent();
+    }
 
     // Verify signature
     if (!commitmentSetSignature.verify(
@@ -141,36 +221,18 @@ extension _ServerDkg on ServerApiHandler {
       throw InvalidRequest.invalidDkgCommitmentSetSignature();
     }
 
-    // Do not allow a participant to submit round2 twice
-    if (round.participantsProvided.contains(session.participantId)) {
-      throw InvalidRequest.dkgRound2Sent();
-    }
-
-    if (secrets.length != _participantN - 1) {
+    final expectedRecipients = config.group.participants.keys.toSet()
+      ..remove(pid);
+    if (secrets.keys.toSet().length != expectedRecipients.length ||
+        !secrets.keys.toSet().containsAll(expectedRecipients) ||
+        !expectedRecipients.containsAll(secrets.keys)) {
       throw InvalidRequest.invalidSecretMap();
     }
 
-    for (final otherSess in _state.clientSessions.values) {
-      if (otherSess.sessionID != sid &&
-          !secrets.containsKey(otherSess.participantId)) {
-        throw InvalidRequest.invalidSecretMap();
-      }
-    }
-
-    // If all participants have provided a signature, the DKG is complete
-    if (round.participantsProvided.length == _participantN - 1) {
-      // Remove DKG
-      _state.nameToDkg.remove(name);
-      _state.persistent.publicFeed?.finish(
-        'dkg:$name',
-        PublicFeedLifecycle.completed,
-      );
-      // No details of the key are stored on the server as only the participants
-      // can generate the public information at this point.
-    } else {
-      // Record that the participant has provided round 2
-      round.participantsProvided.add(session.participantId);
-    }
+    round.contributions[pid] = DkgRound2Contribution(
+      commitmentSetSignature: commitmentSetSignature,
+      secrets: secrets,
+    );
 
     await _persist();
 
@@ -204,8 +266,46 @@ extension _ServerDkg on ServerApiHandler {
     }
 
     final Set<SignedDkgAck> newAcks = {};
+    var completionChanged = false;
 
     for (final ack in acks) {
+      final value = ack.signed.obj;
+      if (value.ceremonyId != null) {
+        if (!value.accepted) throw InvalidRequest.invalidDkgAckSignature();
+        final dkg = _state.nameToDkg.values.firstWhereOrNull(
+          (candidate) => cl.bytesEqual(
+            candidate.details.obj.ceremonyId,
+            value.ceremonyId!,
+          ),
+        );
+        if (dkg == null ||
+            dkg.round is! DkgRound2State ||
+            !dkg.round2.allSharesSubmitted ||
+            !dkg.round2.contributions.containsKey(ack.signer) ||
+            !cl.bytesEqual(dkg.round2.expectedHash, value.transcriptHash!)) {
+          throw InvalidRequest.invalidDkgAckSignature();
+        }
+        final expectedKey = dkg.completedGroupKey;
+        if (expectedKey != null && expectedKey != value.groupKey) {
+          throw InvalidRequest.invalidDkgAckSignature();
+        }
+        final previous = dkg.completionAcks[ack.signer];
+        if (previous != null) {
+          if (!cl.bytesEqual(previous.toBytes(), ack.signed.toBytes())) {
+            throw InvalidRequest.invalidDkgAckSignature();
+          }
+        } else {
+          dkg.completionAcks[ack.signer] = ack.signed;
+          completionChanged = true;
+          if (dkg.completed) {
+            _state.persistent.publicFeed?.finish(
+              'dkg:${dkg.details.obj.name}',
+              PublicFeedLifecycle.completed,
+            );
+          }
+        }
+      }
+
       final ackCache = _state.dkgAckCache[ack.signed.obj.groupKey] ??=
           DkgAckCache(Expiry(config.ackCacheTTL));
 
@@ -222,6 +322,8 @@ extension _ServerDkg on ServerApiHandler {
       // Record as new ACK to send
       newAcks.add(ack);
     }
+
+    if (completionChanged) await _persist();
 
     // Do not send events if there are no new ACKs
     if (newAcks.isEmpty) return;

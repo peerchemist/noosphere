@@ -136,7 +136,7 @@ final class IrohConnectionHandler {
           DkgRequest.fromBuffer(body),
         ),
         RoastOperation.rejectDkg => await _rejectDkg(
-          DkgToReject.fromBuffer(body),
+          DkgReference.fromBuffer(body),
         ),
         RoastOperation.submitDkgCommitment => await _submitDkgCommitment(
           DkgCommitment.fromBuffer(body),
@@ -144,6 +144,7 @@ final class IrohConnectionHandler {
         RoastOperation.submitDkgRound2 => await _submitDkgRound2(
           DkgRound2.fromBuffer(body),
         ),
+        RoastOperation.getDkg => await _getDkg(DkgReference.fromBuffer(body)),
         RoastOperation.sendDkgAcks => await _sendDkgAcks(
           DkgAcks.fromBuffer(body),
         ),
@@ -251,13 +252,17 @@ final class IrohConnectionHandler {
     return RequestNewDkgResponse(success: EmptySuccess());
   }
 
-  Future<RejectDkgResponse> _rejectDkg(DkgToReject rpc) async {
+  Future<RejectDkgResponse> _rejectDkg(DkgReference rpc) async {
     final group = _readyGroup();
     await dispatcher.invokeReady(
       groupFingerprint: group,
       connection: context,
       operation: (handler, _) async {
-        await handler.rejectDkg(sid: _sessionId(rpc.sid), name: rpc.name);
+        await handler.rejectDkg(
+          sid: _sessionId(rpc.sid),
+          name: rpc.name,
+          ceremonyId: _ceremonyId(rpc.ceremonyId),
+        );
         return IrohDispatchResult(null);
       },
     );
@@ -275,6 +280,7 @@ final class IrohConnectionHandler {
         await handler.submitDkgCommitment(
           sid: _sessionId(rpc.sid),
           name: rpc.name,
+          ceremonyId: _ceremonyId(rpc.ceremonyId),
           commitment: DkgPublicCommitment.fromBytes(
             Uint8List.fromList(rpc.commitment),
           ),
@@ -294,6 +300,7 @@ final class IrohConnectionHandler {
         await handler.submitDkgRound2(
           sid: _sessionId(rpc.sid),
           name: rpc.name,
+          ceremonyId: _ceremonyId(rpc.ceremonyId),
           commitmentSetSignature: coinlib.SchnorrSignature(
             Uint8List.fromList(rpc.commitmentSetSignature),
           ),
@@ -310,6 +317,23 @@ final class IrohConnectionHandler {
       },
     );
     return SubmitDkgRound2Response(success: EmptySuccess());
+  }
+
+  Future<Bytes> _getDkg(DkgReference rpc) async {
+    final group = _readyGroup();
+    final dispatched = await dispatcher.invokeReady(
+      groupFingerprint: group,
+      connection: context,
+      operation: (handler, _) async => IrohDispatchResult(
+        await handler.getDkg(
+          sid: _sessionId(rpc.sid),
+          name: rpc.name,
+          ceremonyId: _ceremonyId(rpc.ceremonyId),
+        ),
+      ),
+    );
+    final snapshot = dispatched.value;
+    return Bytes(data: snapshot?.toBytes() ?? const []);
   }
 
   Future<SendDkgAcksResponse> _sendDkgAcks(DkgAcks rpc) async {
@@ -524,6 +548,13 @@ final class IrohConnectionHandler {
     final requested = SessionID.fromBytes(Uint8List.fromList(bytes));
     if (requested != context.sessionId) throw InvalidRequest.noSession();
     return requested;
+  }
+
+  Uint8List _ceremonyId(List<int> bytes) {
+    if (bytes.length != 32) {
+      throw const FormatException('ceremony ID must be 32 bytes');
+    }
+    return Uint8List.fromList(bytes);
   }
 
   Future<void> _handleStartSession(SendStream send) async {

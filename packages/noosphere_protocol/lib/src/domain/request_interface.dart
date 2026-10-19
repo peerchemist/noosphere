@@ -9,6 +9,7 @@ import 'responses/expirable_auth_challenge.dart';
 import 'responses/login_complete.dart';
 import 'responses/signatures.dart';
 import 'types/dkg_ack_request.dart';
+import 'types/dkg_ceremony_snapshot.dart';
 import 'types/dkg_encrypted_secret.dart';
 import 'types/encrypted_key_share.dart';
 import 'types/expiry.dart';
@@ -121,7 +122,11 @@ abstract interface class ApiRequestInterface {
   /// Any participant can reject and cancel the DKG with the given [name]. DKGs
   /// must be unanimous so any participant can reject it. If a DKG with the
   /// [name] does not exist, no error is thrown and this does nothing.
-  Future<void> rejectDkg({required SessionID sid, required String name});
+  Future<void> rejectDkg({
+    required SessionID sid,
+    required String name,
+    Uint8List? ceremonyId,
+  });
 
   /// Submits a public [commitment] for a DKG of the given [name]. This implies
   /// that the participant aggrees to generate a new key with the [name] and
@@ -136,6 +141,7 @@ abstract interface class ApiRequestInterface {
   Future<void> submitDkgCommitment({
     required SessionID sid,
     required String name,
+    Uint8List? ceremonyId,
     required DkgPublicCommitment commitment,
   });
 
@@ -145,8 +151,17 @@ abstract interface class ApiRequestInterface {
   Future<void> submitDkgRound2({
     required SessionID sid,
     required String name,
+    Uint8List? ceremonyId,
     required cl.SchnorrSignature commitmentSetSignature,
     required Map<Identifier, DkgEncryptedSecret> secrets,
+  });
+
+  /// Returns the durable ceremony view and only ciphertexts addressed to the
+  /// authenticated caller. Returns null when [name] is unknown.
+  Future<DkgCeremonySnapshot?> getDkg({
+    required SessionID sid,
+    required String name,
+    Uint8List? ceremonyId,
   });
 
   /// Send a signed acknowledgement of a DKG.

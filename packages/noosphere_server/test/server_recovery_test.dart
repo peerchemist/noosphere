@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_server/noosphere_server.dart';
 import 'package:noosphere_server/src/server/state/dkg.dart';
@@ -16,7 +19,7 @@ void main() {
   });
 
   test(
-    'restart aborts DKG, blocks signing, and redelivers durable output',
+    'restart resumes DKG, blocks signing, and redelivers durable output',
     () async {
       final persistence = InMemoryServerPersistence();
       final state = ServerState();
@@ -81,11 +84,8 @@ void main() {
       exposed[0] ^= 0xff;
       expect(restored.state.toBytes().first, firstByte);
 
-      expect(restored.debugState.nameToDkg.values, isEmpty);
-      expect(
-        restored.debugState.persistent.interruptedDkgs,
-        contains('restart-dkg'),
-      );
+      expect(restored.debugState.nameToDkg.containsKey('restart-dkg'), isTrue);
+      expect(restored.debugState.persistent.interruptedDkgs, isEmpty);
       expect(restored.debugState.sigRequests.values, isEmpty);
       expect(
         restored.debugState.persistent.blockedSignatures,
@@ -106,27 +106,46 @@ void main() {
       expect(login.secretShares, hasLength(1));
       expect(login.secretShares.single.groupKey, groupKey);
 
-      final creatorChallenge = await restored.login(
-        groupFingerprint: groupConfig.fingerprint,
-        participantId: ids.first,
-      );
-      final creator = await restored.respondToChallenge(
-        Signed.sign(obj: creatorChallenge.challenge, key: getPrivkey(0)),
-      );
-      await restored.requestNewDkg(
-        sid: creator.id,
-        signedDetails: dkgDetails,
-        commitment: DkgPart1(
-          identifier: ids.first,
-          threshold: 2,
-          n: ids.length,
-        ).public,
-      );
       expect(
-        restored.debugState.persistent.interruptedDkgs,
-        isNot(contains('restart-dkg')),
+        login.newDkgs.map((event) => event.details.obj.name),
+        contains('restart-dkg'),
       );
-      expect(restored.debugState.nameToDkg['restart-dkg'], isNotNull);
     },
   );
+
+  test('version 1 active DKG snapshots migrate to interrupted records', () {
+    final details = signObject(getDkgDetails(name: 'legacy-dkg'));
+    final event = NewDkgEvent(
+      details: details,
+      creator: ids.first,
+      commitments: [
+        (
+          ids.first,
+          DkgPart1(identifier: ids.first, threshold: 2, n: ids.length).public,
+        ),
+      ],
+    );
+    final snapshot = ServerStateSnapshot.fromBytes(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode({
+            'version': 1,
+            'dkg': [
+              {'status': 'active', 'event': base64Encode(event.toBytes())},
+            ],
+            'signing': <Object?>[],
+            'completed': <Object?>[],
+            'shares': <Object?>[],
+            'cancelled': <Object?>[],
+            'terminalSigning': <Object?>[],
+          }),
+        ),
+      ),
+    );
+    final state = ServerState();
+
+    expect(state.restore(snapshot), isTrue);
+    expect(state.nameToDkg.values, isEmpty);
+    expect(state.persistent.interruptedDkgs, contains('legacy-dkg'));
+  });
 }

@@ -54,6 +54,37 @@ void main() {
     );
   });
 
+  test('local API fetches a caller-scoped DKG snapshot', () async {
+    final handler = getApiHandler();
+    final dispatcher = IrohDispatcher.single(handler);
+    final api = LocalCoordinatorApi.attach(
+      dispatcher: dispatcher,
+      groupFingerprint: groupConfig.fingerprint,
+      onClose: (_) {},
+    );
+    addTearDown(api.close);
+    addTearDown(dispatcher.close);
+
+    final challenge = await api.login(
+      groupFingerprint: groupConfig.fingerprint,
+      participantId: ids.first,
+    );
+    final login = await api.respondToChallenge(
+      Signed.sign(obj: challenge.challenge, key: getPrivkey(0)),
+    );
+    final details = getDkgDetails(name: 'local-fetch');
+    await api.requestNewDkg(
+      sid: login.id,
+      signedDetails: signObject(details),
+      commitment: getDkgPart1(0).public,
+    );
+
+    final snapshot = (await api.getDkg(sid: login.id, name: details.name))!;
+    expect(snapshot.stage, DkgCeremonyStage.collectingCommitments);
+    expect(snapshot.commitments.single.$1, ids.first);
+    expect(snapshot.shares, isEmpty);
+  });
+
   test('cannot attach to a group the server does not host', () async {
     final dispatcher = IrohDispatcher.single(getApiHandler());
     addTearDown(dispatcher.close);

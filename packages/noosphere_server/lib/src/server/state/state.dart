@@ -121,17 +121,6 @@ class ServerState {
       participantToSession.remove(session.participantId);
     }
 
-    // Reset DKGs to round 1 as all participants need to remain online to
-    // complete them
-    for (final dkg in nameToDkg.values) {
-      if (dkg.round is! DkgRound1State) dkg.round = DkgRound1State([]);
-    }
-
-    // Remove public commitment from participant for any round 1 DKGs
-    for (final dkg in round1Dkgs) {
-      dkg.round1.commitments.removeWhere((c) => c.$1 == session.participantId);
-    }
-
     if (publish) publishSessionEnded(session);
     return true;
   }
@@ -162,16 +151,41 @@ class ServerState {
     final dkg = <Map<String, Object?>>[
       for (final value in nameToDkg.values)
         {
-          'status': 'active',
-          'event': bytes(
-            NewDkgEvent(
-              details: value.details,
-              creator: value.creator,
-              commitments: value.round is DkgRound1State
-                  ? value.round1.commitments
-                  : const [],
-            ).toBytes(),
-          ),
+          'status': 'resumable',
+          'details': bytes(value.details.toBytes()),
+          'creator': id(value.creator),
+          'round': value.round is DkgRound1State ? 1 : 2,
+          'commitments': [
+            for (final commitment in value.commitments)
+              {
+                'participant': id(commitment.$1),
+                'commitment': bytes(commitment.$2.toBytes()),
+              },
+          ],
+          if (value.round case final DkgRound2State round2) ...{
+            'expectedHash': bytes(round2.expectedHash),
+            'participantCount': round2.participantCount,
+            'contributions': [
+              for (final entry in round2.contributions.entries)
+                {
+                  'sender': id(entry.key),
+                  'signature': bytes(entry.value.commitmentSetSignature.data),
+                  'secrets': [
+                    for (final secret in entry.value.secrets.entries)
+                      {
+                        'recipient': id(secret.key),
+                        'ciphertext': bytes(secret.value.ciphertext.toBytes()),
+                      },
+                  ],
+                },
+            ],
+          },
+          'completionAcks': [
+            for (final entry in value.completionAcks.entries)
+              bytes(
+                SignedDkgAck(signer: entry.key, signed: entry.value).toBytes(),
+              ),
+          ],
         },
       for (final value in persistent.interruptedDkgs.values)
         if (!value.expiry.isExpired)
@@ -305,6 +319,67 @@ class ServerState {
 
     for (final raw in root['dkg']! as List) {
       final record = raw as Map;
+      if (record['status'] == 'resumable') {
+        final signedBytes = bytes(record['details']);
+        final detailsLength = signedBytes.length - 64;
+        final signedDetails = Signed<NewDkgDetails>(
+          obj: NewDkgDetails.fromBytesAllowExpired(
+            Uint8List.sublistView(signedBytes, 0, detailsLength),
+          ),
+          signature: cl.SchnorrSignature(
+            Uint8List.sublistView(signedBytes, detailsLength),
+          ),
+        );
+        if (signedDetails.obj.expiry.isExpired) {
+          persistent.publicFeed?.finish(
+            'dkg:${signedDetails.obj.name}',
+            PublicFeedLifecycle.expired,
+          );
+          changed = true;
+          continue;
+        }
+        final commitments = <(Identifier, DkgPublicCommitment)>[
+          for (final commitmentRaw in record['commitments']! as List)
+            (
+              id((commitmentRaw as Map)['participant']),
+              DkgPublicCommitment.fromBytes(bytes(commitmentRaw['commitment'])),
+            ),
+        ];
+        final restored = DkgState(
+          details: signedDetails,
+          creator: id(record['creator']),
+          commitments: commitments,
+        );
+        if (record['round'] == 2) {
+          final round2 = DkgRound2State(
+            expectedHash: bytes(record['expectedHash']),
+            commitments: commitments,
+            participantCount: record['participantCount'] as int,
+          );
+          for (final contributionRaw in record['contributions']! as List) {
+            final contribution = contributionRaw as Map;
+            final sender = id(contribution['sender']);
+            round2.contributions[sender] = DkgRound2Contribution(
+              commitmentSetSignature: cl.SchnorrSignature(
+                bytes(contribution['signature']),
+              ),
+              secrets: {
+                for (final secretRaw in contribution['secrets']! as List)
+                  id((secretRaw as Map)['recipient']): DkgEncryptedSecret(
+                    ECCiphertext.fromBytes(bytes(secretRaw['ciphertext'])),
+                  ),
+              },
+            );
+          }
+          restored.round = round2;
+        }
+        for (final encoded in record['completionAcks']! as List) {
+          final ack = SignedDkgAck.fromBytes(bytes(encoded));
+          restored.completionAcks[ack.signer] = ack.signed;
+        }
+        nameToDkg[signedDetails.obj.name] = restored;
+        continue;
+      }
       final event = NewDkgEvent.fromBytes(bytes(record['event']));
       if (event.expiry.isExpired) {
         persistent.publicFeed?.finish(

@@ -35,7 +35,6 @@ Future<Client> _loginClient({
   for (final dkg in resp2.newDkgs) {
     Client._checkNewDkg(config, dkg);
   }
-
   // Check there are no duplicates
   final names = resp2.newDkgs.map((dkg) => dkg.details.obj.name);
   if (names.length != names.toSet().length) {
@@ -131,6 +130,9 @@ Future<Client> _loginClient({
       creator: dkg.creator,
       commitments: dkg.commitments,
     );
+  }
+  for (final dkg in resp2.newDkgs) {
+    await client._resumeDkg(dkg.details.obj.name);
   }
 
   // Snapshot signing work shares the lane with live cancellation events.

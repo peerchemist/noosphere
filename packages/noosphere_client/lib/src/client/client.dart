@@ -67,9 +67,22 @@ class ServerMisbehaviour implements Exception {
     : this("Signatures responded before shares");
   ServerMisbehaviour.invalidCompleteSig()
     : this("Completed signature is invalid");
+  ServerMisbehaviour.changedDkgTranscript()
+    : this("DKG transcript changed for an existing ceremony");
 
   @override
   String toString() => "ServerMisbehaviour: $message";
+}
+
+/// The coordinator knows that this participant contributed, but the host did
+/// not restore the corresponding private intermediate state. Continuing with
+/// fresh randomness would publish a conflicting contribution.
+class MissingDkgSecret implements Exception {
+  final String name;
+  MissingDkgSecret(this.name);
+
+  @override
+  String toString() => 'Missing private DKG state for ceremony "$name"';
 }
 
 /// A high-level abstraction of a FROST participant client with the server API.
@@ -228,7 +241,7 @@ class Client {
     _setSessionExtendTimer();
 
     _eventSubscription = events.listen(
-      (ev) => _eventFuture = _handleEvent(ev),
+      (ev) => _eventFuture = _eventFuture.then((_) => _handleEvent(ev)),
       onDone: () => _disconnect(),
       onError: (Object e) => _sendError(e),
     );
@@ -298,6 +311,9 @@ class Client {
       _runDkgSyncIfExists(name, (_) => _rejectDkgWithoutSync(name));
 
   Future<void> acceptDkg(String name) => _acceptDkg(name);
+
+  /// Reconciles one ceremony with its durable coordinator snapshot.
+  Future<void> refreshDkg(String name) => _resumeDkg(name);
 
   /// Request signatures from the group
   Future<void> requestSignatures(SignaturesRequestDetails details) =>

@@ -114,9 +114,18 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
        );
 
   static final _hasher = cl.getTaggedHasher("NewDkgDetails");
+  static final _transcriptHasher = cl.getTaggedHasher(
+    "NoosphereDkgTranscriptV2",
+  );
 
   @override
   Uint8List get uncachedSigHash => _hasher(toBytes());
+
+  /// Stable identifier for this exact signed proposal payload.
+  ///
+  /// A changed name, threshold, description, or deadline produces a different
+  /// ceremony. The creator signature authenticates these bytes.
+  Uint8List get ceremonyId => sigHash;
 
   @override
   void write(cl.Writer writer) {
@@ -129,9 +138,8 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
   /// Hash of DKG details and commiments that participants verify is equal for
   /// every other participant for round 2.
   ///
-  /// Does a simple XOR as both hashes are not biased.
   Uint8List hashWithCommitments(DkgCommitmentSet commitments) =>
-      Uint8List.fromList(
-        List<int>.generate(32, (i) => sigHash[i] ^ commitments.hash[i]),
+      _transcriptHasher(
+        Uint8List.fromList([...ceremonyId, ...commitments.hash]),
       );
 }

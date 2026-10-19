@@ -123,23 +123,21 @@ void main() {
       });
 
       test("success", () async {
-        // Add round2 DKG that should be removed
+        // Add a round2 DKG that must survive a replaced session.
         ctx.addDkgRound2(ids[1], "round2");
 
-        // Add a DKG where the commitment should be removed
+        // Add a DKG whose accepted commitments must survive a replaced session.
         void addRound1Dkg() => ctx.addDkgRound1(ids.first, "123", [0, 1]);
         addRound1Dkg();
 
-        // Test that DKG info is reset to round 1 on logout
         void expectDkgCommitments(String name, List<Identifier> ids) {
           expect(ctx.api.debugState.nameToDkg.containsKey(name), true);
-          final commitments =
-              ctx.api.debugState.nameToDkg[name]!.round1.commitments;
+          final commitments = ctx.api.debugState.nameToDkg[name]!.commitments;
           expect(commitments.map((e) => e.$1), ids);
         }
 
-        void expectResetDkgInfo() {
-          expectDkgCommitments("123", [ids[1]]);
+        void expectPreservedDkgInfo() {
+          expectDkgCommitments("123", [ids[0], ids[1]]);
           expectDkgCommitments("round2", []);
         }
 
@@ -176,7 +174,7 @@ void main() {
           expect(newDkg.commitments.map((c) => c.$1), ids);
         }
 
-        expectDkg(newDkgs.first, "123", ids.first, [ids[1]]);
+        expectDkg(newDkgs.first, "123", ids.first, [ids[0], ids[1]]);
         expectDkg(newDkgs.last, "round2", ids[1], []);
 
         // Expect state changes
@@ -185,7 +183,7 @@ void main() {
         expect(sess.participantId, ids.first);
         expect(sess.sessionID, response.id);
         expect(sess, ctx.api.debugState.participantToSession[ids.first]);
-        expectResetDkgInfo();
+        expectPreservedDkgInfo();
 
         // Second login removes old session
         expect(ctx.api.debugState.clientSessions[oldSid], null);
@@ -206,8 +204,7 @@ void main() {
         }
 
         // If session expires, other participant should receive event
-        // round2 DKGs should be reset to round1 and the round1 commitment of
-        // the logged out participant should be removed
+        // Session expiry must not alter durable DKG contributions.
         addRound1Dkg();
         ctx.addDkgRound2(ids.first, "round2");
 
@@ -225,7 +222,7 @@ void main() {
           expect(events.length, 1);
           expectLoginEvent(events.first, false);
         }
-        expectResetDkgInfo();
+        expectPreservedDkgInfo();
       });
 
       test("provides signature data on success", () async {
@@ -529,6 +526,45 @@ void main() {
               .having((e) => e.participant, "participant", ids.first),
         );
       });
+
+      test("stale ceremony traffic does not affect a replacement", () async {
+        final old = ctx.api.debugState.nameToDkg["123"]!;
+        await ctx.api.rejectDkg(
+          sid: client.sid,
+          name: "123",
+          ceremonyId: old.details.obj.ceremonyId,
+        );
+        final replacement = signObject(
+          getDkgDetails(name: "123", description: "replacement"),
+        );
+        await ctx.api.requestNewDkg(
+          sid: client.sid,
+          signedDetails: replacement,
+          commitment: getDkgPart1(0).public,
+        );
+
+        await expectInvalid(
+          () => ctx.api.submitDkgCommitment(
+            sid: other.sid,
+            name: "123",
+            ceremonyId: old.details.obj.ceremonyId,
+            commitment: getDkgPart1(1).public,
+          ),
+        );
+        await ctx.api.rejectDkg(
+          sid: other.sid,
+          name: "123",
+          ceremonyId: old.details.obj.ceremonyId,
+        );
+        expect(
+          (await ctx.api.getDkg(
+            sid: other.sid,
+            name: "123",
+            ceremonyId: replacement.obj.ceremonyId,
+          ))?.details.obj.description,
+          "replacement",
+        );
+      });
     });
 
     group(".submitDkgCommitment()", () {
@@ -561,13 +597,11 @@ void main() {
             commitment: commitments[1].public,
           ),
         );
-        // Already have commitment
-        await expectInvalid(
-          () => ctx.api.submitDkgCommitment(
-            sid: ctx.clients.first.sid,
-            name: "123",
-            commitment: commitments.first.public,
-          ),
+        // Identical retry is idempotent.
+        await ctx.api.submitDkgCommitment(
+          sid: ctx.clients.first.sid,
+          name: "123",
+          commitment: commitments.first.public,
         );
         // DKG is the wrong round
         await expectInvalid(
@@ -657,22 +691,28 @@ void main() {
         ctx
             .addDkgRound2(ids.first, "round2", commitmentSet.hash)
             .round2
-            .participantsProvided
-            .add(ids.last);
+            .contributions[ids.last] = DkgRound2Contribution(
+          commitmentSetSignature: commitmentSetSigs.last,
+          secrets: secretMaps.last,
+        );
       });
 
       test("invalid request", () async {
-        // Invalid session ID or already provided round 2
-        for (final badSid in [SessionID(), ctx.clients.last.sid]) {
-          await expectInvalid(
-            () => ctx.api.submitDkgRound2(
-              sid: badSid,
-              name: "round2",
-              commitmentSetSignature: commitmentSetSigs.last,
-              secrets: secretMaps.last,
-            ),
-          );
-        }
+        await expectInvalid(
+          () => ctx.api.submitDkgRound2(
+            sid: SessionID(),
+            name: "round2",
+            commitmentSetSignature: commitmentSetSigs.last,
+            secrets: secretMaps.last,
+          ),
+        );
+        // The exact accepted payload is an idempotent retry.
+        await ctx.api.submitDkgRound2(
+          sid: ctx.clients.last.sid,
+          name: "round2",
+          commitmentSetSignature: commitmentSetSigs.last,
+          secrets: secretMaps.last,
+        );
 
         // Dkg doesn't exist or is round 1
         for (final badDkg in ["noexist", "round1"]) {
@@ -743,7 +783,8 @@ void main() {
                 .debugState
                 .nameToDkg["round2"]!
                 .round2
-                .participantsProvided;
+                .contributions
+                .keys;
             expect(provided.length, i + 2);
             expect(provided, contains(ids[i]));
           }
@@ -767,8 +808,11 @@ void main() {
           }
         }
 
-        // Expect DKG state removed after all participants provided
-        expect(ctx.api.debugState.nameToDkg["round2"], null);
+        // Delivery data remains until all participants acknowledge completion.
+        expect(
+          ctx.api.debugState.nameToDkg["round2"]!.round2.allSharesSubmitted,
+          isTrue,
+        );
       });
     });
 

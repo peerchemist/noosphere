@@ -142,18 +142,20 @@ final $typed_data.Uint8List dkgRequestDescriptor = $convert.base64Decode(
     'CgpEa2dSZXF1ZXN0EhAKA3NpZBgBIAEoDFIDc2lkEiUKDnNpZ25lZF9kZXRhaWxzGAIgASgMUg'
     '1zaWduZWREZXRhaWxzEh4KCmNvbW1pdG1lbnQYAyABKAxSCmNvbW1pdG1lbnQ=');
 
-@$core.Deprecated('Use dkgToRejectDescriptor instead')
-const DkgToReject$json = {
-  '1': 'DkgToReject',
+@$core.Deprecated('Use dkgReferenceDescriptor instead')
+const DkgReference$json = {
+  '1': 'DkgReference',
   '2': [
     {'1': 'sid', '3': 1, '4': 1, '5': 12, '10': 'sid'},
     {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'ceremony_id', '3': 3, '4': 1, '5': 12, '10': 'ceremonyId'},
   ],
 };
 
-/// Descriptor for `DkgToReject`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List dkgToRejectDescriptor = $convert.base64Decode(
-    'CgtEa2dUb1JlamVjdBIQCgNzaWQYASABKAxSA3NpZBISCgRuYW1lGAIgASgJUgRuYW1l');
+/// Descriptor for `DkgReference`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List dkgReferenceDescriptor = $convert.base64Decode(
+    'CgxEa2dSZWZlcmVuY2USEAoDc2lkGAEgASgMUgNzaWQSEgoEbmFtZRgCIAEoCVIEbmFtZRIfCg'
+    'tjZXJlbW9ueV9pZBgDIAEoDFIKY2VyZW1vbnlJZA==');
 
 @$core.Deprecated('Use dkgCommitmentDescriptor instead')
 const DkgCommitment$json = {
@@ -162,13 +164,15 @@ const DkgCommitment$json = {
     {'1': 'sid', '3': 1, '4': 1, '5': 12, '10': 'sid'},
     {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
     {'1': 'commitment', '3': 3, '4': 1, '5': 12, '10': 'commitment'},
+    {'1': 'ceremony_id', '3': 4, '4': 1, '5': 12, '10': 'ceremonyId'},
   ],
 };
 
 /// Descriptor for `DkgCommitment`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List dkgCommitmentDescriptor = $convert.base64Decode(
     'Cg1Ea2dDb21taXRtZW50EhAKA3NpZBgBIAEoDFIDc2lkEhIKBG5hbWUYAiABKAlSBG5hbWUSHg'
-    'oKY29tbWl0bWVudBgDIAEoDFIKY29tbWl0bWVudA==');
+    'oKY29tbWl0bWVudBgDIAEoDFIKY29tbWl0bWVudBIfCgtjZXJlbW9ueV9pZBgEIAEoDFIKY2Vy'
+    'ZW1vbnlJZA==');
 
 @$core.Deprecated('Use dkgSecretDescriptor instead')
 const DkgSecret$json = {
@@ -204,6 +208,7 @@ const DkgRound2$json = {
       '6': '.noosphere.DkgSecret',
       '10': 'secrets'
     },
+    {'1': 'ceremony_id', '3': 5, '4': 1, '5': 12, '10': 'ceremonyId'},
   ],
 };
 
@@ -211,7 +216,8 @@ const DkgRound2$json = {
 final $typed_data.Uint8List dkgRound2Descriptor = $convert.base64Decode(
     'CglEa2dSb3VuZDISEAoDc2lkGAEgASgMUgNzaWQSEgoEbmFtZRgCIAEoCVIEbmFtZRI4Chhjb2'
     '1taXRtZW50X3NldF9zaWduYXR1cmUYAyABKAxSFmNvbW1pdG1lbnRTZXRTaWduYXR1cmUSLgoH'
-    'c2VjcmV0cxgEIAMoCzIULm5vb3NwaGVyZS5Ea2dTZWNyZXRSB3NlY3JldHM=');
+    'c2VjcmV0cxgEIAMoCzIULm5vb3NwaGVyZS5Ea2dTZWNyZXRSB3NlY3JldHMSHwoLY2VyZW1vbn'
+    'lfaWQYBSABKAxSCmNlcmVtb255SWQ=');
 
 @$core.Deprecated('Use dkgAcksDescriptor instead')
 const DkgAcks$json = {

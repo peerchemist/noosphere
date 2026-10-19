@@ -113,6 +113,8 @@ does not automatically serialize asynchronous application writes.
 - RPC responses and other participants' streams race independently.
 - A socket write does not acknowledge processing, persistence or approval.
 - Reconnect creates a new session/snapshot; there is no durable event cursor.
+- DKG reconnect recovery uses the authenticated ceremony fetch operation;
+  snapshots expose only ciphertexts addressed to the authenticated caller.
 - A paused server session buffers at most 100 recent events and drops older
   transient entries when full.
 - Completed results and recovery shares can be restored separately, so hosts

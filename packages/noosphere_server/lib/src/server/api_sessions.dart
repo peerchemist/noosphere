@@ -116,12 +116,12 @@ extension _ServerSessions on ServerApiHandler {
       events: session.eventController.stream,
       cancelledRequests: _state.persistent.cancelledSignatures.values.toList(),
 
-      newDkgs: _state.round1Dkgs
+      newDkgs: _state.nameToDkg.values
           .map(
             (dkg) => NewDkgEvent(
               details: dkg.details,
               creator: dkg.creator,
-              commitments: dkg.round1.commitments,
+              commitments: dkg.commitments,
             ),
           )
           .toList(),

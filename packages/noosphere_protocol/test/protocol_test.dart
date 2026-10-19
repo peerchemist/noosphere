@@ -26,7 +26,7 @@ void main() {
       protocol.SignedAuthChallenge(signature: [1]),
       protocol.Bytes(data: [1]),
       protocol.DkgRequest(sid: [1]),
-      protocol.DkgToReject(sid: [1]),
+      protocol.DkgReference(sid: [1]),
       protocol.DkgCommitment(sid: [1]),
       protocol.DkgRound2(sid: [1]),
       protocol.DkgAcks(sid: [1]),

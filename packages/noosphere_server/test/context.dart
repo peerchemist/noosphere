@@ -332,9 +332,11 @@ class TestContext {
     Identifier creator,
     String name, [
     Uint8List? expectedHash,
-  ]) =>
-      addDkg(creator, name)
-        ..round = DkgRound2State(expectedHash: expectedHash ?? Uint8List(32));
+  ]) => addDkg(creator, name)
+    ..round = DkgRound2State(
+      expectedHash: expectedHash ?? Uint8List(32),
+      participantCount: ids.length,
+    );
 
   Future<void> clearEvents() async {
     for (final client in clients) {

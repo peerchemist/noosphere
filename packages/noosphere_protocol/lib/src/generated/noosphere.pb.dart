@@ -310,54 +310,59 @@ class DkgRequest extends $pb.GeneratedMessage {
   void clearCommitment() => $_clearField(3);
 }
 
-class DkgToReject extends $pb.GeneratedMessage {
-  factory DkgToReject({
+class DkgReference extends $pb.GeneratedMessage {
+  factory DkgReference({
     $core.List<$core.int>? sid,
     $core.String? name,
+    $core.List<$core.int>? ceremonyId,
   }) {
     final result = create();
     if (sid != null) result.sid = sid;
     if (name != null) result.name = name;
+    if (ceremonyId != null) result.ceremonyId = ceremonyId;
     return result;
   }
 
-  DkgToReject._();
+  DkgReference._();
 
-  factory DkgToReject.fromBuffer($core.List<$core.int> data,
+  factory DkgReference.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory DkgToReject.fromJson($core.String json,
+  factory DkgReference.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'DkgToReject',
+      _omitMessageNames ? '' : 'DkgReference',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'noosphere'),
       createEmptyInstance: create)
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'sid', $pb.PbFieldType.OY)
     ..aOS(2, _omitFieldNames ? '' : 'name')
+    ..a<$core.List<$core.int>>(
+        3, _omitFieldNames ? '' : 'ceremonyId', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  DkgToReject clone() => DkgToReject()..mergeFromMessage(this);
+  DkgReference clone() => DkgReference()..mergeFromMessage(this);
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  DkgToReject copyWith(void Function(DkgToReject) updates) =>
-      super.copyWith((message) => updates(message as DkgToReject))
-          as DkgToReject;
+  DkgReference copyWith(void Function(DkgReference) updates) =>
+      super.copyWith((message) => updates(message as DkgReference))
+          as DkgReference;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static DkgToReject create() => DkgToReject._();
+  static DkgReference create() => DkgReference._();
   @$core.override
-  DkgToReject createEmptyInstance() => create();
-  static $pb.PbList<DkgToReject> createRepeated() => $pb.PbList<DkgToReject>();
+  DkgReference createEmptyInstance() => create();
+  static $pb.PbList<DkgReference> createRepeated() =>
+      $pb.PbList<DkgReference>();
   @$core.pragma('dart2js:noInline')
-  static DkgToReject getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DkgToReject>(create);
-  static DkgToReject? _defaultInstance;
+  static DkgReference getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DkgReference>(create);
+  static DkgReference? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.List<$core.int> get sid => $_getN(0);
@@ -376,6 +381,15 @@ class DkgToReject extends $pb.GeneratedMessage {
   $core.bool hasName() => $_has(1);
   @$pb.TagNumber(2)
   void clearName() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get ceremonyId => $_getN(2);
+  @$pb.TagNumber(3)
+  set ceremonyId($core.List<$core.int> value) => $_setBytes(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCeremonyId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCeremonyId() => $_clearField(3);
 }
 
 class DkgCommitment extends $pb.GeneratedMessage {
@@ -383,11 +397,13 @@ class DkgCommitment extends $pb.GeneratedMessage {
     $core.List<$core.int>? sid,
     $core.String? name,
     $core.List<$core.int>? commitment,
+    $core.List<$core.int>? ceremonyId,
   }) {
     final result = create();
     if (sid != null) result.sid = sid;
     if (name != null) result.name = name;
     if (commitment != null) result.commitment = commitment;
+    if (ceremonyId != null) result.ceremonyId = ceremonyId;
     return result;
   }
 
@@ -409,6 +425,8 @@ class DkgCommitment extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'name')
     ..a<$core.List<$core.int>>(
         3, _omitFieldNames ? '' : 'commitment', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        4, _omitFieldNames ? '' : 'ceremonyId', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -458,6 +476,15 @@ class DkgCommitment extends $pb.GeneratedMessage {
   $core.bool hasCommitment() => $_has(2);
   @$pb.TagNumber(3)
   void clearCommitment() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.List<$core.int> get ceremonyId => $_getN(3);
+  @$pb.TagNumber(4)
+  set ceremonyId($core.List<$core.int> value) => $_setBytes(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasCeremonyId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCeremonyId() => $_clearField(4);
 }
 
 class DkgSecret extends $pb.GeneratedMessage {
@@ -534,6 +561,7 @@ class DkgRound2 extends $pb.GeneratedMessage {
     $core.String? name,
     $core.List<$core.int>? commitmentSetSignature,
     $core.Iterable<DkgSecret>? secrets,
+    $core.List<$core.int>? ceremonyId,
   }) {
     final result = create();
     if (sid != null) result.sid = sid;
@@ -541,6 +569,7 @@ class DkgRound2 extends $pb.GeneratedMessage {
     if (commitmentSetSignature != null)
       result.commitmentSetSignature = commitmentSetSignature;
     if (secrets != null) result.secrets.addAll(secrets);
+    if (ceremonyId != null) result.ceremonyId = ceremonyId;
     return result;
   }
 
@@ -564,6 +593,8 @@ class DkgRound2 extends $pb.GeneratedMessage {
         3, _omitFieldNames ? '' : 'commitmentSetSignature', $pb.PbFieldType.OY)
     ..pc<DkgSecret>(4, _omitFieldNames ? '' : 'secrets', $pb.PbFieldType.PM,
         subBuilder: DkgSecret.create)
+    ..a<$core.List<$core.int>>(
+        5, _omitFieldNames ? '' : 'ceremonyId', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -615,6 +646,15 @@ class DkgRound2 extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(4)
   $pb.PbList<DkgSecret> get secrets => $_getList(3);
+
+  @$pb.TagNumber(5)
+  $core.List<$core.int> get ceremonyId => $_getN(4);
+  @$pb.TagNumber(5)
+  set ceremonyId($core.List<$core.int> value) => $_setBytes(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasCeremonyId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearCeremonyId() => $_clearField(5);
 }
 
 class DkgAcks extends $pb.GeneratedMessage {

@@ -71,7 +71,7 @@ void main() {
   test('login protobuf and operation-prefixed stream retain fixed wire bytes', () async {
     // Two short opaque byte fields are sufficient to test protobuf layout;
     // they are deliberately not valid authentication credentials.
-    const loginHex = '0a02aabb120201021801';
+    const loginHex = '0a02aabb120201021802';
     final login = wire.LoginRequest(
       groupFingerprint: [0xaa, 0xbb],
       participantId: [1, 2],
@@ -80,7 +80,7 @@ void main() {
     expect(cl.bytesToHex(login.writeToBuffer()), loginHex);
     expect(
       wire.LoginRequest.fromBuffer(cl.hexToBytes(loginHex)).protocolVersion,
-      1,
+      2,
     );
     // Operation 1 is a one-byte QUIC varint, followed directly by LoginRequest.
     const streamHex = '01$loginHex';

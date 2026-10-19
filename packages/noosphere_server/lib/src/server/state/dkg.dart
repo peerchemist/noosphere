@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_protocol/domain.dart';
 
 abstract class DkgRoundState {}
@@ -16,8 +17,42 @@ class DkgRound1State extends DkgRoundState {
 /// participants.
 class DkgRound2State extends DkgRoundState {
   final Uint8List expectedHash;
-  final List<Identifier> participantsProvided = [];
-  DkgRound2State({required this.expectedHash});
+  final DkgCommitmentList commitments;
+  final int participantCount;
+  final Map<Identifier, DkgRound2Contribution> contributions = {};
+
+  DkgRound2State({
+    required Uint8List expectedHash,
+    DkgCommitmentList commitments = const [],
+    int? participantCount,
+  }) : expectedHash = Uint8List.fromList(expectedHash),
+       commitments = List.unmodifiable(commitments),
+       participantCount = participantCount ?? commitments.length;
+
+  bool get allSharesSubmitted => contributions.length == participantCount;
+}
+
+/// The exact accepted round-two payload from one participant.
+///
+/// The coordinator retains this mailbox data until every participant has
+/// durably acknowledged construction of the same group key. Ciphertexts are
+/// only exposed to their addressed recipient.
+class DkgRound2Contribution {
+  final cl.SchnorrSignature commitmentSetSignature;
+  final Map<Identifier, DkgEncryptedSecret> secrets;
+
+  DkgRound2Contribution({
+    required this.commitmentSetSignature,
+    required Map<Identifier, DkgEncryptedSecret> secrets,
+  }) : secrets = Map.unmodifiable(secrets);
+
+  DkgRound2ShareEvent shareFor(String name, Identifier sender, Identifier id) =>
+      DkgRound2ShareEvent(
+        name: name,
+        commitmentSetSignature: commitmentSetSignature,
+        sender: sender,
+        secret: secrets[id]!,
+      );
 }
 
 class DkgState implements Expirable {
@@ -28,6 +63,9 @@ class DkgState implements Expirable {
 
   /// The current round information
   DkgRoundState round;
+
+  /// Participants that have durably stored their final key share.
+  final Map<Identifier, Signed<DkgAck>> completionAcks = {};
 
   DkgState({
     required this.details,
@@ -40,4 +78,21 @@ class DkgState implements Expirable {
 
   DkgRound1State get round1 => round as DkgRound1State;
   DkgRound2State get round2 => round as DkgRound2State;
+
+  bool get awaitingCompletion => switch (round) {
+    DkgRound2State(:final allSharesSubmitted) => allSharesSubmitted,
+    _ => false,
+  };
+
+  bool get completed =>
+      awaitingCompletion && completionAcks.length == commitments.length;
+
+  cl.ECCompressedPublicKey? get completedGroupKey =>
+      completionAcks.values.firstOrNull?.obj.groupKey;
+
+  DkgCommitmentList get commitments => switch (round) {
+    DkgRound1State(:final commitments) => commitments,
+    DkgRound2State(:final commitments) => commitments,
+    _ => throw StateError('Unknown DKG round'),
+  };
 }

@@ -172,8 +172,8 @@ void main() {
 
       expect(client.onlineParticipants, {ids[1], ids[3], ids[4]});
 
-      // Round 1 DKG loses commitment from logged out participant
-      expectRound1Dkg({ids[1]});
+      // DKG contributions are independent of participant presence.
+      expectRound1Dkg({ids[0], ids[1]});
     });
 
     test("logout old client object if re-login", () async {
@@ -345,12 +345,13 @@ void main() {
 
       await tc1.logout();
       await tc2.logout();
-      tc1 = await login(0);
+      await expectLater(login(0), throwsA(isA<MissingDkgSecret>()));
       tc2 = await login(1);
 
-      // Both clients lose acceptance
-      expectDkg(tc1.client, false, false);
-      expectDkg(tc2.client, false, false);
+      // A participant whose host lost its private intermediate state fails
+      // explicitly. Fetching the proposal never re-approves it with new
+      // randomness. Participants that did not approve can still reconnect.
+      expectDkg(tc2.client, false, true);
     });
 
     test("requestDkg failure", () async {
@@ -692,7 +693,9 @@ void main() {
 
       // Duplicate identifier
 
+      ctx = TestContext();
       final tc2 = await login(0);
+      await tc2.client.requestDkg(getDkgDetails());
 
       for (int i = 0; i < 2; i++) {
         ctx.api.debugState.sendEventToAll(
@@ -863,16 +866,15 @@ void main() {
         ),
       );
 
-      test("handles logout causing DKG to return to round 1", () async {
+      test("handles logout without changing DKG progress", () async {
         ctx.api.debugState.sendEventToAll(
           ParticipantStatusEvent(id: ids.first, loggedIn: false),
         );
 
         await tc.evCollector.getExpectOneEvent<ParticipantStatusClientEvent>();
 
-        expect(tc.client.acceptedDkgs, isEmpty);
-        expect(tc.client.dkgRequests, hasLength(1));
-        expect(tc.client.dkgRequests.first.completed, isEmpty);
+        expect(tc.client.acceptedDkgs, hasLength(1));
+        expect(tc.client.dkgRequests, isEmpty);
       });
 
       test(
@@ -944,7 +946,8 @@ void main() {
         );
         ctx.api.debugState.sendEventToAll(ev);
         await tc.evCollector.expectOnlyOneEventType<UpdatedDkgClientEvent>();
-        await expectBadEvent(tc, ev);
+        ctx.api.debugState.sendEventToAll(ev);
+        await tc.evCollector.expectNoEventsOrError();
       });
     });
 

@@ -13,6 +13,7 @@ export 'src/domain/types/bytes_mappable.dart';
 export 'src/domain/types/cancelled_signatures_request.dart';
 export 'src/domain/types/dkg_ack.dart';
 export 'src/domain/types/dkg_ack_request.dart';
+export 'src/domain/types/dkg_ceremony_snapshot.dart';
 export 'src/domain/types/dkg_encrypted_secret.dart';
 export 'src/domain/types/encrypted_key_share.dart';
 export 'src/domain/types/expirable.dart';
@@ -34,4 +35,4 @@ export 'group_transition.dart';
 export 'room.dart';
 
 /// R&D baseline; revised in place until the first stable protocol release.
-const int noosphereRoastProtocolVersion = 1;
+const int noosphereRoastProtocolVersion = 2;

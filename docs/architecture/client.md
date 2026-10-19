@@ -31,12 +31,23 @@ host store.
    smaller.
 3. Each participant validates the full commitment set, runs part two, signs
    the commitment-set binding and encrypts one share per recipient.
-4. Recipients verify authorship, decrypt their shares and run part three.
-5. The client persists the new key before storing and sending its signed ACK.
+4. Recipients fetch only their addressed mailbox, verify every sender's
+   transcript signature, decrypt their shares and run part three.
+5. The client persists the new key before sending a completion acknowledgement
+   bound to the ceremony, transcript and resulting group public key.
 
-Invalid proofs, ciphertexts or shares reject the attempt. A logout during round
-two resets the attempt to round one. Temporary DKG secrets are not durable, so
-a restart requires a new attempt rather than resuming old round messages.
+Disconnecting does not remove a commitment or reset round two. On login, the
+client fetches the durable ceremony snapshot, tolerates identical deliveries,
+rejects conflicting deliveries and resubmits the exact prepared round-two
+payload when it is still available. Invalid proofs, ciphertexts or shares
+reject the attempt.
+
+Noosphere remains stateless with respect to durable application data: the host
+owns every storage provider. Full participant *process* restart is not yet
+available because Frosty 5.0.1 cannot serialize its opaque intermediate DKG
+secrets. If a host cannot restore a secret corresponding to an already
+published contribution, login fails with `MissingDkgSecret` instead of creating
+a replacement secret.
 
 ## Signing
 

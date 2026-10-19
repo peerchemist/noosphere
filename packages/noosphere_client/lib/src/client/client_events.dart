@@ -13,16 +13,6 @@ extension _ClientEvents on Client {
 
           if (!ev.loggedIn) {
             _state.onlineParticipants.remove(ev.id);
-
-            // Remove DKG commitments for logged out participant
-            for (final dkg in _state.round1Dkgs) {
-              dkg.round1.commitments.removeWhere((c) => c.$1 == ev.id);
-            }
-
-            // Reset round 2 DKGs to round 1
-            for (final dkg in _state.round2Dkgs) {
-              dkg.round = ClientDkgRound1State([], null);
-            }
           } else {
             _state.onlineParticipants.add(ev.id);
 
@@ -117,10 +107,6 @@ extension _ClientEvents on Client {
 
               final round2 = dkg.round2;
 
-              if (round2.secretShares.containsKey(ev.sender)) {
-                throw ServerMisbehaviour.alreadyHaveSecret();
-              }
-
               final senderKey = Client._getParticipantPubkeyForId(
                 config,
                 ev.sender,
@@ -148,6 +134,14 @@ extension _ClientEvents on Client {
                   culprit: ev.sender,
                   fault: DkgFault.secretCiphertext,
                 );
+                return;
+              }
+
+              final previous = round2.secretShares[ev.sender];
+              if (previous != null) {
+                if (!cl.bytesEqual(previous.toBytes(), secret.toBytes())) {
+                  throw ServerMisbehaviour.alreadyHaveSecret();
+                }
                 return;
               }
 

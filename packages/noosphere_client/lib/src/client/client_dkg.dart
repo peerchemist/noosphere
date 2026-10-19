@@ -5,7 +5,13 @@ extension _ClientDkg on Client {
       DkgPart1(identifier: config.id, threshold: threshold, n: config.groupN);
 
   Future<void> _rejectDkgWithoutSync(String name) async {
-    await api.rejectDkg(sid: _state.sessionID, name: name);
+    final dkg = _state.nameToDkg[name];
+    if (dkg == null) return;
+    await api.rejectDkg(
+      sid: _state.sessionID,
+      name: name,
+      ceremonyId: dkg.details.ceremonyId,
+    );
     _state.nameToDkg.remove(name);
   }
 
@@ -53,30 +59,157 @@ extension _ClientDkg on Client {
     }
 
     final key = await getPrivateKey(KeyPurpose.dkgPart2);
-
-    await api.submitDkgRound2(
-      sid: _state.sessionID,
-      name: dkg.details.name,
-      commitmentSetSignature: cl.SchnorrSignature.sign(
-        key,
-        dkg.details.hashWithCommitments(commitmentSet),
-      ),
-      secrets: part2.sharesToGive.map(
-        (id, share) => MapEntry(
-          id,
-          DkgEncryptedSecret.encrypt(
-            secretShare: share,
-            recipientKey: Client._getParticipantPubkeyForId(config, id),
-            senderKey: key,
-          ),
+    final signature = cl.SchnorrSignature.sign(
+      key,
+      dkg.details.hashWithCommitments(commitmentSet),
+    );
+    final secrets = part2.sharesToGive.map(
+      (id, share) => MapEntry(
+        id,
+        DkgEncryptedSecret.encrypt(
+          secretShare: share,
+          recipientKey: Client._getParticipantPubkeyForId(config, id),
+          senderKey: key,
         ),
       ),
     );
 
-    // Move state to round 2
-    dkg.round = ClientDkgRound2State(part2.secret, commitmentSet);
+    // Keep the exact prepared payload before crossing the transport boundary
+    // so an uncertain response can be retried byte-for-byte.
+    dkg.round = ClientDkgRound2State(
+      part2.secret,
+      commitmentSet,
+      outgoingSignature: signature,
+      outgoingSecrets: secrets,
+    );
+
+    await api.submitDkgRound2(
+      sid: _state.sessionID,
+      name: dkg.details.name,
+      ceremonyId: dkg.details.ceremonyId,
+      commitmentSetSignature: signature,
+      secrets: secrets,
+    );
 
     return false;
+  }
+
+  Future<void> _retryRound2(ClientDkgState dkg) async {
+    final round2 = dkg.round2;
+    await api.submitDkgRound2(
+      sid: _state.sessionID,
+      name: dkg.details.name,
+      ceremonyId: dkg.details.ceremonyId,
+      commitmentSetSignature: round2.outgoingSignature,
+      secrets: round2.outgoingSecrets,
+    );
+  }
+
+  Future<void> _resumeDkg(String name) async {
+    final local = _state.nameToDkg[name];
+    final snapshot = await api.getDkg(
+      sid: _state.sessionID,
+      name: name,
+      ceremonyId: local?.details.ceremonyId,
+    );
+    if (snapshot == null || snapshot.expiry.isExpired) return;
+    Client._checkSigned(config, snapshot.details, snapshot.creator);
+    Client._checkIdentifierSet(
+      config,
+      Client._idsFromCommitments(snapshot.commitments),
+    );
+    Client._checkIdentifierSet(config, snapshot.shareContributors);
+    Client._checkIdentifierSet(config, snapshot.completedParticipants);
+
+    final storedKey = _keys.values
+        .where(
+          (key) =>
+              key.name == name &&
+              (snapshot.groupPublicKey == null ||
+                  key.groupKey == snapshot.groupPublicKey),
+        )
+        .firstOrNull;
+    if (storedKey != null) {
+      final commitments = DkgCommitmentSet(snapshot.commitments);
+      await api.sendDkgAcks(
+        sid: _state.sessionID,
+        acks: {
+          await _createDkgAck(
+            storedKey.groupKey,
+            true,
+            ceremonyId: snapshot.ceremonyId,
+            transcriptHash: snapshot.details.obj.hashWithCommitments(
+              commitments,
+            ),
+          ),
+        },
+      );
+      _state.nameToDkg.remove(name);
+      return;
+    }
+
+    final dkg =
+        _state.nameToDkg[name] ??
+        _addDkgToState(
+          config: config,
+          details: snapshot.details.obj,
+          creator: snapshot.creator,
+          commitments: snapshot.commitments,
+        );
+
+    await dkg.synchronized(() async {
+      if (!cl.bytesEqual(
+        dkg.details.ceremonyId,
+        snapshot.details.obj.ceremonyId,
+      )) {
+        throw ServerMisbehaviour.changedDkgTranscript();
+      }
+
+      final localCommitments = {
+        for (final commitment in dkg.commitments) commitment.$1: commitment.$2,
+      };
+      for (final commitment in snapshot.commitments) {
+        final local = localCommitments[commitment.$1];
+        if (local != null &&
+            !cl.bytesEqual(local.toBytes(), commitment.$2.toBytes())) {
+          throw ServerMisbehaviour.changedDkgTranscript();
+        }
+      }
+
+      if (dkg.round is ClientDkgRound1State) {
+        final round1 = dkg.round1;
+        final localContribution = round1.commitments
+            .where((c) => c.$1 == config.id)
+            .firstOrNull;
+        final serverContributed = snapshot.commitments.any(
+          (c) => c.$1 == config.id,
+        );
+        round1.commitments
+          ..clear()
+          ..addAll(snapshot.commitments);
+        if (serverContributed && round1.ourSecret == null) {
+          throw MissingDkgSecret(name);
+        }
+        if (!serverContributed && localContribution != null) {
+          round1.commitments.add(localContribution);
+          await api.submitDkgCommitment(
+            sid: _state.sessionID,
+            name: name,
+            ceremonyId: dkg.details.ceremonyId,
+            commitment: localContribution.$2,
+          );
+        }
+        if (serverContributed || localContribution != null) {
+          await _doPart2IfReady(dkg);
+        }
+      } else if (!snapshot.shareContributors.contains(config.id)) {
+        await _retryRound2(dkg);
+      }
+    });
+
+    for (final share in snapshot.shares) {
+      await _handleEvent(share);
+    }
   }
 
   Future<void> _doPart3(ClientDkgState dkg) async {
@@ -115,19 +248,33 @@ extension _ClientDkg on Client {
     // Store and send our ACK
     await api.sendDkgAcks(
       sid: _state.sessionID,
-      acks: {await _createDkgAck(keyInfo.groupKey, true)},
+      acks: {
+        await _createDkgAck(
+          keyInfo.groupKey,
+          true,
+          ceremonyId: dkg.details.ceremonyId,
+          transcriptHash: dkg.details.hashWithCommitments(round2.commitmentSet),
+        ),
+      },
     );
     _sendEvent(CompletedDkgClientEvent(_keys[keyInfo.groupKey]!));
   }
 
   Future<SignedDkgAck> _createDkgAck(
     cl.ECCompressedPublicKey groupKey,
-    bool accept,
-  ) async {
+    bool accept, {
+    Uint8List? ceremonyId,
+    Uint8List? transcriptHash,
+  }) async {
     final ack = SignedDkgAck(
       signer: config.id,
       signed: Signed.sign(
-        obj: DkgAck(groupKey: groupKey, accepted: accept),
+        obj: DkgAck(
+          groupKey: groupKey,
+          accepted: accept,
+          ceremonyId: ceremonyId,
+          transcriptHash: transcriptHash,
+        ),
         key: await getPrivateKey(KeyPurpose.signAck),
       ),
     );
@@ -234,15 +381,16 @@ extension _ClientDkg on Client {
 
         final part1 = _getDkgPart1(dkg.details.threshold);
 
-        await api.submitDkgCommitment(
-          sid: _state.sessionID,
-          name: name,
-          commitment: part1.public,
-        );
-
         dkg.round1
           ..ourSecret = part1.secret
           ..commitments.add((config.id, part1.public));
+
+        await api.submitDkgCommitment(
+          sid: _state.sessionID,
+          name: name,
+          ceremonyId: dkg.details.ceremonyId,
+          commitment: part1.public,
+        );
 
         await _doPart2IfReady(dkg);
       });

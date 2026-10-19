@@ -23,15 +23,17 @@ message DkgRequest {
   bytes commitment = 3;
 }
 
-message DkgToReject {
+message DkgReference {
   bytes sid = 1;
   string name = 2;
+  bytes ceremony_id = 3;
 }
 
 message DkgCommitment {
   bytes sid = 1;
   string name = 2;
   bytes commitment = 3;
+  bytes ceremony_id = 4;
 }
 
 message DkgSecret {
@@ -44,6 +46,7 @@ message DkgRound2 {
   string name = 2;
   bytes commitment_set_signature = 3;
   repeated DkgSecret secrets = 4;
+  bytes ceremony_id = 5;
 }
 
 message DkgAcks {

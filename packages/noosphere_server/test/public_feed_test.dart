@@ -486,6 +486,23 @@ void main() {
         },
       );
     }
+    for (var i = 0; i < 2; i++) {
+      final ack = DkgAck(
+        groupKey: getAggregateKeyInfo().groupKey,
+        accepted: true,
+        ceremonyId: details.obj.ceremonyId,
+        transcriptHash: details.obj.hashWithCommitments(commitments),
+      );
+      await handler.sendDkgAcks(
+        sid: i == 0 ? sid0 : sid1,
+        acks: {
+          SignedDkgAck(
+            signer: ids[i],
+            signed: Signed.sign(obj: ack, key: getPrivkey(i)),
+          ),
+        },
+      );
+    }
     final signing = signObject(getSignaturesDetails());
     final signParts = [getSignPart1(i: 0), getSignPart1(i: 1)];
     await handler.requestSignatures(
@@ -624,23 +641,19 @@ void main() {
         handler = ServerApiHandler(config: config, persistence: persistence);
         await handler.ready;
         final page = (await handler.getPublicFeed(id, 0, 100))!;
-        expect(page.entries.map((e) => e.cursor), [1, 2, 3, 4]);
+        expect(page.entries.map((e) => e.cursor), [1, 2, 3]);
         expect(
           page.entries.take(2).map((e) => e.eventId),
           before.entries.map((e) => e.eventId),
         );
-        expect(page.entries.skip(2).map((e) => e.state), [
-          PublicFeedLifecycle.cancelled,
-          PublicFeedLifecycle.failed,
-        ]);
-        expect(page.entries[0].eventId, page.entries[2].eventId);
-        expect(page.entries[1].eventId, page.entries[3].eventId);
+        expect(page.entries.last.state, PublicFeedLifecycle.failed);
+        expect(page.entries[1].eventId, page.entries[2].eventId);
       }
       final nextSid = await _login(handler, 0);
       await _dkg(handler, nextSid, 'new-after-restart');
       expect(
-        (await handler.getPublicFeed(id, 4, 100))!.entries.single.cursor,
-        5,
+        (await handler.getPublicFeed(id, 3, 100))!.entries.single.cursor,
+        4,
       );
       await handler.shutdown();
     },
@@ -916,11 +929,10 @@ void main() {
         );
         await restored.ready;
         final page = (await restored.getPublicFeed(id, 0, 100))!;
-        expect(page.latestCursor, commitBeforeFailure ? 2 : 0);
+        expect(page.latestCursor, commitBeforeFailure ? 1 : 0);
         if (commitBeforeFailure) {
           expect(page.entries.map((e) => e.state), [
             PublicFeedLifecycle.requested,
-            PublicFeedLifecycle.cancelled,
           ]);
           final recoveredAgain = ServerApiHandler(
             config: handler.config,
@@ -928,7 +940,7 @@ void main() {
           );
           expect(
             (await recoveredAgain.getPublicFeed(id, 0, 100))!.latestCursor,
-            2,
+            1,
           );
         } else {
           expect(page.entries, isEmpty);

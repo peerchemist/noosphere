@@ -31,7 +31,7 @@ void main() {
       expect(result.exitCode, 0, reason: result.stderr as String);
       final journal = _snapshot(result.stdout as String)['publicFeed'] as Map;
       expect(journal['feedId'], feedId.hex);
-      expect(journal['nextCursor'], operation == 'seed' ? 2 : 3);
+      expect(journal['nextCursor'], 2);
       final entries = (journal['entries'] as List)
           .map(
             (e) =>
@@ -41,15 +41,11 @@ void main() {
           )
           .toList();
       expect(entries.first.state, PublicFeedLifecycle.requested);
-      if (operation != 'seed') {
-        expect(entries.last.cursor, 2);
-        expect(entries.last.state, PublicFeedLifecycle.cancelled);
-        expect(entries.first.eventId, entries.last.eventId);
-      }
+      expect(entries, hasLength(1));
     }
   });
 
-  test('real process restart durably interrupts an unfinished DKG', () async {
+  test('real process restart durably resumes an unfinished DKG', () async {
     final directory = await Directory.systemTemp.createTemp(
       'noosphere-server-restart-',
     );
@@ -71,7 +67,7 @@ void main() {
     ]);
     expect(seeded.exitCode, 0, reason: seeded.stderr as String);
     final active = _snapshot(seeded.stdout as String);
-    expect((active['dkg'] as List).single['status'], 'active');
+    expect((active['dkg'] as List).single['status'], 'resumable');
 
     final restarted = await Process.run(Platform.resolvedExecutable, [
       '--packages=$packageConfig',
@@ -81,7 +77,7 @@ void main() {
     ]);
     expect(restarted.exitCode, 0, reason: restarted.stderr as String);
     final recovered = _snapshot(restarted.stdout as String);
-    expect((recovered['dkg'] as List).single['status'], 'interrupted');
+    expect((recovered['dkg'] as List).single['status'], 'resumable');
   });
 }
 

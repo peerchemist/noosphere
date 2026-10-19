@@ -1,3 +1,5 @@
+import 'package:coinlib/coinlib.dart' as cl;
+import 'package:noosphere_protocol/api/types/dkg_encrypted_secret.dart';
 import 'package:noosphere_protocol/api/types/expirable.dart';
 import 'package:noosphere_protocol/api/types/expiry.dart';
 import 'package:noosphere_protocol/api/types/new_dkg_details.dart';
@@ -16,8 +18,15 @@ class ClientDkgRound1State extends ClientDkgRoundState {
 class ClientDkgRound2State extends ClientDkgRoundState {
   final DkgRound2Secret ourSecret;
   final DkgCommitmentSet commitmentSet;
+  final cl.SchnorrSignature outgoingSignature;
+  final Map<Identifier, DkgEncryptedSecret> outgoingSecrets;
   final Map<Identifier, DkgShareToGive> secretShares = {};
-  ClientDkgRound2State(this.ourSecret, this.commitmentSet);
+  ClientDkgRound2State(
+    this.ourSecret,
+    this.commitmentSet, {
+    required this.outgoingSignature,
+    required Map<Identifier, DkgEncryptedSecret> outgoingSecrets,
+  }) : outgoingSecrets = Map.unmodifiable(outgoingSecrets);
 }
 
 class ClientDkgState implements Expirable {
@@ -37,6 +46,11 @@ class ClientDkgState implements Expirable {
 
   ClientDkgRound1State get round1 => round as ClientDkgRound1State;
   ClientDkgRound2State get round2 => round as ClientDkgRound2State;
+  DkgCommitmentList get commitments => switch (round) {
+    ClientDkgRound1State(:final commitments) => commitments,
+    ClientDkgRound2State(:final commitmentSet) => commitmentSet.list,
+    _ => throw StateError('Unknown DKG round'),
+  };
 
   DkgInProgress progress(Identifier selfId) => DkgInProgress(
     details: details,
