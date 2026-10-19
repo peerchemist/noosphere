@@ -292,6 +292,7 @@ final class DemoSessionController extends ChangeNotifier
         description: 'Two-computer Noosphere Flutter test',
         threshold: 2,
         expiry: Expiry(const Duration(hours: 1)),
+        groupFingerprint: _group.fingerprint,
       ),
     );
   });
