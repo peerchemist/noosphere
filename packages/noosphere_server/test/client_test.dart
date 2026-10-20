@@ -5,6 +5,7 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_client/internals.dart';
 import 'package:noosphere_client/noosphere_client.dart';
 import 'package:noosphere_client/testing.dart';
+import 'package:noosphere_server/src/server/api_handler.dart';
 import 'package:noosphere_server/src/server/state/client_session.dart';
 import 'package:noosphere_server/src/server/state/dkg.dart';
 import 'package:noosphere_server/src/server/state/signatures_coordination.dart';
@@ -393,7 +394,10 @@ void main() {
       expectDkg(tc2.client, false, true);
       expect(tc2.client.dkgRequests.single.canResume, isTrue);
 
-      await tc1.client.rejectDkg('123');
+      await tc1.client.rejectDkg(
+        '123',
+        tc1.client.acceptedDkgs.single.details.ceremonyId,
+      );
       expectNoDkgs(tc1.client);
     });
 
@@ -442,10 +446,14 @@ void main() {
       );
       const name = 'accepted-durability-barrier';
       await creator.client.requestDkg(getDkgDetails(name: name));
-      await participant.evCollector.getExpectOneEvent<UpdatedDkgClientEvent>();
+      final proposal = await participant.evCollector
+          .getExpectOneEvent<UpdatedDkgClientEvent>();
 
       await expectLater(
-        participant.client.acceptDkg(name),
+        participant.client.acceptDkg(
+          name,
+          proposal.progress.details.ceremonyId,
+        ),
         throwsA(isA<StateError>()),
       );
       expect(savedState, isNotNull);
@@ -524,11 +532,15 @@ void main() {
       final creator = await login(0);
       final participant = await login(1);
       await creator.client.requestDkg(getDkgDetails(name: 'refresh-race'));
-      await participant.evCollector.getExpectOneEvent<UpdatedDkgClientEvent>();
+      final proposal = await participant.evCollector
+          .getExpectOneEvent<UpdatedDkgClientEvent>();
 
       final refresh = participant.client.refreshDkg('refresh-race');
       await api.fetched.future;
-      await participant.client.rejectDkg('refresh-race');
+      await participant.client.rejectDkg(
+        'refresh-race',
+        proposal.progress.details.ceremonyId,
+      );
       api.release.complete();
       await refresh;
 
@@ -651,10 +663,192 @@ void main() {
       },
     );
 
-    test("ignore DKG that doesn't exist", () async {
+    test(
+      'stale approval cannot contribute to a lower-threshold replacement',
+      () async {
+        final api = _TrackingDkgApi();
+        ctx = TestContext(api);
+        var persistedSecrets = 0;
+        final creator = await login(0);
+        final reviewer = await login(
+          1,
+          persistDkgSecret: (_, _) async => persistedSecrets++,
+        );
+        const name = 'stale-approval';
+        final original = getDkgDetails(
+          name: name,
+          threshold: 10,
+          attemptId: Uint8List(32)..last = 1,
+        );
+        await creator.client.requestDkg(original);
+        final reviewed = await reviewer.evCollector
+            .getExpectOneEvent<UpdatedDkgClientEvent>();
+
+        await creator.client.rejectDkg(name, original.ceremonyId);
+        await reviewer.evCollector.getExpectOneEvent<RejectedDkgClientEvent>();
+
+        final replacement = getDkgDetails(
+          name: name,
+          threshold: 2,
+          attemptId: Uint8List(32)..last = 2,
+        );
+        await creator.client.requestDkg(replacement);
+        await reviewer.evCollector.getExpectOneEvent<UpdatedDkgClientEvent>();
+
+        await expectLater(
+          reviewer.client.acceptDkg(name, reviewed.progress.details.ceremonyId),
+          throwsStateError,
+        );
+
+        final serverDkg = ctx.api.debugState.nameToDkg[name]!;
+        expect(serverDkg.details.obj.ceremonyId, replacement.ceremonyId);
+        expect(serverDkg.commitments.map((entry) => entry.$1), [ids.first]);
+        expect(reviewer.client.dkgRequests, hasLength(1));
+        expect(
+          reviewer.client.dkgRequests.single.details.ceremonyId,
+          replacement.ceremonyId,
+        );
+        expect(reviewer.client.acceptedDkgs, isEmpty);
+        expect(persistedSecrets, 0);
+        expect(api.commitmentCalls, 0);
+      },
+    );
+
+    test('stale rejection leaves a same-name replacement intact', () async {
+      final api = _TrackingDkgApi();
+      ctx = TestContext(api);
+      final creator = await login(0);
+      final reviewer = await login(1);
+      const name = 'stale-rejection';
+      final original = getDkgDetails(
+        name: name,
+        attemptId: Uint8List(32)..last = 3,
+      );
+      await creator.client.requestDkg(original);
+      final reviewed = await reviewer.evCollector
+          .getExpectOneEvent<UpdatedDkgClientEvent>();
+
+      await creator.client.rejectDkg(name, original.ceremonyId);
+      await reviewer.evCollector.getExpectOneEvent<RejectedDkgClientEvent>();
+
+      final replacement = getDkgDetails(
+        name: name,
+        attemptId: Uint8List(32)..last = 4,
+      );
+      await creator.client.requestDkg(replacement);
+      await reviewer.evCollector.getExpectOneEvent<UpdatedDkgClientEvent>();
+
+      await expectLater(
+        reviewer.client.rejectDkg(name, reviewed.progress.details.ceremonyId),
+        throwsStateError,
+      );
+
+      expect(
+        ctx.api.debugState.nameToDkg[name]!.details.obj.ceremonyId,
+        replacement.ceremonyId,
+      );
+      expect(reviewer.client.dkgRequests, hasLength(1));
+      expect(
+        reviewer.client.dkgRequests.single.details.ceremonyId,
+        replacement.ceremonyId,
+      );
+      expect(api.rejectionCalls, 1);
+    });
+
+    test(
+      'waiting approval cannot cross a rejection and same-name replacement',
+      () async {
+        final persistenceStarted = Completer<void>();
+        final releasePersistence = Completer<void>();
+        var persistenceCalls = 0;
+        final attacker = await ctx.login(2);
+        final creator = await login(0);
+        final reviewer = await login(
+          1,
+          persistDkgSecret: (_, _) async {
+            persistenceCalls++;
+            if (!persistenceStarted.isCompleted) {
+              persistenceStarted.complete();
+            }
+            await releasePersistence.future;
+          },
+        );
+        const name = 'approval-lock-race';
+        final original = getDkgDetails(
+          name: name,
+          threshold: 10,
+          attemptId: Uint8List(32)..last = 5,
+        );
+        await creator.client.requestDkg(original);
+        final reviewed = await reviewer.evCollector
+            .getExpectOneEvent<UpdatedDkgClientEvent>();
+
+        final blockingApproval = reviewer.client.acceptDkg(
+          name,
+          reviewed.progress.details.ceremonyId,
+        );
+        final blockingFailure = expectLater(
+          blockingApproval,
+          throwsA(isA<InvalidRequest>()),
+        );
+        await persistenceStarted.future;
+
+        await ctx.api.rejectDkg(
+          sid: attacker.sid,
+          name: name,
+          ceremonyId: original.ceremonyId,
+        );
+        await pumpEventQueue();
+
+        final waitingApproval = expectLater(
+          reviewer.client.acceptDkg(name, reviewed.progress.details.ceremonyId),
+          throwsStateError,
+        );
+        final replacement = getDkgDetails(
+          name: name,
+          threshold: 2,
+          attemptId: Uint8List(32)..last = 6,
+        );
+        await ctx.api.requestNewDkg(
+          sid: attacker.sid,
+          signedDetails: signObject(replacement, 2),
+          commitment: getDkgPart1(2).public,
+        );
+
+        releasePersistence.complete();
+        await blockingFailure;
+        await waitingApproval;
+        await waitFor(
+          () => reviewer.client.dkgRequests.any(
+            (request) => cl.bytesEqual(
+              request.details.ceremonyId,
+              replacement.ceremonyId,
+            ),
+          ),
+        );
+
+        final serverDkg = ctx.api.debugState.nameToDkg[name]!;
+        expect(serverDkg.details.obj.ceremonyId, replacement.ceremonyId);
+        expect(serverDkg.commitments.map((entry) => entry.$1), [ids[2]]);
+        expect(reviewer.client.acceptedDkgs, isEmpty);
+        expect(
+          reviewer.client.dkgRequests.single.details.ceremonyId,
+          replacement.ceremonyId,
+        );
+        expect(persistenceCalls, 1);
+      },
+    );
+
+    test("rejects an approval decision for a DKG that doesn't exist", () async {
       final TestClient(:client) = await login(0);
-      await client.rejectDkg("noexist");
-      await client.acceptDkg("noexist");
+      await expectLater(
+        client.rejectDkg("noexist", Uint8List(32)),
+        throwsStateError,
+      );
+      await expectLater(
+        client.acceptDkg("noexist", Uint8List(32)),
+        throwsStateError,
+      );
     });
 
     test("DKGs can be rejected", () async {
@@ -671,7 +865,8 @@ void main() {
       await evCollector2.getEvents();
 
       // Client 2 reject DKG
-      await client2.rejectDkg("123");
+      final proposal = client2.dkgRequests.single.details;
+      await client2.rejectDkg("123", proposal.ceremonyId);
 
       // Client 1 only receives event
       await evCollector2.expectNoEventsOrError();
@@ -749,7 +944,8 @@ void main() {
 
       // Client 1-9 accepts DKG
       for (final tc in tcs.skip(1)) {
-        await tc.client.acceptDkg("123");
+        final proposal = tc.client.dkgRequests.single.details;
+        await tc.client.acceptDkg("123", proposal.ceremonyId);
       }
 
       // Wait for completion
@@ -838,10 +1034,14 @@ void main() {
 
       await client1.requestDkg(getDkgDetails());
       await waitFor(() => client2.dkgRequests.length == 1);
-      await client2.acceptDkg("123");
+      final ceremonyId = client2.dkgRequests.single.details.ceremonyId;
+      await client2.acceptDkg("123", ceremonyId);
 
       for (final client in [client1, client2]) {
-        await expectLater(client.acceptDkg("123"), throwsArgumentError);
+        await expectLater(
+          client.acceptDkg("123", ceremonyId),
+          throwsArgumentError,
+        );
       }
     });
 
@@ -2577,4 +2777,38 @@ void main() {
       }
     });
   });
+}
+
+final class _TrackingDkgApi extends ServerApiHandler {
+  _TrackingDkgApi()
+    : super(config: serverConfig, persistence: newServerPersistence());
+
+  int commitmentCalls = 0;
+  int rejectionCalls = 0;
+
+  @override
+  Future<void> submitDkgCommitment({
+    required SessionID sid,
+    required String name,
+    required Uint8List ceremonyId,
+    required DkgPublicCommitment commitment,
+  }) {
+    commitmentCalls++;
+    return super.submitDkgCommitment(
+      sid: sid,
+      name: name,
+      ceremonyId: ceremonyId,
+      commitment: commitment,
+    );
+  }
+
+  @override
+  Future<void> rejectDkg({
+    required SessionID sid,
+    required String name,
+    required Uint8List ceremonyId,
+  }) {
+    rejectionCalls++;
+    return super.rejectDkg(sid: sid, name: name, ceremonyId: ceremonyId);
+  }
 }

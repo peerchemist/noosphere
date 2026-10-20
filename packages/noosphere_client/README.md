@@ -76,6 +76,21 @@ It is not exported by `noosphere_client.dart`.
 
 ## DKG completion
 
+Approval and rejection must be bound to the proposal shown to the user. Keep
+the `DkgInProgress` from that review and pass its ceremony ID with its name;
+the client rejects the decision if a different ceremony has since reused the
+name:
+
+```dart
+final proposal = client.dkgRequests.single;
+await client.acceptDkg(
+  proposal.details.name,
+  proposal.details.ceremonyId,
+);
+// Or reject the same reviewed proposal:
+// await client.rejectDkg(proposal.details.name, proposal.details.ceremonyId);
+```
+
 Listen to `Client.events` immediately after login. When this participant
 finishes a DKG and has durably stored its local FROST key, the client emits a
 `CompletedDkgClientEvent`. Its `keyDetails` contains the new

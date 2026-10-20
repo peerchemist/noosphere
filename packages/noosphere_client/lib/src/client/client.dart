@@ -323,10 +323,19 @@ class Client {
   /// The client will be assumed to have accepted the DKG.
   Future<void> requestDkg(NewDkgDetails details) => _requestDkg(details);
 
-  Future<void> rejectDkg(String name) =>
-      _runDkgSyncIfExists(name, (_) => _rejectDkgWithoutSync(name));
+  /// Rejects the reviewed DKG named [name].
+  ///
+  /// [ceremonyId] must come from the [DkgInProgress] that was presented for
+  /// review. The operation fails if that ceremony has since been replaced.
+  Future<void> rejectDkg(String name, Uint8List ceremonyId) =>
+      _rejectDkg(name, ceremonyId);
 
-  Future<void> acceptDkg(String name) => _acceptDkg(name);
+  /// Accepts the reviewed DKG named [name].
+  ///
+  /// [ceremonyId] must come from the [DkgInProgress] that was presented for
+  /// review. The operation fails if that ceremony has since been replaced.
+  Future<void> acceptDkg(String name, Uint8List ceremonyId) =>
+      _acceptDkg(name, ceremonyId);
 
   /// Reconciles one ceremony with its durable coordinator snapshot.
   ///

@@ -186,6 +186,23 @@ Future<void> _runScenario({
         ),
       ),
     );
+    await expectLater(
+      worker.rejectDkg('signer-0', staleDkg),
+      throwsA(
+        isA<NoosphereWorkerException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_state',
+        ),
+      ),
+    );
+    final replacement = (await worker.snapshot('signer-0')).dkgs
+        .singleWhere((dkg) => dkg.name == dkgName);
+    expect(
+      replacement.proposalBytes,
+      isNot(orderedEquals(staleDkg.proposalBytes)),
+    );
+    expect(replacement.description, 'Native worker integration test');
     final proposals = await Future.wait(pendingDkgs)
         .timeout(const Duration(seconds: 15));
     for (final proposal in proposals) {

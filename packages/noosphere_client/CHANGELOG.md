@@ -9,5 +9,7 @@ This release establishes the package as an Iroh-native fork of the original
   relay configuration, and dedicated protocol ALPNs.
 - Added fresh-session reconnection with bounded exponential backoff while
   avoiding automatic retries for mutations with ambiguous outcomes.
+- Bound `acceptDkg` and `rejectDkg` decisions to the reviewed ceremony ID so a
+  delayed decision cannot target a same-name replacement.
 - Moved shared domain types, protobuf messages, and framing into the sibling
   `noosphere` package.

@@ -135,13 +135,20 @@ void main() {
           groupFingerprint: group.fingerprint,
         ),
       );
-      await Future.wait(proposals).timeout(const Duration(seconds: 15));
+      final receivedProposals = await Future.wait(proposals)
+          .timeout(const Duration(seconds: 15));
       final completedKeys = Future.wait([
         for (final store in stores) store.waitForKeyWithName(dkgName, 3),
       ]);
       await Future.wait([
-        clients[1].acceptDkg(dkgName),
-        clients[2].acceptDkg(dkgName),
+        clients[1].acceptDkg(
+          dkgName,
+          receivedProposals[0].progress.details.ceremonyId,
+        ),
+        clients[2].acceptDkg(
+          dkgName,
+          receivedProposals[1].progress.details.ceremonyId,
+        ),
       ]);
       final keys = await completedKeys.timeout(const Duration(minutes: 2));
       expect(keys.map((key) => key.groupKey).toSet(), hasLength(1));

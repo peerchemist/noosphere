@@ -4,16 +4,20 @@ extension _ClientDkg on Client {
   DkgPart1 _getDkgPart1(int threshold) =>
       DkgPart1(identifier: config.id, threshold: threshold, n: config.groupN);
 
-  Future<void> _rejectDkgWithoutSync(String name) async {
-    final dkg = _state.nameToDkg[name];
-    if (dkg == null) return;
+  Future<void> _rejectDkgWithoutSync(ClientDkgState dkg) async {
+    final name = dkg.details.name;
     await api.rejectDkg(
       sid: _state.sessionID,
       name: name,
       ceremonyId: dkg.details.ceremonyId,
     );
-    _state.nameToDkg.remove(name);
+    if (identical(_state.nameToDkg[name], dkg)) {
+      _state.nameToDkg.remove(name);
+    }
   }
+
+  Future<void> _rejectDkg(String name, Uint8List ceremonyId) =>
+      _runExpectedDkgSync(name, ceremonyId, _rejectDkgWithoutSync);
 
   Future<void> _rejectBadDkg({
     required NewDkgDetails details,
@@ -21,7 +25,12 @@ extension _ClientDkg on Client {
     required DkgFault fault,
   }) async {
     // Send rejection to server and remove from state
-    await _rejectDkgWithoutSync(details.name);
+    final dkg = _state.nameToDkg[details.name];
+    if (dkg == null ||
+        !cl.bytesEqual(dkg.details.ceremonyId, details.ceremonyId)) {
+      return;
+    }
+    await _rejectDkgWithoutSync(dkg);
 
     // Send event of the rejection
     _sendEvent(
@@ -435,8 +444,8 @@ extension _ClientDkg on Client {
     });
   }
 
-  Future<void> _acceptDkg(String name) =>
-      _runDkgSyncIfExists(name, (dkg) async {
+  Future<void> _acceptDkg(String name, Uint8List ceremonyId) =>
+      _runExpectedDkgSync(name, ceremonyId, (dkg) async {
         if (_dkgIsAccepted(dkg)) {
           throw ArgumentError.value(name, "name", "not an unaccepted DKG");
         }
@@ -595,8 +604,28 @@ extension _ClientDkg on Client {
     final dkg = _state.nameToDkg[name];
 
     await dkg?.synchronized(() async {
-      // Check again if removed before start of async critical section
-      if (!dkgExists(name)) return;
+      // Check again if removed or replaced before the critical section starts.
+      if (!identical(_state.nameToDkg[name], dkg)) return;
+      await criticalSection(dkg);
+    });
+  }
+
+  Future<void> _runExpectedDkgSync(
+    String name,
+    Uint8List ceremonyId,
+    FutureOr<void> Function(ClientDkgState) criticalSection,
+  ) async {
+    final expectedCeremonyId = Uint8List.fromList(ceremonyId);
+    final dkg = _state.nameToDkg[name];
+    if (dkg == null) {
+      throw StateError('DKG proposal changed or is no longer pending.');
+    }
+
+    await dkg.synchronized(() async {
+      if (!identical(_state.nameToDkg[name], dkg) ||
+          !cl.bytesEqual(dkg.details.ceremonyId, expectedCeremonyId)) {
+        throw StateError('DKG proposal changed or is no longer pending.');
+      }
       await criticalSection(dkg);
     });
   }

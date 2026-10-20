@@ -75,12 +75,12 @@ void main() {
           groupFingerprint: group.fingerprint,
         ),
       );
-      await secondSawDkg.timeout(const Duration(seconds: 15));
+      final proposal = await secondSawDkg.timeout(const Duration(seconds: 15));
       final completedKeys = Future.wait([
         stores[0].waitForKeyWithName(dkgName, 2),
         stores[1].waitForKeyWithName(dkgName, 2),
       ]);
-      await clients[1].acceptDkg(dkgName);
+      await clients[1].acceptDkg(dkgName, proposal.progress.details.ceremonyId);
       final keys = await completedKeys.timeout(const Duration(minutes: 2));
       expect(keys[1].groupKey, keys[0].groupKey);
 

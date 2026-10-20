@@ -21,7 +21,7 @@ int getCommandLineInt(String prompt, int min, int max) {
 }
 
 class EventCompleters {
-  final gotDkg = Completer<void>();
+  final gotDkg = Completer<NewDkgDetails>();
   final gotSigsReq = Completer<void>();
   final signature = Completer<cl.SchnorrSignature>();
 
@@ -29,8 +29,8 @@ class EventCompleters {
     events.listen(
       (event) {
         switch (event) {
-          case UpdatedDkgClientEvent():
-            if (!gotDkg.isCompleted) gotDkg.complete();
+          case UpdatedDkgClientEvent(:final progress):
+            if (!gotDkg.isCompleted) gotDkg.complete(progress.details);
           case SignaturesRequestClientEvent():
             final metadata = event.request.details.metadata;
             if (metadata is MessageSignatureMetadata) {
@@ -139,10 +139,13 @@ void main() async {
   );
 
   // Wait for others to receive the DKG and accept
-  await Future.wait(
+  final proposals = await Future.wait(
     clientCompleters.skip(1).map((completers) => completers.gotDkg.future),
   );
-  await Future.wait(clients.skip(1).map((client) => client.acceptDkg(keyName)));
+  await Future.wait([
+    for (var i = 1; i < clients.length; i++)
+      clients[i].acceptDkg(keyName, proposals[i - 1].ceremonyId),
+  ]);
 
   print("All clients accepted DKG, waiting for completion...");
   print("Please wait up-to 20 minutes...");

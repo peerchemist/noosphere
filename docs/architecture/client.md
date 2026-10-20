@@ -28,7 +28,9 @@ host store.
    commitment. Initiation counts as local acceptance.
 2. Every other roster member explicitly accepts and submits a commitment.
    DKG requires the full roster even when the future signing threshold is
-   smaller.
+   smaller. Approval and rejection pass both the reviewed proposal name and
+   ceremony ID; the client validates both under the ceremony lock so a reused
+   name cannot redirect a delayed decision to a replacement proposal.
 3. Each participant validates the full commitment set, runs part two, signs
    the commitment-set binding and encrypts one share per recipient.
 4. Recipients fetch only their addressed mailbox, verify every sender's

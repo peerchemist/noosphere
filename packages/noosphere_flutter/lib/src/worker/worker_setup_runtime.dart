@@ -167,18 +167,20 @@ final class WorkerSetupRuntime {
     required Uint8List proposalBytes,
     required bool accept,
   }) => _withClient((client) async {
+    final proposal = NewDkgDetails.fromBytesAllowExpired(proposalBytes);
     final candidates = accept
         ? client.dkgRequests
         : [...client.dkgRequests, ...client.acceptedDkgs];
     final current = candidates.where((dkg) => dkg.details.name == name);
-    if (current.isEmpty ||
+    if (proposal.name != name ||
+        current.isEmpty ||
         !_bytesEqual(current.single.details.toBytes(), proposalBytes)) {
       throw StateError('DKG proposal changed or is no longer pending.');
     }
     if (accept) {
-      await client.acceptDkg(name);
+      await client.acceptDkg(name, proposal.ceremonyId);
     } else {
-      await client.rejectDkg(name);
+      await client.rejectDkg(name, proposal.ceremonyId);
     }
   });
 
