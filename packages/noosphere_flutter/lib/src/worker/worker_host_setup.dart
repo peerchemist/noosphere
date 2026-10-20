@@ -15,6 +15,7 @@ typedef HostProviders = ({
   ClientStorageInterface? storage,
   RoomPersistence? roomPersistence,
   GetPrivateKey? getPrivateKey,
+  PersistDkgSecret? persistDkgSecret,
   String? participant,
 });
 
@@ -34,6 +35,7 @@ final class HostSetup {
   ClientStorageInterface? storage;
   RoomPersistence? roomPersistence;
   GetPrivateKey? getPrivateKey;
+  PersistDkgSecret? persistDkgSecret;
   String? participant;
   Future<void> Function()? persistCoordinator;
   final _storageSerial = SerialExecutor();
@@ -42,13 +44,15 @@ final class HostSetup {
       serverPersistence != null ||
       storage != null ||
       roomPersistence != null ||
-      getPrivateKey != null;
+      getPrivateKey != null ||
+      persistDkgSecret != null;
 
   HostProviders get providers => (
     serverPersistence: serverPersistence,
     storage: storage,
     roomPersistence: roomPersistence,
     getPrivateKey: getPrivateKey,
+    persistDkgSecret: persistDkgSecret,
     participant: participant,
   );
 
@@ -57,6 +61,7 @@ final class HostSetup {
     storage = value.storage;
     roomPersistence = value.roomPersistence;
     getPrivateKey = value.getPrivateKey;
+    persistDkgSecret = value.persistDkgSecret;
     participant = value.participant;
   }
 
@@ -71,6 +76,7 @@ final class HostSetup {
     if (client != null) {
       storage = client.storage;
       getPrivateKey = client.getPrivateKey;
+      persistDkgSecret = client.persistDkgSecret;
       participant = client.clientConfig.id.toString();
     }
   }
@@ -79,6 +85,7 @@ final class HostSetup {
     if (roles != NoosphereWorkerRoles.server) {
       storage = null;
       getPrivateKey = null;
+      persistDkgSecret = null;
       participant = null;
     }
     if (roles != NoosphereWorkerRoles.signer) {
@@ -151,6 +158,15 @@ final class HostSetup {
           KeyPurpose.values[payload['purpose']! as int],
         );
         return key.data;
+      case ProviderOperation.persistDkgSecret:
+        final persist = persistDkgSecret;
+        if (persist == null) {
+          throw StateError('No DKG persistence provider.');
+        }
+        return _serializeStorage(() async {
+          await persist(payload['name']! as String, asBytes(payload['state']));
+          return null;
+        });
       default:
         // Capture the provider now: a timed-out request may remain queued
         // after this setup is stopped or rebound. A replacement using the same

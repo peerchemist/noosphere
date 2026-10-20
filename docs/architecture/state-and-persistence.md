@@ -84,12 +84,28 @@ authoritative; live events are only progress notifications and may be replayed.
 
 Participant process restart additionally requires the host to restore the
 round-one or round-two private secret and the exact pending payload. Noosphere
-exposes opaque export/import operations but does not persist those bytes. The
-calling application must export after each round transition, protect the bytes
-in encrypted storage, import the matching current-ceremony state after restart,
-and delete it after completion or rejection. Without an import, explicit
-refresh reports `MissingDkgSecret`, while login and rejection remain available;
-the client never substitutes fresh randomness.
+does not persist those bytes. Frosty generates and serializes the cryptographic
+round secrets; Noosphere wraps them with enough ceremony and exact outgoing
+payload data to resume safely.
+
+For crash-safe operation, the calling application supplies
+`persistDkgSecret`. Noosphere awaits this durability callback after preparing
+round-one or round-two state and before submitting the corresponding message.
+A callback failure prevents submission. The application chooses the storage
+format and location, atomically replaces the previous blob, and protects it as
+private key material. `exportDkgSecret` remains available for explicit export,
+but Noosphere never places these blobs in `ClientStorageInterface` or another
+Noosphere storage snapshot.
+
+After restart, login restores only the coordinator's public ceremony state. It
+does not load the participant secret. The application reads its own storage and
+passes the matching blob to `importDkgSecret`; Noosphere validates it against
+the current ceremony and reconciles or retries the exact contribution. Without
+an import, explicit refresh reports `MissingDkgSecret`, while login and
+rejection remain available; the client never substitutes fresh randomness. The
+application deletes its blob after completion, rejection, or expiry. A
+complete worker-level example is
+[`worker_dkg_dropout_test.dart`](../../apps/integration_host/integration_test/worker_dkg_dropout_test.dart).
 
 Rejected or expired ceremonies leave terminal records keyed by ceremony ID.
 Those records are retained for `maxDkgRequestTTL` from terminalization and are

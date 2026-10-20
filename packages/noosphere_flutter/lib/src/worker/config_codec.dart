@@ -69,6 +69,7 @@ Map<String, Object?> encodeClientOptions(ClientNodeOptions options) => {
   'rpcTimeout': options.rpcTimeout.inMicroseconds,
   'maxMessageLength': options.maxMessageLength,
   'maxConcurrentStreams': options.maxConcurrentStreams,
+  'persistDkgSecret': options.persistDkgSecret != null,
   'reconnect': {
     'initialDelay': options.reconnect.initialDelay.inMicroseconds,
     'maxDelay': options.reconnect.maxDelay.inMicroseconds,
@@ -81,6 +82,7 @@ ClientNodeOptions decodeClientOptions(
   Map<Object?, Object?> value,
   ClientStorageInterface storage,
   GetPrivateKey getPrivateKey,
+  PersistDkgSecret persistDkgSecret,
 ) {
   final reconnect = value['reconnect']! as Map<Object?, Object?>;
   return ClientNodeOptions(
@@ -98,6 +100,9 @@ ClientNodeOptions decodeClientOptions(
     pinnedServerId: PublicKey.fromBytes(asBytes(value['pinnedServerId'])),
     storage: storage,
     getPrivateKey: getPrivateKey,
+    persistDkgSecret: value['persistDkgSecret'] == true
+        ? persistDkgSecret
+        : null,
     relay: decodeRelay(value['relay']),
     alpn: value['alpn']! as String,
     connectTimeout: micros(value['connectTimeout']),

@@ -136,6 +136,13 @@ final class WorkerSetupRuntime {
     return coinlib.ECPrivateKey(asBytes(bytes));
   }
 
+  Future<void> _persistDkgSecret(String name, Uint8List state) async {
+    await host.request(setupId, ProviderOperation.persistDkgSecret, {
+      'name': name,
+      'state': state,
+    });
+  }
+
   Future<Object?> requestDkg(NewDkgDetails details) =>
       _withClient((client) => client.requestDkg(details));
 

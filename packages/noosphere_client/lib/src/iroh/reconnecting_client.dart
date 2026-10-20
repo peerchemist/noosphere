@@ -56,6 +56,7 @@ final class ReconnectingIrohClient {
     required this._transportConfig,
     required this.store,
     required this.getPrivateKey,
+    required this.persistDkgSecret,
     required this.reconnectConfig,
     required this._endpoint,
     required this._ownsEndpoint,
@@ -66,6 +67,7 @@ final class ReconnectingIrohClient {
     required IrohClientTransportConfig transportConfig,
     required ClientStorageInterface store,
     required GetPrivateKey getPrivateKey,
+    PersistDkgSecret? persistDkgSecret,
     IrohReconnectConfig reconnectConfig = const IrohReconnectConfig(),
     IrohClientEndpoint? endpoint,
   }) async {
@@ -76,6 +78,7 @@ final class ReconnectingIrohClient {
       transportConfig: transportConfig,
       store: store,
       getPrivateKey: getPrivateKey,
+      persistDkgSecret: persistDkgSecret,
       reconnectConfig: reconnectConfig,
       endpoint: rootEndpoint,
       ownsEndpoint: endpoint == null,
@@ -93,6 +96,7 @@ final class ReconnectingIrohClient {
   IrohClientTransportConfig _transportConfig;
   final ClientStorageInterface store;
   final GetPrivateKey getPrivateKey;
+  final PersistDkgSecret? persistDkgSecret;
   final IrohReconnectConfig reconnectConfig;
   final IrohClientEndpoint _endpoint;
   final bool _ownsEndpoint;
@@ -151,6 +155,7 @@ final class ReconnectingIrohClient {
         api: api,
         store: store,
         getPrivateKey: getPrivateKey,
+        persistDkgSecret: persistDkgSecret,
         onDisconnect: () => _onDisconnect(generation),
       );
       if (_closed || generation != _generation) {

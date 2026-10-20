@@ -83,6 +83,7 @@ extension _ClientDkg on Client {
       outgoingSignature: signature,
       outgoingSecrets: secrets,
     );
+    await _persistDkgSecret(dkg);
 
     await api.submitDkgRound2(
       sid: _state.sessionID,
@@ -97,6 +98,7 @@ extension _ClientDkg on Client {
 
   Future<void> _retryRound2(ClientDkgState dkg) async {
     final round2 = dkg.round2;
+    await _persistDkgSecret(dkg);
     await api.submitDkgRound2(
       sid: _state.sessionID,
       name: dkg.details.name,
@@ -222,6 +224,7 @@ extension _ClientDkg on Client {
           return;
         }
         if (!serverContributed && localContribution != null) {
+          await _persistDkgSecret(dkg);
           await api.submitDkgCommitment(
             sid: _state.sessionID,
             name: name,
@@ -400,21 +403,32 @@ extension _ClientDkg on Client {
       // Create commitment and part 1 secret
       final part1 = _getDkgPart1(details.threshold);
 
-      // Submit to server
-      await api.requestNewDkg(
-        sid: _state.sessionID,
-        signedDetails: signedDetails,
-        commitment: part1.public,
-      );
-
-      // Update state
-      _state.nameToDkg[details.name] = ClientDkgState(
+      final dkg = ClientDkgState(
         details: details,
         creator: config.id,
         commitments: [(config.id, part1.public)],
         ourSecret: part1.secret,
         expiry: details.expiry,
       );
+      _state.nameToDkg[details.name] = dkg;
+      try {
+        await _persistDkgSecret(dkg);
+      } catch (_) {
+        _state.nameToDkg.remove(details.name);
+        rethrow;
+      }
+
+      // Submit to server
+      try {
+        await api.requestNewDkg(
+          sid: _state.sessionID,
+          signedDetails: signedDetails,
+          commitment: part1.public,
+        );
+      } on InvalidRequest {
+        _state.nameToDkg.remove(details.name);
+        rethrow;
+      }
     });
   }
 
@@ -429,6 +443,8 @@ extension _ClientDkg on Client {
         dkg.round1
           ..ourSecret = part1.secret
           ..commitments.add((config.id, part1.public));
+
+        await _persistDkgSecret(dkg);
 
         await api.submitDkgCommitment(
           sid: _state.sessionID,
@@ -455,6 +471,9 @@ extension _ClientDkg on Client {
         ceremonyId: dkg.details.ceremonyId,
         stage: DkgSecretStage.round1,
         secret: secret.toBytes(),
+        outgoingCommitment: round.commitments
+            .singleWhere((entry) => entry.$1 == config.id)
+            .$2,
       ).toBytes();
     }
     if (round is ClientDkgRound2State) {
@@ -489,15 +508,26 @@ extension _ClientDkg on Client {
     if (!cl.bytesEqual(dkg.details.ceremonyId, stored.ceremonyId)) {
       throw ServerMisbehaviour.changedDkgTranscript();
     }
-    if (!dkg.commitments.any((entry) => entry.$1 == config.id)) {
-      throw ServerMisbehaviour.changedDkgTranscript();
-    }
     if (stored.stage == DkgSecretStage.round1) {
       if (dkg.round is! ClientDkgRound1State) {
         throw ServerMisbehaviour.changedDkgTranscript();
       }
+      final outgoing = stored.outgoingCommitment!;
+      final existing = dkg.round1.commitments
+          .where((entry) => entry.$1 == config.id)
+          .firstOrNull;
+      if (existing != null &&
+          !cl.bytesEqual(existing.$2.toBytes(), outgoing.toBytes())) {
+        throw ServerMisbehaviour.changedDkgTranscript();
+      }
+      if (existing == null) {
+        dkg.round1.commitments.add((config.id, outgoing));
+      }
       dkg.round1.ourSecret = DkgRound1Secret.fromBytes(stored.secret);
     } else {
+      if (!dkg.commitments.any((entry) => entry.$1 == config.id)) {
+        throw ServerMisbehaviour.changedDkgTranscript();
+      }
       final commitmentSet = stored.commitmentSet!;
       if (!cl.bytesEqual(
         commitmentSet.toBytes(),
@@ -528,6 +558,15 @@ extension _ClientDkg on Client {
       ..missingSecret = false
       ..unavailableStage = null
       ..unavailableCompleted = null;
+  }
+
+  Future<void> _persistDkgSecret(ClientDkgState dkg) async {
+    final persist = persistDkgSecret;
+    if (persist == null) return;
+    await persist(
+      dkg.details.name,
+      Uint8List.fromList(_exportDkgSecret(dkg.details.name)),
+    );
   }
 
   ClientDkgState _addDkgToState({

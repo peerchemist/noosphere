@@ -282,6 +282,7 @@ final class _WorkerRuntime {
                 client,
                 _RemoteClientStorage(_host, setupId),
                 setup._getPrivateKey,
+                setup._persistDkgSecret,
               ),
       );
       return setup.snapshot();

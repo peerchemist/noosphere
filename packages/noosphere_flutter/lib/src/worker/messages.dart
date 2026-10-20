@@ -35,6 +35,7 @@ enum ProviderOperation {
   loadServer,
   writeServer,
   getPrivateKey,
+  persistDkgSecret,
   loadState,
   addKey,
   addNonces,

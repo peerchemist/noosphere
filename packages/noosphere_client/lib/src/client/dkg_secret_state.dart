@@ -12,6 +12,7 @@ final class DkgSecretState({
   required final Uint8List ceremonyId,
   required final DkgSecretStage stage,
   required final Uint8List secret,
+  final DkgPublicCommitment? outgoingCommitment,
   final DkgCommitmentSet? commitmentSet,
   final cl.SchnorrSignature? outgoingSignature,
   final Map<Identifier, DkgEncryptedSecret> outgoingSecrets = const {},
@@ -33,6 +34,9 @@ final class DkgSecretState({
             ceremonyId: ceremonyId,
             stage: stage,
             secret: secret,
+            outgoingCommitment: DkgPublicCommitment.fromBytes(
+              reader.readVarSlice(),
+            ),
           );
         }
 
@@ -71,7 +75,10 @@ final class DkgSecretState({
       ..writeSlice(ceremonyId)
       ..writeUInt8(stage.index)
       ..writeVarSlice(secret);
-    if (stage == DkgSecretStage.round1) return;
+    if (stage == DkgSecretStage.round1) {
+      writer.writeVarSlice(outgoingCommitment!.toBytes());
+      return;
+    }
 
     writer
       ..writeVarSlice(commitmentSet!.toBytes())

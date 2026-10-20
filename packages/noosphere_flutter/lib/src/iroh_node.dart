@@ -242,6 +242,7 @@ final class _NativeBackend implements NoosphereRuntimeBackend {
       transportConfig: options.toTransportConfig(),
       store: options.storage,
       getPrivateKey: options.getPrivateKey,
+      persistDkgSecret: options.persistDkgSecret,
       reconnectConfig: options.reconnect,
     );
     return _NativeClientRole(_IrohClientConnection(client));
@@ -337,6 +338,7 @@ final class _LocalClientConnection implements RuntimeClientConnection {
         api: api,
         store: options.storage,
         getPrivateKey: options.getPrivateKey,
+        persistDkgSecret: options.persistDkgSecret,
         onDisconnect: () {
           connected = false;
           connection?._connected = false;

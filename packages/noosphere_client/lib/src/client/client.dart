@@ -26,6 +26,13 @@ part 'client_signing.dart';
 
 typedef GetPrivateKey = Future<cl.ECPrivateKey> Function(KeyPurpose purpose);
 
+/// Persists opaque private DKG state before its corresponding contribution is
+/// submitted to the coordinator.
+///
+/// The calling application owns this state: it must store it securely and
+/// explicitly restore it with [Client.importDkgSecret] after a restart.
+typedef PersistDkgSecret = Future<void> Function(String name, Uint8List state);
+
 /// An exception thrown when the server misbehaves
 class ServerMisbehaviour implements Exception {
   final String message;
@@ -111,6 +118,7 @@ class Client {
   /// An asynchronous function to get the private key to allow for secure
   /// ephemeral access as needed.
   final GetPrivateKey getPrivateKey;
+  final PersistDkgSecret? persistDkgSecret;
   final void Function() onDisconnect;
 
   late final ClientState _state;
@@ -234,6 +242,7 @@ class Client {
     required Expiry sessionExpiry,
     required Stream<Event> events,
     required this.getPrivateKey,
+    required this.persistDkgSecret,
     required this.onDisconnect,
   }) {
     _state = ClientState(
@@ -296,12 +305,14 @@ class Client {
     required ApiRequestInterface api,
     required ClientStorageInterface store,
     required GetPrivateKey getPrivateKey,
+    PersistDkgSecret? persistDkgSecret,
     void Function()? onDisconnect,
   }) => _loginClient(
     config: config,
     api: api,
     store: store,
     getPrivateKey: getPrivateKey,
+    persistDkgSecret: persistDkgSecret,
     onDisconnect: onDisconnect,
   );
 

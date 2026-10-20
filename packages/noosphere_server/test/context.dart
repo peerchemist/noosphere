@@ -388,6 +388,7 @@ class TestClient {
     ApiRequestInterface api,
     int i, {
     InMemoryClientStorage? storage,
+    PersistDkgSecret? persistDkgSecret,
     void Function()? onDisconnect,
   }) async {
     final store = storage ?? InMemoryClientStorage();
@@ -396,6 +397,7 @@ class TestClient {
       api: api,
       store: store,
       getPrivateKey: (_) async => getPrivkey(i),
+      persistDkgSecret: persistDkgSecret,
       onDisconnect: onDisconnect,
     );
     final evCollector = ClientEventCollector(client.events);

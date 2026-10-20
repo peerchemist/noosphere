@@ -9,6 +9,7 @@ ClientNodeOptions nativeTestClientOptions({
   required ECPrivateKey key,
   required EndpointAddr address,
   ClientStorageInterface? storage,
+  PersistDkgSecret? persistDkgSecret,
 }) => ClientNodeOptions(
   clientConfig: ClientConfig(group: group, id: participant),
   bootstrapAddress: address,
@@ -16,6 +17,7 @@ ClientNodeOptions nativeTestClientOptions({
   relay: IrohRelayConfig.disabled(),
   storage: storage ?? InMemoryClientStorage(),
   getPrivateKey: (_) async => key,
+  persistDkgSecret: persistDkgSecret,
   reconnect: const IrohReconnectConfig(
     initialDelay: Duration(milliseconds: 100),
     maxDelay: Duration(seconds: 1),

@@ -17,6 +17,7 @@ final class ClientNodeOptions({
   required final EndpointId pinnedServerId,
   required final ClientStorageInterface storage,
   required final GetPrivateKey getPrivateKey,
+  final PersistDkgSecret? persistDkgSecret,
   final IrohRelayConfig? relay,
   final String alpn = noosphereIrohAlpn,
   final Duration connectTimeout =
@@ -34,6 +35,7 @@ final class ClientNodeOptions({
     pinnedServerId: address.id,
     storage: storage,
     getPrivateKey: getPrivateKey,
+    persistDkgSecret: persistDkgSecret,
     relay: relay,
     alpn: alpn,
     connectTimeout: connectTimeout,

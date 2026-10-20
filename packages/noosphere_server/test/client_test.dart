@@ -54,12 +54,14 @@ void main() {
     Future<TestClient> login(
       int i, {
       InMemoryClientStorage? storage,
+      PersistDkgSecret? persistDkgSecret,
       void Function()? onDisconnect,
     }) async {
       final client = await TestClient.login(
         ctx.api,
         i,
         storage: storage,
+        persistDkgSecret: persistDkgSecret,
         onDisconnect: onDisconnect,
       );
       clientsToLogout.add(client);
@@ -388,6 +390,65 @@ void main() {
 
       await tc1.client.rejectDkg('123');
       expectNoDkgs(tc1.client);
+    });
+
+    test(
+      'DKG persistence callback is a pre-submit durability barrier',
+      () async {
+        var allowPersistence = false;
+        Uint8List? savedState;
+        final creator = await login(
+          0,
+          persistDkgSecret: (name, state) async {
+            expect(name, 'durability-barrier');
+            savedState = Uint8List.fromList(state);
+            if (!allowPersistence) throw StateError('not durable');
+          },
+        );
+        final details = getDkgDetails(name: 'durability-barrier');
+
+        await expectLater(
+          creator.client.requestDkg(details),
+          throwsA(isA<StateError>()),
+        );
+        expect(savedState, isNotNull);
+        expect(
+          ctx.api.debugState.nameToDkg[details.name],
+          isNull,
+          reason: 'the coordinator must not see state that was not persisted',
+        );
+
+        allowPersistence = true;
+        await creator.client.requestDkg(details);
+        expect(ctx.api.debugState.nameToDkg[details.name], isNotNull);
+      },
+    );
+
+    test('accepted DKG commitment waits for app persistence', () async {
+      var allowPersistence = false;
+      Uint8List? savedState;
+      final creator = await login(0);
+      final participant = await login(
+        1,
+        persistDkgSecret: (_, state) async {
+          savedState = Uint8List.fromList(state);
+          if (!allowPersistence) throw StateError('not durable');
+        },
+      );
+      const name = 'accepted-durability-barrier';
+      await creator.client.requestDkg(getDkgDetails(name: name));
+      await participant.evCollector.getExpectOneEvent<UpdatedDkgClientEvent>();
+
+      await expectLater(
+        participant.client.acceptDkg(name),
+        throwsA(isA<StateError>()),
+      );
+      expect(savedState, isNotNull);
+      expect(ctx.api.debugState.nameToDkg[name]!.commitments, hasLength(1));
+
+      allowPersistence = true;
+      await participant.client.refreshDkg(name);
+      expect(ctx.api.debugState.nameToDkg[name]!.commitments, hasLength(2));
     });
 
     test("requestDkg failure", () async {

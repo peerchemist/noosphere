@@ -5,6 +5,7 @@ Future<Client> _loginClient({
   required ApiRequestInterface api,
   required ClientStorageInterface store,
   required GetPrivateKey getPrivateKey,
+  PersistDkgSecret? persistDkgSecret,
   void Function()? onDisconnect,
 }) async {
   // Get key and load storage
@@ -103,6 +104,7 @@ Future<Client> _loginClient({
     sessionExpiry: resp2.expiry,
     events: resp2.events,
     getPrivateKey: getPrivateKey,
+    persistDkgSecret: persistDkgSecret,
     onDisconnect: onDisconnect ?? () {},
   );
 

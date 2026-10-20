@@ -1,7 +1,11 @@
 # Resumable DKG with independently connected participants
 
-Status: proposed implementation plan. No protocol or implementation changes are
-included in this document.
+Status: historical implementation plan. The implemented participant-persistence
+boundary differs from the original proposal: the calling application owns
+durable private DKG state through a pre-submit callback and explicit import;
+Noosphere storage does not retain it. See
+[`state-and-persistence.md`](../architecture/state-and-persistence.md#resumable-dkg-boundary)
+for the authoritative design.
 
 ## Objective and limits
 
@@ -144,34 +148,36 @@ and logging, public snapshots, and coordinator persistence must exclude them.
 Define the format and disposal behavior, including temporary byte copies. Do
 not replace serialization with newly generated randomness on resume.
 
-Extend `ClientStorageInterface` and storage snapshots to atomically retain:
-
-- Approved ceremony details and the pinned transcript, when available.
-- Current intermediate private secret and exact pending outgoing payload.
-- Received contributions or sufficient durable retrieval/progress information.
-- Finalization state and pending completion acknowledgement.
+Keep private participant state outside `ClientStorageInterface` and Noosphere
+storage snapshots. Expose an application-owned durability callback carrying an
+opaque blob that includes the current intermediate secret and exact pending
+outgoing payload. Await successful application persistence before every network
+submission. The application chooses storage, encryption and atomic replacement.
 
 Persist preparation before every network submission. After an uncertain response,
 retry the same payload or reconcile it with server state. Commit the final key
-and recoverable acknowledgement state before discarding intermediate secrets.
-If required local secret material is lost, explicitly fail the attempt; do not
-silently replace a previously published commitment.
+and recoverable acknowledgement state before signaling completion; the
+application may then discard its intermediate secret. If required local secret
+material is lost, explicitly fail the attempt; do not silently replace a
+previously published commitment.
 
 ## Phase 4: Resume the client and host workflows
 
-Remove peer-presence-driven DKG resets. Load unfinished local ceremonies before
-reconciling server snapshots, verify the frozen transcript, and advance only
-when the required inputs are present. Persist the exact transcript a participant
-has signed and refuse a different transcript for the same ceremony.
+Remove peer-presence-driven DKG resets. Reconstruct public ceremonies from the
+coordinator snapshot, then let the application explicitly import any matching
+private state it owns. Verify the frozen transcript and advance only when the
+required inputs are present. Include the exact signed transcript in the
+application-owned blob and refuse a different transcript for the same ceremony.
 
 Allow reconnect and process restart in every stage. Repeated identical shares
 are harmless; conflicting shares remain errors. Never treat fetching a proposal
 as user approval. Existing approval decisions should survive restart.
 
-Update Flutter worker messages, production storage providers, demo integrations,
-and progress DTOs as required. Present separately which participants have uploaded
-and which have finished; offline status must not imply failed DKG. Reuse the
-existing key storage and signing interfaces after successful finalization.
+Update Flutter worker messages to forward the application durability callback,
+plus demo integrations and progress DTOs as required. Present separately which
+participants have uploaded and which have finished; offline status must not
+imply failed DKG. Reuse the existing key storage and signing interfaces after
+successful finalization.
 
 ## Completion, expiry, and security rules
 
@@ -208,14 +214,16 @@ against those requirements before release.
 2. Implement protocol operations, durable server transitions, and server recovery
    tests with explicitly controlled participant inputs.
 3. Add Frosty intermediate-secret serialization and verify round-trip recovery.
-4. Implement client persistence, retry/reconciliation, and host provider updates.
+4. Implement the client durability barrier, retry/reconciliation, and
+   application-provider bridge.
 5. Add end-to-end non-overlap tests, then update the architecture docs.
 
 Define one wire protocol and persistence grammar for the feature. Inputs outside
 those grammars have no DKG meaning and fail ordinary parsing or validation.
 
 Server-only work is a useful first milestone but does not deliver restart-safe
-asynchronous DKG until Frosty and client persistence are available.
+asynchronous DKG until Frosty serialization and application persistence are
+available.
 
 ## Verification and acceptance criteria
 
@@ -238,7 +246,7 @@ asynchronous DKG until Frosty and client persistence are available.
   handling, and missing local secret handling.
 - Verify a missing participant leaves the ceremony pending until its deadline;
   the signing threshold must not accidentally become the DKG completion quorum.
-- Cover both Iroh and in-process APIs and the production Flutter storage path.
+- Cover both Iroh and in-process APIs and the Flutter application-provider path.
 
 Acceptance requires successful key creation and signing after independent visits
 and restarts, with no interval requiring simultaneous participant presence.
