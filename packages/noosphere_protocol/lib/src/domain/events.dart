@@ -190,7 +190,7 @@ class DkgRound2ShareEvent extends Event {
         ceremonyId: reader.readSlice(32),
         commitmentSetSignature: reader.readSignature(),
         sender: reader.readIdentifier(),
-        secret: DkgEncryptedSecret(ECCiphertext.fromReader(reader)),
+        secret: DkgEncryptedSecret.fromReader(reader),
       );
   factory DkgRound2ShareEvent.fromBytes(Uint8List bytes) =>
       readNoosphere(bytes, DkgRound2ShareEvent.fromReader);
@@ -201,7 +201,7 @@ class DkgRound2ShareEvent extends Event {
     writer.writeSlice(ceremonyId);
     writer.writeSignature(commitmentSetSignature);
     writer.writeIdentifier(sender);
-    secret.ciphertext.write(writer);
+    secret.write(writer);
   }
 }
 

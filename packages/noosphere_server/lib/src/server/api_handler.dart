@@ -26,7 +26,8 @@ typedef _PublicFeedView = ({List<PublicFeedEntry> entries, int latestCursor});
 /// Provides the logic of the server, implementing the [ApiRequestInterface].
 /// Throws an [InvalidRequest] when the server cannot satisfy the request.
 ///
-/// There is no anti-DoS protection.
+/// Authenticated DKG creation and retained payloads are bounded by
+/// [ServerConfig]. Transport-level connection limits are enforced separately.
 ///
 /// The methods should be called sequentially without concurrency.
 class ServerApiHandler implements ApiRequestInterface {
@@ -148,7 +149,7 @@ class ServerApiHandler implements ApiRequestInterface {
       _publish(initial, _captureFeed());
       return;
     }
-    if (_state.restore(snapshot, publicFeed: config.publicFeed)) {
+    if (_state.restore(snapshot, config: config)) {
       // Recovery status is durable before the handler accepts requests, so
       // delayed messages from pre-restart attempts cannot revive them.
       final recovered = _state.snapshot();
@@ -265,6 +266,27 @@ class ServerApiHandler implements ApiRequestInterface {
   }
 
   int get _participantN => config.group.participants.length;
+
+  void _checkDkgAdmission(Identifier creator) {
+    if (_state.nameToDkg.values.length >= ServerConfig.maxActiveDkgs) {
+      throw InvalidRequest.dkgCapacityExceeded();
+    }
+
+    final now = DateTime.now();
+    final cutoff = now.subtract(const Duration(minutes: 1));
+    final requests = _state.runtime.dkgRequestTimes[creator] ??= [];
+    requests.removeWhere((time) => !time.isAfter(cutoff));
+    if (requests.length >= ServerConfig.maxDkgRequestsPerMinute) {
+      throw InvalidRequest.dkgRateLimited();
+    }
+    requests.add(now);
+  }
+
+  void _requireDkgStateWithinLimit() {
+    if (_state.dkgPayloadBytes > ServerConfig.maxDkgStateBytes) {
+      throw InvalidRequest.dkgCapacityExceeded();
+    }
+  }
 
   String _dkgCeremonyKey(Uint8List ceremonyId) => cl.bytesToHex(ceremonyId);
 

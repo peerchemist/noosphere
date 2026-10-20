@@ -314,7 +314,7 @@ final class IrohClientApi implements ApiRequestInterface {
         secrets: secrets.entries.map(
           (entry) => protocol.DkgSecret(
             id: entry.key.toBytes(),
-            secret: entry.value.ciphertext.toBytes(),
+            secret: entry.value.toBytes(),
           ),
         ),
       ),

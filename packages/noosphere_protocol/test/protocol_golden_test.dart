@@ -53,7 +53,7 @@ void main() {
   test('DKG details retain timestamp units and field order', () {
     // Protocol, group, attempt, display fields, threshold, and expiry.
     const golden =
-        '0300${'0000000000000000000000000000000000000000000000000000000000000000'}'
+        '0400${'0000000000000000000000000000000000000000000000000000000000000000'}'
         '${'0101010101010101010101010101010101010101010101010101010101010101'}'
         '036b65790464656d6f02000010a5d4e8000000';
     final details = NewDkgDetails.allowNegativeExpiry(
@@ -75,7 +75,7 @@ void main() {
   test('login protobuf and operation-prefixed stream retain fixed wire bytes', () async {
     // Two short opaque byte fields are sufficient to test protobuf layout;
     // they are deliberately not valid authentication credentials.
-    const loginHex = '0a02aabb120201021803';
+    const loginHex = '0a02aabb120201021804';
     final login = wire.LoginRequest(
       groupFingerprint: [0xaa, 0xbb],
       participantId: [1, 2],
@@ -84,7 +84,7 @@ void main() {
     expect(cl.bytesToHex(login.writeToBuffer()), loginHex);
     expect(
       wire.LoginRequest.fromBuffer(cl.hexToBytes(loginHex)).protocolVersion,
-      3,
+      noosphereRoastProtocolVersion,
     );
     // Operation 1 is a one-byte QUIC varint, followed directly by LoginRequest.
     const streamHex = '01$loginHex';

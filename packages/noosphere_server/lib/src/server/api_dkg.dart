@@ -73,10 +73,6 @@ extension _ServerDkg on ServerApiHandler {
       config.maxDkgRequestTTL,
     );
 
-    // Verify details
-    if (!signedDetails.verify(_getParticipantPubkeyForSession(session))) {
-      throw InvalidRequest.invalidDkgReqSig();
-    }
     if (_state.persistent.terminalDkgs.containsKey(
       _dkgCeremonyKey(details.ceremonyId),
     )) {
@@ -85,6 +81,10 @@ extension _ServerDkg on ServerApiHandler {
 
     if (_state.nameToDkg.containsKey(details.name)) {
       throw InvalidRequest.dkgRequestExists();
+    }
+    _checkDkgAdmission(session.participantId);
+    if (!signedDetails.verify(_getParticipantPubkeyForSession(session))) {
+      throw InvalidRequest.invalidDkgReqSig();
     }
 
     // Create event to share with participants
@@ -96,11 +96,18 @@ extension _ServerDkg on ServerApiHandler {
     );
 
     // Store request
-    _state.nameToDkg[details.name] = DkgState(
+    final dkg = DkgState(
       details: dkgEvent.details,
       creator: dkgEvent.creator,
       commitments: commitments,
     );
+    _state.nameToDkg[details.name] = dkg;
+    try {
+      _requireDkgStateWithinLimit();
+    } catch (_) {
+      _state.nameToDkg.remove(details.name);
+      rethrow;
+    }
 
     _state.persistent.publicFeed?.requested(
       'dkg:${details.name}',
@@ -166,6 +173,7 @@ extension _ServerDkg on ServerApiHandler {
     if (dkg.round is! DkgRound1State) throw InvalidRequest.notRound1Dkg();
 
     final commitments = dkg.round1.commitments;
+    final previousCommitments = List.of(commitments);
     commitments.add((pid, commitment));
 
     // If all commitments have been received, move onto round 2
@@ -176,6 +184,13 @@ extension _ServerDkg on ServerApiHandler {
         commitments: commitments,
         participantCount: _participantN,
       );
+    }
+
+    try {
+      _requireDkgStateWithinLimit();
+    } catch (_) {
+      dkg.round = DkgRound1State(previousCommitments);
+      rethrow;
     }
 
     await _persist();
@@ -219,8 +234,8 @@ extension _ServerDkg on ServerApiHandler {
           sameRecipients &&
           secrets.entries.every(
             (entry) => cl.bytesEqual(
-              previous.secrets[entry.key]!.ciphertext.toBytes(),
-              entry.value.ciphertext.toBytes(),
+              previous.secrets[entry.key]!.toBytes(),
+              entry.value.toBytes(),
             ),
           );
       if (sameSignature && sameSecrets) return;
@@ -242,11 +257,36 @@ extension _ServerDkg on ServerApiHandler {
         !expectedRecipients.containsAll(secrets.keys)) {
       throw InvalidRequest.invalidSecretMap();
     }
+    if (secrets.values.any(
+      (secret) =>
+          secret.toBytes().length > ServerConfig.maxEncryptedDkgShareBytes,
+    )) {
+      throw InvalidRequest.dkgCapacityExceeded();
+    }
+    final senderKey = _getParticipantPubkeyForSession(session);
+    if (secrets.entries.any(
+      (entry) => !entry.value.verify(
+        protocolVersion: dkg.details.obj.protocolVersion,
+        ceremonyId: dkg.details.obj.ceremonyId,
+        transcriptHash: round.expectedHash,
+        sender: pid,
+        recipient: entry.key,
+        senderKey: senderKey,
+      ),
+    )) {
+      throw InvalidRequest.invalidSecretMap();
+    }
 
     round.contributions[pid] = DkgRound2Contribution(
       commitmentSetSignature: commitmentSetSignature,
       secrets: secrets,
     );
+    try {
+      _requireDkgStateWithinLimit();
+    } catch (_) {
+      round.contributions.remove(pid);
+      rethrow;
+    }
 
     await _persist();
 
@@ -335,12 +375,22 @@ extension _ServerDkg on ServerApiHandler {
 
     for (final entry in completionAdds.entries) {
       entry.key.completionAcks.addAll(entry.value);
-      if (entry.key.completed) {
-        _state.persistent.publicFeed?.finish(
-          'dkg:${entry.key.details.obj.name}',
-          PublicFeedLifecycle.completed,
-        );
+    }
+    try {
+      _requireDkgStateWithinLimit();
+    } catch (_) {
+      for (final entry in completionAdds.entries) {
+        for (final signer in entry.value.keys) {
+          entry.key.completionAcks.remove(signer);
+        }
       }
+      rethrow;
+    }
+    for (final dkg in completionAdds.keys.where((dkg) => dkg.completed)) {
+      _state.persistent.publicFeed?.finish(
+        'dkg:${dkg.details.obj.name}',
+        PublicFeedLifecycle.completed,
+      );
     }
     for (final entry in cacheAdds.entries) {
       final cache = _state.dkgAckCache[entry.key] ??= DkgAckCache(

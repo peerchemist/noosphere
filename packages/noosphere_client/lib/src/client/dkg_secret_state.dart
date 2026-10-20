@@ -53,9 +53,7 @@ final class DkgSecretState({
             throw const FormatException('non-canonical DKG secret recipients');
           }
           previous = id;
-          outgoing[id] = DkgEncryptedSecret(
-            ECCiphertext.fromBytes(reader.readVarSlice()),
-          );
+          outgoing[id] = DkgEncryptedSecret.fromBytes(reader.readVarSlice());
         }
         return DkgSecretState(
           name: name,
@@ -89,7 +87,7 @@ final class DkgSecretState({
     for (final MapEntry(:key, :value) in entries) {
       writer
         ..writeSlice(key.toBytes())
-        ..writeVarSlice(value.ciphertext.toBytes());
+        ..writeVarSlice(value.toBytes());
     }
   }
 }

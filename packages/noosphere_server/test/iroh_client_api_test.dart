@@ -486,15 +486,20 @@ void main() {
       round1Secret: parts[0].secret,
       commitments: commitmentSet,
     );
+    final round2Details = signObject(getDkgDetails(name: 'iroh-round2'));
     final secrets = {
       for (var i = 1; i < 10; i++)
         ids[i]: DkgEncryptedSecret.encrypt(
           secretShare: part2.sharesToGive[ids[i]]!,
+          protocolVersion: noosphereRoastProtocolVersion,
+          ceremonyId: round2Details.obj.ceremonyId,
+          transcriptHash: commitmentSet.hash,
+          sender: ids[0],
+          recipient: ids[i],
           recipientKey: getPrivkey(i).pubkey,
           senderKey: getPrivkey(0),
         ),
     };
-    final round2Details = signObject(getDkgDetails(name: 'iroh-round2'));
     handler.debugState.nameToDkg['iroh-round2'] =
         DkgState(details: round2Details, creator: ids[0], commitments: const [])
           ..round = DkgRound2State(

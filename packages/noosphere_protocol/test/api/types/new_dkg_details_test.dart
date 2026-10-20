@@ -10,7 +10,7 @@ List<int> genRepeatUtf8(int n) => List.generate(n, (i) => 48 + (i % 10));
 
 Uint8List validBytes = Uint8List.fromList([
   // Protocol, group fingerprint, attempt ID
-  3, 0, ...List.filled(32, 1), ...List.filled(32, 2),
+  4, 0, ...List.filled(32, 1), ...List.filled(32, 2),
   // Name
   40, ...genRepeatUtf8(40),
   // Description
@@ -70,7 +70,7 @@ void main() {
         Iterable.generate(100, (_) => "0123456789").join(),
       );
       expect(details.threshold, 2);
-      expect(details.protocolVersion, 3);
+      expect(details.protocolVersion, NewDkgDetails.currentProtocolVersion);
       expect(details.groupFingerprint, List.filled(32, 1));
       expect(details.attemptId, List.filled(32, 2));
       expect(details.expiry.time.millisecondsSinceEpoch, expiryTimestamp);

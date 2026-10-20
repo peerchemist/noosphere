@@ -48,6 +48,8 @@ class InvalidRequest implements Exception {
     : this("The round 2 DKG data was already sent");
   InvalidRequest.invalidSecretMap() : this("DKG secrets are invalid");
   InvalidRequest.invalidDkgAckSignature() : this("DKG ack signature invalid");
+  InvalidRequest.dkgCapacityExceeded() : this("DKG resource capacity exceeded");
+  InvalidRequest.dkgRateLimited() : this("DKG request rate exceeded");
   InvalidRequest.cannotRequestSelfAck() : this("Cannot request own DKG ack");
   InvalidRequest.wrongCommitmentNum()
     : this("Wrong number of signing commitments");

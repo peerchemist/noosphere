@@ -11,7 +11,7 @@ import 'signed.dart';
 /// Details of DKG requested by a participant. This is signed by the participant
 /// and sent to the other participants.
 class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
-  static const int currentProtocolVersion = 3;
+  static const int currentProtocolVersion = 4;
   static const int minNameLength = 3;
   static const int maxNameLength = 40;
   static const int maxDescLength = 1000;
@@ -141,10 +141,11 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
   ///
   /// Callers must still reject expired details before starting or approving a
   /// DKG. This constructor is intended for audit records and recovery state.
-  factory NewDkgDetails.fromBytesAllowExpired(Uint8List bytes) => readNoosphere(
-    bytes,
-    (reader) => NewDkgDetails._fromReader(reader, allowNegativeExpiry: true),
-  );
+  factory NewDkgDetails.fromBytesAllowExpired(Uint8List bytes) =>
+      readNoosphere(bytes, NewDkgDetails.fromReaderAllowExpired);
+
+  NewDkgDetails.fromReaderAllowExpired(cl.BytesReader reader)
+    : this._fromReader(reader, allowNegativeExpiry: true);
 
   NewDkgDetails._fromReader(
     cl.BytesReader reader, {
@@ -160,9 +161,9 @@ class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
          allowNegativeExpiry: allowNegativeExpiry,
        );
 
-  static final _hasher = cl.getTaggedHasher("NoosphereNewDkgDetailsV3");
+  static final _hasher = cl.getTaggedHasher("NoosphereNewDkgDetailsV4");
   static final _transcriptHasher = cl.getTaggedHasher(
-    "NoosphereDkgTranscriptV3",
+    "NoosphereDkgTranscriptV4",
   );
 
   @override

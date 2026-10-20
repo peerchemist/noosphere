@@ -35,4 +35,4 @@ export 'group_transition.dart';
 export 'room.dart';
 
 /// R&D baseline; revised in place until the first stable protocol release.
-const int noosphereRoastProtocolVersion = 3;
+const int noosphereRoastProtocolVersion = 4;

@@ -496,6 +496,11 @@ void main() {
         secrets: {
           ids[other]: DkgEncryptedSecret.encrypt(
             secretShare: part2.sharesToGive[ids[other]]!,
+            protocolVersion: noosphereRoastProtocolVersion,
+            ceremonyId: details.obj.ceremonyId,
+            transcriptHash: details.obj.hashWithCommitments(commitments),
+            sender: ids[i],
+            recipient: ids[other],
             recipientKey: getPrivkey(other).pubkey,
             senderKey: getPrivkey(i),
           ),
@@ -911,7 +916,7 @@ void main() {
       final empty = ServerStateSnapshot.fromBytes(
         Uint8List.fromList(
           utf8.encode(
-            '{"version":3,"dkg":[],"signing":[],"completed":[],"shares":[],"cancelled":[],"terminalSigning":[],"terminalDkg":[]}',
+            '{"version":${ServerStateSnapshot.currentVersion},"dkg":[],"signing":[],"completed":[],"shares":[],"cancelled":[],"terminalSigning":[],"terminalDkg":[]}',
           ),
         ),
       );

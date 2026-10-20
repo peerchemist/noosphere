@@ -55,7 +55,7 @@ wire.EventMessage encodeEvent(domain.Event event) => switch (event) {
       name: event.name,
       commitmentSetSignature: event.commitmentSetSignature.data,
       senderId: event.sender.toBytes(),
-      encryptedSecret: event.secret.ciphertext.toBytes(),
+      encryptedSecret: event.secret.toBytes(),
       ceremonyId: event.ceremonyId,
     ),
   ),
@@ -168,8 +168,8 @@ domain.Event decodeEvent(wire.EventMessage event) {
         _bytes(event.dkgRound2Share.commitmentSetSignature),
       ),
       sender: _identifier(event.dkgRound2Share.senderId),
-      secret: domain.DkgEncryptedSecret(
-        ECCiphertext.fromBytes(_bytes(event.dkgRound2Share.encryptedSecret)),
+      secret: domain.DkgEncryptedSecret.fromBytes(
+        _bytes(event.dkgRound2Share.encryptedSecret),
       ),
     ),
     wire.EventMessage_Event.dkgAck => domain.DkgAckEvent(

@@ -42,6 +42,11 @@ authenticated fetch or mutation targets both name and mandatory ceremony ID.
 Commitment, rejection and round-two events also carry that ID, so delayed
 traffic cannot mutate a replacement sharing the display name.
 
+Each encrypted share is a recipient-specific signed envelope binding the
+protocol version, ceremony ID, transcript, sender, recipient and ciphertext.
+The coordinator and recipient both verify it, so a ciphertext replayed into
+another context fails closed.
+
 Completion ACKs are accepted only against a retained ceremony with a complete
 round-two transcript and a contribution from that signer. The same contextual
 signed value is a long-lived key-possession statement once the ceremony has
@@ -65,13 +70,19 @@ emits failure.
 
 ## Persistence and delivery
 
-Participant DKG secrets and ROAST rounds are not coordinator state. Version 3
+Participant DKG secrets and ROAST rounds are not coordinator state. Version 4
 coordinator snapshots restore active DKG commitments, encrypted round-two
-mailboxes and completion acknowledgements, while active signing requests become
-blocked records. Rejected and expired DKG ceremony IDs remain terminal for the
-configured maximum DKG request TTL. Completed signatures and encrypted recovery
-shares remain available for redelivery. A write with unknown outcome blocks
-further mutations until the handler reloads storage.
+mailboxes and completion acknowledgements only after rechecking roster
+membership, signatures, transcript hashes, recipient sets, stage invariants and
+resource bounds. Active signing requests become blocked records. Rejected and
+expired DKG ceremony IDs remain terminal for the configured maximum DKG request
+TTL. Completed signatures and encrypted recovery shares remain available for
+redelivery. A write with unknown outcome blocks further mutations until the
+handler reloads storage.
+
+The server caps rosters at 64 members, active ceremonies at 32, encrypted
+shares at 4 KiB, retained DKG payload at 16 MiB, serialized coordinator state
+at 64 MiB and DKG creation at eight requests per participant per minute.
 
 Each session has a 100-event pause buffer. It drops older transient entries
 when full and provides neither durable replay nor exactly-once delivery.

@@ -62,12 +62,12 @@ An uncertain cancellation write blocks signing until storage is reloaded.
 ## Coordinator and room storage
 
 `ServerPersistence` atomically loads/writes an opaque `ServerStateSnapshot` by
-group ID. The snapshot grammar is version 3 and restores active DKG commitments, the frozen
-transcript, recipient-encrypted round-two mailboxes, completion
-acknowledgements and DKG terminal records. Any input that does not form a
-current snapshot is reported as malformed. Signing attempts remain blocked
-after restart. A write with an unknown outcome latches the handler closed until
-storage is reloaded.
+group ID. The snapshot grammar is version 4 and restores active DKG
+commitments, the frozen transcript, recipient-encrypted round-two mailboxes,
+completion acknowledgements and DKG terminal records. Any input that does not
+form a current snapshot is reported as malformed. Signing attempts remain
+blocked after restart. A write with an unknown outcome latches the handler
+closed until storage is reloaded.
 
 Noosphere does not select or operate a database. The calling application owns
 the `ServerPersistence` implementation and decides how snapshots are encrypted,
@@ -113,13 +113,14 @@ written through the same caller-provided `ServerPersistence`; replaying the
 same signed proposal cannot revive it during that bound. A replacement requires
 a new attempt ID and may reuse only the display name.
 
-## Protocol v3 source breaks
+## Protocol v4 source breaks
 
-Only the protocol v3 grammar is defined. DKG events have mandatory ceremony
+Only the protocol v4 grammar is defined. DKG events have mandatory ceremony
 IDs, authenticated DKG fetch/mutation APIs require a ceremony ID, ACK requests
 require ceremony and transcript context, Frost-key storage uses the current
-versioned encoding, and coordinator persistence uses snapshot version 3. Other
-bytes have no defined meaning and fail ordinary parsing or validation.
+versioned encoding, context-bound encrypted shares, and coordinator persistence
+uses snapshot version 4. Other bytes have no defined meaning and fail ordinary
+parsing or validation.
 
 `RoomPersistence` atomically stores room records. Invite consumption and
 participant insertion are one write. Room write failure similarly blocks
@@ -144,7 +145,7 @@ later, so a replacement must wait or reconcile before trusting a new load.
 | --- | --- |
 | Session/challenge/connection | Discard and authenticate again |
 | Client DKG temporary secret | Fail explicitly if its published contribution exists; never regenerate it |
-| Coordinator DKG (snapshot v3) | Restore its exact stage, accepted payloads and completion acknowledgements |
+| Coordinator DKG (snapshot v4) | Validate and restore its exact stage, accepted payloads and completion acknowledgements |
 | Coordinator signing request | Block ID until expiry; do not resume rounds |
 | Completed signatures | Restore and redeliver until expiry |
 | Cancelled signing request | Retain only ID and original expiry; reconcile all clients through snapshots |

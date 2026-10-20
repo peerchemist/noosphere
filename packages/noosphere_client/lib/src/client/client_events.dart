@@ -161,6 +161,13 @@ extension _ClientEvents on Client {
               final key = await getPrivateKey(KeyPurpose.decryptDkgSecret);
 
               final secret = ev.secret.decrypt(
+                protocolVersion: dkg.details.protocolVersion,
+                ceremonyId: dkg.details.ceremonyId,
+                transcriptHash: dkg.details.hashWithCommitments(
+                  round2.commitmentSet,
+                ),
+                sender: ev.sender,
+                recipient: config.id,
                 recipientKey: key,
                 senderKey: senderKey,
               );

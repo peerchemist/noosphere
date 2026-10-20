@@ -1,18 +1,23 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+const _maxServerStateBytes = 64 * 1024 * 1024;
+
 /// Validated, versioned durable state for one server group.
 ///
 /// The payload is intentionally opaque to hosts: noosphere owns its schema and
 /// validation, while the host owns atomic and durable storage of the record.
 final class ServerStateSnapshot {
-  static const currentVersion = 3;
+  static const currentVersion = 4;
 
   final Uint8List _bytes;
 
   ServerStateSnapshot._(this._bytes);
 
   factory ServerStateSnapshot.fromBytes(Uint8List bytes) {
+    if (bytes.length > _maxServerStateBytes) {
+      throw const FormatException('Server state snapshot is too large.');
+    }
     final copy = Uint8List.fromList(bytes);
     final decoded = jsonDecode(utf8.decode(copy));
     if (decoded is! Map<String, dynamic> ||

@@ -100,4 +100,25 @@ class DkgState implements Expirable {
     DkgRound2State(:final commitments) => commitments,
     _ => throw StateError('Unknown DKG round'),
   };
+
+  int get persistedByteSize {
+    var size = details.toBytes().length + creator.toBytes().length + 32;
+    for (final (id, commitment) in commitments) {
+      size += id.toBytes().length + commitment.toBytes().length + 8;
+    }
+    if (round case final DkgRound2State round2) {
+      size += round2.expectedHash.length + 8;
+      for (final contribution in round2.contributions.entries) {
+        size += contribution.key.toBytes().length;
+        size += contribution.value.commitmentSetSignature.data.length;
+        for (final secret in contribution.value.secrets.entries) {
+          size += secret.key.toBytes().length + secret.value.toBytes().length;
+        }
+      }
+    }
+    for (final ack in completionAcks.entries) {
+      size += ack.key.toBytes().length + ack.value.toBytes().length;
+    }
+    return size;
+  }
 }

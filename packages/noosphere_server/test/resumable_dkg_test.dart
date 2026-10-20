@@ -138,6 +138,11 @@ void main() {
           if (recipient != sender)
             ids[recipient]: DkgEncryptedSecret.encrypt(
               secretShare: part2[sender].sharesToGive[ids[recipient]]!,
+              protocolVersion: details.protocolVersion,
+              ceremonyId: details.ceremonyId,
+              transcriptHash: transcriptHash,
+              sender: ids[sender],
+              recipient: ids[recipient],
               recipientKey: identityKeys[recipient].pubkey,
               senderKey: identityKeys[sender],
             ),
@@ -167,6 +172,11 @@ void main() {
         );
         conflicting[ids[1]] = DkgEncryptedSecret.encrypt(
           secretShare: part2[sender].sharesToGive[ids[1]]!,
+          protocolVersion: details.protocolVersion,
+          ceremonyId: details.ceremonyId,
+          transcriptHash: transcriptHash,
+          sender: ids[sender],
+          recipient: ids[1],
           recipientKey: identityKeys[1].pubkey,
           senderKey: identityKeys[sender],
         );
@@ -222,6 +232,11 @@ void main() {
           isTrue,
         );
         final decrypted = share.secret.decrypt(
+          protocolVersion: details.protocolVersion,
+          ceremonyId: details.ceremonyId,
+          transcriptHash: transcriptHash,
+          sender: share.sender,
+          recipient: ids[recipient],
           recipientKey: identityKeys[recipient],
           senderKey: group.participants[share.sender]!,
         );
@@ -495,6 +510,11 @@ void main() {
       );
       final encryptedForOne = DkgEncryptedSecret.encrypt(
         secretShare: p2.sharesToGive[ids[1]]!,
+        protocolVersion: details.protocolVersion,
+        ceremonyId: details.ceremonyId,
+        transcriptHash: details.hashWithCommitments(commitments),
+        sender: ids[0],
+        recipient: ids[1],
         recipientKey: keys[1].pubkey,
         senderKey: keys[0],
       );

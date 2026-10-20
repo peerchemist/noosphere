@@ -13,6 +13,7 @@ import 'package:noosphere_protocol/wire.dart';
 import 'package:protobuf/protobuf.dart';
 
 import '../config/iroh.dart';
+import '../config/server.dart';
 import 'connection_context.dart';
 import 'dispatcher.dart';
 
@@ -297,6 +298,12 @@ final class IrohConnectionHandler {
       groupFingerprint: group,
       connection: context,
       operation: (handler, _) async {
+        if (rpc.secrets.any(
+          (secret) =>
+              secret.secret.length > ServerConfig.maxEncryptedDkgShareBytes,
+        )) {
+          throw InvalidRequest.dkgCapacityExceeded();
+        }
         await handler.submitDkgRound2(
           sid: _sessionId(rpc.sid),
           name: rpc.name,
@@ -308,8 +315,8 @@ final class IrohConnectionHandler {
             for (final secret in rpc.secrets)
               Identifier.fromBytes(
                 Uint8List.fromList(secret.id),
-              ): DkgEncryptedSecret(
-                ECCiphertext.fromBytes(Uint8List.fromList(secret.secret)),
+              ): DkgEncryptedSecret.fromBytes(
+                Uint8List.fromList(secret.secret),
               ),
           },
         );

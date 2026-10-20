@@ -124,7 +124,7 @@ void main() {
         Uint8List.fromList(
           utf8.encode(
             jsonEncode({
-              'version': 3,
+              'version': ServerStateSnapshot.currentVersion,
               'dkg': [
                 {'status': 'gibberish'},
               ],
@@ -140,5 +140,122 @@ void main() {
       ),
       throwsFormatException,
     );
+  });
+
+  test('restored DKG snapshots revalidate cryptographic invariants', () async {
+    String encode(Uint8List value) => base64Encode(value);
+    Uint8List decode(Object? value) => base64Decode(value! as String);
+
+    final details = signObject(getDkgDetails(name: 'validated-restart'));
+    final parts = List.generate(10, getDkgPart1);
+    final commitments = DkgCommitmentSet([
+      for (var i = 0; i < ids.length; i++) (ids[i], parts[i].public),
+    ]);
+    final transcriptHash = details.obj.hashWithCommitments(commitments);
+    final part2 = DkgPart2(
+      identifier: ids.first,
+      round1Secret: parts.first.secret,
+      commitments: commitments,
+    );
+    final secrets = {
+      for (var i = 1; i < ids.length; i++)
+        ids[i]: DkgEncryptedSecret.encrypt(
+          secretShare: part2.sharesToGive[ids[i]]!,
+          protocolVersion: details.obj.protocolVersion,
+          ceremonyId: details.obj.ceremonyId,
+          transcriptHash: transcriptHash,
+          sender: ids.first,
+          recipient: ids[i],
+          recipientKey: getPrivkey(i).pubkey,
+          senderKey: getPrivkey(0),
+        ),
+    };
+    final state = ServerState();
+    final dkgState = DkgState(
+      details: details,
+      creator: ids.first,
+      commitments: commitments.list,
+    );
+    dkgState.round = DkgRound2State(
+      expectedHash: transcriptHash,
+      commitments: commitments.list,
+      participantCount: ids.length,
+    );
+    dkgState.round2.contributions[ids.first] = DkgRound2Contribution(
+      commitmentSetSignature: cl.SchnorrSignature.sign(
+        getPrivkey(0),
+        transcriptHash,
+      ),
+      secrets: secrets,
+    );
+    state.nameToDkg[details.obj.name] = dkgState;
+    final snapshot = state.snapshot();
+
+    final restored = ServerState();
+    expect(restored.restore(snapshot, config: serverConfig), isFalse);
+    expect(restored.nameToDkg[details.obj.name]!.round2.contributions.keys, [
+      ids.first,
+    ]);
+
+    void expectRejected(void Function(Map<String, dynamic>) tamper) {
+      final root = jsonDecode(utf8.decode(snapshot.toBytes()));
+      final copy = jsonDecode(jsonEncode(root)) as Map<String, dynamic>;
+      tamper(copy);
+      expect(
+        () => ServerState().restore(
+          ServerStateSnapshot.fromBytes(
+            Uint8List.fromList(utf8.encode(jsonEncode(copy))),
+          ),
+          config: serverConfig,
+        ),
+        throwsFormatException,
+      );
+    }
+
+    Map<String, dynamic> dkg(Map<String, dynamic> root) =>
+        ((root['dkg']! as List).single as Map).cast<String, dynamic>();
+
+    expectRejected((root) {
+      final record = dkg(root);
+      final signed = decode(record['details']);
+      signed.last ^= 1;
+      record['details'] = encode(signed);
+    });
+    expectRejected((root) {
+      final records = dkg(root)['commitments']! as List;
+      (records[1] as Map)['participant'] =
+          (records.first as Map)['participant'];
+    });
+    expectRejected((root) {
+      final record = dkg(root);
+      final hash = decode(record['expectedHash']);
+      hash.last ^= 1;
+      record['expectedHash'] = encode(hash);
+    });
+    expectRejected((root) {
+      final contribution = (dkg(root)['contributions']! as List).single as Map;
+      final secret = (contribution['secrets']! as List).first as Map;
+      final envelope = decode(secret['ciphertext']);
+      envelope.last ^= 1;
+      secret['ciphertext'] = encode(envelope);
+    });
+    expectRejected((root) {
+      final groupKey = cl.ECCompressedPublicKey.fromPubkey(
+        getPrivkey(0).pubkey,
+      );
+      final ack = SignedDkgAck(
+        signer: ids.first,
+        signed: Signed.sign(
+          obj: DkgAck(
+            groupKey: groupKey,
+            accepted: true,
+            ceremonyId: details.obj.ceremonyId,
+            transcriptHash: transcriptHash,
+          ),
+          key: getPrivkey(0),
+        ),
+      );
+      (dkg(root)['completionAcks']! as List).add(encode(ack.toBytes()));
+    });
   });
 }

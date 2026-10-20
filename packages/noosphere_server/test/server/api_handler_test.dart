@@ -513,6 +513,46 @@ void main() {
         );
       });
 
+      test('authenticated DKG creation is bounded', () async {
+        for (
+          var i = ctx.api.debugState.nameToDkg.values.length;
+          i < ServerConfig.maxActiveDkgs;
+          i++
+        ) {
+          ctx.addDkg(ids.first, 'capacity-$i');
+        }
+        await expectInvalid(
+          () => ctx.api.requestNewDkg(
+            sid: client.sid,
+            signedDetails: signObject(getDkgDetails(name: 'over-capacity')),
+            commitment: commitment,
+          ),
+        );
+      });
+
+      test('authenticated DKG creation is rate limited', () async {
+        for (var i = 0; i < ServerConfig.maxDkgRequestsPerMinute; i++) {
+          final details = signObject(getDkgDetails(name: 'rate-$i'));
+          await ctx.api.requestNewDkg(
+            sid: client.sid,
+            signedDetails: details,
+            commitment: commitment,
+          );
+          await ctx.api.rejectDkg(
+            sid: client.sid,
+            name: details.obj.name,
+            ceremonyId: details.obj.ceremonyId,
+          );
+        }
+        await expectInvalid(
+          () => ctx.api.requestNewDkg(
+            sid: client.sid,
+            signedDetails: signObject(getDkgDetails(name: 'rate-limited')),
+            commitment: commitment,
+          ),
+        );
+      });
+
       test("success", () async {
         // Add other participant session to obtain an event
         final other = await ctx.login(1);
@@ -762,6 +802,11 @@ void main() {
               if (j != i)
                 ids[j]: DkgEncryptedSecret.encrypt(
                   secretShare: part2s[i].sharesToGive[ids[j]]!,
+                  protocolVersion: noosphereRoastProtocolVersion,
+                  ceremonyId: getDkgDetails(name: 'round2').ceremonyId,
+                  transcriptHash: commitmentSet.hash,
+                  sender: ids[i],
+                  recipient: ids[j],
                   recipientKey: getPrivkey(j).pubkey,
                   senderKey: getPrivkey(i),
                 ),
@@ -820,6 +865,18 @@ void main() {
             ceremonyId: getDkgDetails(name: 'round2').ceremonyId,
             commitmentSetSignature: commitmentSetSigs.last,
             secrets: secretMaps.first,
+          ),
+        );
+
+        final wrongRecipient = Map.of(secretMaps.first);
+        wrongRecipient[ids[1]] = secretMaps.first[ids[2]]!;
+        await expectInvalid(
+          () => ctx.api.submitDkgRound2(
+            sid: ctx.clients.first.sid,
+            name: "round2",
+            ceremonyId: getDkgDetails(name: 'round2').ceremonyId,
+            commitmentSetSignature: commitmentSetSigs.first,
+            secrets: wrongRecipient,
           ),
         );
 

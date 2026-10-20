@@ -60,15 +60,18 @@ extension _ClientDkg on Client {
     }
 
     final key = await getPrivateKey(KeyPurpose.dkgPart2);
-    final signature = cl.SchnorrSignature.sign(
-      key,
-      dkg.details.hashWithCommitments(commitmentSet),
-    );
+    final transcriptHash = dkg.details.hashWithCommitments(commitmentSet);
+    final signature = cl.SchnorrSignature.sign(key, transcriptHash);
     final secrets = part2.sharesToGive.map(
       (id, share) => MapEntry(
         id,
         DkgEncryptedSecret.encrypt(
           secretShare: share,
+          protocolVersion: dkg.details.protocolVersion,
+          ceremonyId: dkg.details.ceremonyId,
+          transcriptHash: transcriptHash,
+          sender: config.id,
+          recipient: id,
           recipientKey: Client._getParticipantPubkeyForId(config, id),
           senderKey: key,
         ),

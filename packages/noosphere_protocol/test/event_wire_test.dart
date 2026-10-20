@@ -100,7 +100,10 @@ void main() {
         ceremonyId: dkgDetails.ceremonyId,
         commitmentSetSignature: signature,
         sender: firstId,
-        secret: DkgEncryptedSecret(ciphertext),
+        secret: DkgEncryptedSecret(
+          ciphertext: ciphertext,
+          envelopeSignature: signature,
+        ),
       ),
       DkgAckEvent({ack}),
       DkgAckRequestEvent({ackRequest}),

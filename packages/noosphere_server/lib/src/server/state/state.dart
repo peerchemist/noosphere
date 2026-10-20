@@ -7,6 +7,7 @@ import 'package:noosphere_protocol/domain.dart';
 import 'package:noosphere_protocol/public_feed.dart';
 
 import '../../config/public_feed.dart';
+import '../../config/server.dart';
 import '../persistence.dart';
 import 'client_session.dart';
 import 'dkg.dart';
@@ -61,6 +62,7 @@ class ServerRuntimeState {
   final participantToSession = ExpirableMap<Identifier, ClientSession>(
     expireOnRead: false,
   );
+  final Map<Identifier, List<DateTime>> dkgRequestTimes = {};
 }
 
 /// Protocol state represented in the host-owned durable snapshot.
@@ -107,6 +109,10 @@ class ServerState {
       persistent.completedSigs;
   Map<cl.ECCompressedPublicKey, KeySharingState> get secretShares =>
       persistent.secretShares;
+
+  int get dkgPayloadBytes =>
+      nameToDkg.values.fold(0, (total, dkg) => total + dkg.persistedByteSize) +
+      persistent.terminalDkgs.length * 40;
 
   /// Ends [session] exactly once and removes it only when it is still the
   /// current session for its participant.
@@ -172,7 +178,7 @@ class ServerState {
                     for (final secret in entry.value.secrets.entries)
                       {
                         'recipient': id(secret.key),
-                        'ciphertext': bytes(secret.value.ciphertext.toBytes()),
+                        'ciphertext': bytes(secret.value.toBytes()),
                       },
                   ],
                 },
@@ -286,15 +292,19 @@ class ServerState {
   /// Restores durable values. Returns true when expiry or restart recovery
   /// changed current-version state and it must be rewritten before requests are
   /// accepted.
-  bool restore(ServerStateSnapshot snapshot, {PublicFeedConfig? publicFeed}) {
+  bool restore(ServerStateSnapshot snapshot, {required ServerConfig config}) {
     Uint8List bytes(Object? value) => base64Decode(value! as String);
     Identifier id(Object? value) => Identifier.fromBytes(bytes(value));
+    void require(bool valid) {
+      if (!valid) throw const FormatException('Invalid server state snapshot.');
+    }
+
     final root = jsonDecode(utf8.decode(snapshot.toBytes())) as Map;
     var changed = false;
     if (root['publicFeed'] case final Map<Object?, Object?> raw) {
       persistent.publicFeed = PublicFeedJournal.fromJson(raw);
     }
-    changed = configurePublicFeed(publicFeed) || changed;
+    changed = configurePublicFeed(config.publicFeed) || changed;
 
     for (final raw in root['cancelled']! as List) {
       final tombstone = CancelledSignaturesRequest.fromBytes(bytes(raw));
@@ -322,6 +332,7 @@ class ServerState {
 
     for (final raw in root['terminalDkg']! as List) {
       final record = raw as Map;
+      final ceremonyId = bytes(record['ceremonyId']);
       final expiry = Expiry.fromTime(
         DateTime.fromMicrosecondsSinceEpoch(record['expiry']! as int),
       );
@@ -329,24 +340,37 @@ class ServerState {
         changed = true;
         continue;
       }
-      persistent.terminalDkgs[cl.bytesToHex(bytes(record['ceremonyId']))] =
-          FinalExpirable(expiry);
+      final key = cl.bytesToHex(ceremonyId);
+      require(
+        ceremonyId.length == 32 &&
+            expiry.ttl <= config.maxDkgRequestTTL &&
+            !persistent.terminalDkgs.containsKey(key),
+      );
+      persistent.terminalDkgs[key] = FinalExpirable(expiry);
     }
+    require(dkgPayloadBytes <= ServerConfig.maxDkgStateBytes);
 
     for (final raw in root['dkg']! as List) {
       final record = raw as Map;
-      if (record['status'] != 'resumable') {
-        throw const FormatException('Invalid server state snapshot.');
-      }
-      final signedBytes = bytes(record['details']);
-      final detailsLength = signedBytes.length - 64;
-      final signedDetails = Signed<NewDkgDetails>(
-        obj: NewDkgDetails.fromBytesAllowExpired(
-          Uint8List.sublistView(signedBytes, 0, detailsLength),
-        ),
-        signature: cl.SchnorrSignature(
-          Uint8List.sublistView(signedBytes, detailsLength),
-        ),
+      require(record['status'] == 'resumable');
+      final signedDetails = Signed<NewDkgDetails>.fromBytes(
+        bytes(record['details']),
+        NewDkgDetails.fromReaderAllowExpired,
+      );
+      final details = signedDetails.obj;
+      final creator = id(record['creator']);
+      final creatorKey = config.group.participants[creator];
+      require(
+        creatorKey != null &&
+            signedDetails.verify(creatorKey) &&
+            details.protocolVersion == noosphereRoastProtocolVersion &&
+            cl.bytesEqual(details.groupFingerprint, config.group.fingerprint) &&
+            details.threshold <= config.group.participants.length &&
+            details.expiry.ttl <= config.maxDkgRequestTTL &&
+            !nameToDkg.containsKey(details.name) &&
+            !persistent.terminalDkgs.containsKey(
+              cl.bytesToHex(details.ceremonyId),
+            ),
       );
       if (signedDetails.obj.expiry.isExpired) {
         persistent.publicFeed?.finish(
@@ -356,46 +380,123 @@ class ServerState {
         changed = true;
         continue;
       }
-      final commitments = <(Identifier, DkgPublicCommitment)>[
-        for (final commitmentRaw in record['commitments']! as List)
-          (
-            id((commitmentRaw as Map)['participant']),
-            DkgPublicCommitment.fromBytes(bytes(commitmentRaw['commitment'])),
-          ),
-      ];
+      final commitments = <(Identifier, DkgPublicCommitment)>[];
+      final commitmentIds = <Identifier>{};
+      for (final commitmentRaw in record['commitments']! as List) {
+        final commitment = commitmentRaw as Map;
+        final participant = id(commitment['participant']);
+        require(
+          config.group.participants.containsKey(participant) &&
+              commitmentIds.add(participant),
+        );
+        commitments.add((
+          participant,
+          DkgPublicCommitment.fromBytes(bytes(commitment['commitment'])),
+        ));
+      }
+      final roundNumber = record['round'];
+      require(
+        commitments.isNotEmpty &&
+            commitmentIds.contains(creator) &&
+            commitments.length <= config.group.participants.length &&
+            (roundNumber == 1
+                ? commitments.length < config.group.participants.length
+                : roundNumber == 2 &&
+                      commitments.length == config.group.participants.length),
+      );
       final restored = DkgState(
         details: signedDetails,
-        creator: id(record['creator']),
+        creator: creator,
         commitments: commitments,
       );
-      if (record['round'] == 2) {
+      if (roundNumber == 2) {
+        final expectedHash = bytes(record['expectedHash']);
+        final recomputedHash = details.hashWithCommitments(
+          DkgCommitmentSet(commitments),
+        );
+        require(
+          cl.bytesEqual(expectedHash, recomputedHash) &&
+              record['participantCount'] == config.group.participants.length,
+        );
         final round2 = DkgRound2State(
-          expectedHash: bytes(record['expectedHash']),
+          expectedHash: expectedHash,
           commitments: commitments,
           participantCount: record['participantCount'] as int,
         );
         for (final contributionRaw in record['contributions']! as List) {
           final contribution = contributionRaw as Map;
           final sender = id(contribution['sender']);
+          final senderKey = config.group.participants[sender];
+          require(
+            senderKey != null && !round2.contributions.containsKey(sender),
+          );
+          final signature = cl.SchnorrSignature(
+            bytes(contribution['signature']),
+          );
+          require(signature.verify(senderKey!, expectedHash));
+          final expectedRecipients = config.group.participants.keys.toSet()
+            ..remove(sender);
+          final secrets = <Identifier, DkgEncryptedSecret>{};
+          for (final secretRaw in contribution['secrets']! as List) {
+            final secretRecord = secretRaw as Map;
+            final recipient = id(secretRecord['recipient']);
+            final secretBytes = bytes(secretRecord['ciphertext']);
+            require(
+              secretBytes.length <= ServerConfig.maxEncryptedDkgShareBytes,
+            );
+            final secret = DkgEncryptedSecret.fromBytes(secretBytes);
+            require(
+              expectedRecipients.contains(recipient) &&
+                  !secrets.containsKey(recipient) &&
+                  secret.verify(
+                    protocolVersion: details.protocolVersion,
+                    ceremonyId: details.ceremonyId,
+                    transcriptHash: expectedHash,
+                    sender: sender,
+                    recipient: recipient,
+                    senderKey: senderKey,
+                  ),
+            );
+            secrets[recipient] = secret;
+          }
+          require(secrets.length == expectedRecipients.length);
           round2.contributions[sender] = DkgRound2Contribution(
-            commitmentSetSignature: cl.SchnorrSignature(
-              bytes(contribution['signature']),
-            ),
-            secrets: {
-              for (final secretRaw in contribution['secrets']! as List)
-                id((secretRaw as Map)['recipient']): DkgEncryptedSecret(
-                  ECCiphertext.fromBytes(bytes(secretRaw['ciphertext'])),
-                ),
-            },
+            commitmentSetSignature: signature,
+            secrets: secrets,
           );
         }
         restored.round = round2;
       }
+      cl.ECCompressedPublicKey? completedKey;
       for (final encoded in record['completionAcks']! as List) {
         final ack = SignedDkgAck.fromBytes(bytes(encoded));
+        final ackKey = config.group.participants[ack.signer];
+        final round2 = restored.round is DkgRound2State
+            ? restored.round2
+            : null;
+        require(
+          ackKey != null &&
+              round2 != null &&
+              round2.allSharesSubmitted &&
+              round2.contributions.containsKey(ack.signer) &&
+              !restored.completionAcks.containsKey(ack.signer) &&
+              ack.signed.verify(ackKey) &&
+              ack.signed.obj.accepted &&
+              cl.bytesEqual(ack.signed.obj.ceremonyId, details.ceremonyId) &&
+              cl.bytesEqual(
+                ack.signed.obj.transcriptHash,
+                round2.expectedHash,
+              ) &&
+              (completedKey == null || completedKey == ack.signed.obj.groupKey),
+        );
+        completedKey ??= ack.signed.obj.groupKey;
         restored.completionAcks[ack.signer] = ack.signed;
       }
       nameToDkg[signedDetails.obj.name] = restored;
+      require(
+        nameToDkg.values.length <= ServerConfig.maxActiveDkgs &&
+            dkgPayloadBytes <= ServerConfig.maxDkgStateBytes,
+      );
     }
     for (final raw in root['signing']! as List) {
       final record = raw as Map;

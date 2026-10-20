@@ -18,6 +18,12 @@ class ServerConfig with cl.Writable {
   static const defaultMinCompletedSignaturesTTL = Duration(days: 1);
   static const defaultAckCacheTTL = Duration(minutes: 1);
 
+  static const maxDkgParticipants = 64;
+  static const maxActiveDkgs = 32;
+  static const maxEncryptedDkgShareBytes = 4096;
+  static const maxDkgStateBytes = 16 * 1024 * 1024;
+  static const maxDkgRequestsPerMinute = 8;
+
   final GroupConfig group;
   final Duration challengeTTL;
   final Duration sessionTTL;
@@ -46,7 +52,11 @@ class ServerConfig with cl.Writable {
     this.ackCacheTTL = defaultAckCacheTTL,
     this.keepAliveFreq,
     this.publicFeed,
-  });
+  }) {
+    if (group.participants.length > maxDkgParticipants) {
+      throw ArgumentError('DKG groups are limited to $maxDkgParticipants');
+    }
+  }
 
   /// Convenience constructor to construct from serialised [bytes].
   ServerConfig.fromBytes(Uint8List bytes)

@@ -110,6 +110,11 @@ void main() {
           round1Secret: part1.secret,
           commitments: commitments,
         ).sharesToGive[ids[receiver]]!,
+        protocolVersion: noosphereRoastProtocolVersion,
+        ceremonyId: getDkgDetails(name: altName ?? "123").ceremonyId,
+        transcriptHash: commonHash,
+        sender: ids[sender],
+        recipient: ids[receiver],
         recipientKey: getPrivkey(receiver).pubkey,
         senderKey: getPrivkey(sender),
       ),
@@ -1070,11 +1075,15 @@ void main() {
             ),
             sender: ids.first,
             secret: DkgEncryptedSecret(
-              ECCiphertext.encrypt(
+              ciphertext: ECCiphertext.encrypt(
                 // Ten 0 bytes is not a valid secret
                 plaintext: Uint8List(10),
                 recipientKey: getPrivkey(9).pubkey,
                 senderKey: getPrivkey(0),
+              ),
+              envelopeSignature: cl.SchnorrSignature.sign(
+                getPrivkey(0),
+                Uint8List(32),
               ),
             ),
           ),
