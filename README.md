@@ -1,42 +1,25 @@
-# Noosphere
+# Noosphere Network
 
-Noosphere is a protocol and Dart/Flutter library for building applications in
-which a group controls one cryptographic signing key. It lets independent
-participants create that key together, review requests, and authorize an
-operation only when enough participants agree—without assembling the complete
-private key during ordinary signing.
+A **framework for off-chain / layer two apps** in Dart and Flutter.
+Noosphere combines peer-to-peer networking, group coordination and threshold
+signing. Your app defines the rules; participants approve operations and sign
+together without assembling the complete private key.
 
-It combines **FROST** for distributed key generation and threshold Schnorr
-signing, **ROAST** for coordinating signing with asynchronous participants, and
-**Iroh** for authenticated, encrypted peer-to-peer communication. The host
-application supplies the user experience, approval policy, key custody and
-durable storage.
-
-For example, a treasury app can give five people separate key shares and
-require three to authorize a payment. Noosphere coordinates their contributions
-and returns a signature under the group's public key. The app constructs the
-payment, shows each signer what they are approving, and broadcasts the signed
-transaction.
+**FROST** handles shared keys and signatures, **ROAST** coordinates signing,
+and **Iroh** connects peers. Your app owns the UI, key custody, storage and
+chain integration.
 
 ## What you can build
 
-Noosphere supplies shared cryptographic authorization that applications can
-use for more than payments:
+- **Shared wallets and treasuries:** require several owners to approve payments.
+- **Multi-device wallets:** spread signing authority across devices.
+- **Team approvals and attestations:** sign commands, documents or statements as a group.
+- **Signing services:** embed participants and coordinators in apps or headless services.
 
-| Application | How Noosphere fits |
-| --- | --- |
-| Shared wallets and treasuries | Require a threshold of owners to sign compatible transactions; batch signatures for multiple inputs in one request. |
-| Personal wallets with multiple devices | Distribute signing authority across devices so one device does not hold the complete signing key. |
-| Team approvals and administrative tools | Sign an exact command or policy document after enough authorized members approve; the receiving service verifies the group signature before acting. |
-| Collective attestations | Produce a portable group signature over a statement, certificate payload or release manifest that others can verify independently. |
-| Document approval workflows | Sign a document digest after the application delivers the document and each signer verifies the bytes and their meaning. |
-| Embedded or headless signing services | Integrate participant and coordinator roles into a Dart service or a Flutter application using the same protocol. |
-
-These are application patterns, not bundled products. Wallet integrations must
-supply chain-specific transaction construction, validation and broadcasting;
-other integrations must define their payload formats, authorization context
-and external effects. A group signature only has meaning to a system that
-knows the group public key and accepts the signature scheme and signed data.
+For example, three of five treasury members can authorize a payment. Noosphere
+returns the group signature; your app constructs, validates and broadcasts
+the transaction. The receiving system must accept the group's public key and
+signature scheme.
 
 ## How FROST and ROAST fit together
 
