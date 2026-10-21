@@ -236,8 +236,8 @@ packages:
     dependency: transitive
     description:
       path: "."
-      ref: "feature/dkg-secret-serialization-upstream"
-      resolved-ref: "137ba467a6ceec536fe5d494bd6b3b1b801291d0"
+      ref: "5.1.0"
+      resolved-ref: "e56a96660df2231789510d29fa544752cd2a0f0b"
       url: "https://github.com/peerchemist/frosty.git"
     source: git
     version: "5.1.0"

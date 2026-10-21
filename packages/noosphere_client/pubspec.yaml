@@ -14,7 +14,7 @@ dependencies:
   frosty:
     git:
       url: https://github.com/peerchemist/frosty.git
-      ref: feature/dkg-secret-serialization-upstream
+      ref: 5.1.0
   synchronized: ^3.1.0+1
   collection: ^1.17.1
   iroh_quic: 1.1.0
