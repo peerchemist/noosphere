@@ -1,154 +1,224 @@
 # Noosphere
 
-Noosphere is a protocol and Dart implementation for organizing peer groups
-around shared threshold keys. It combines FROST distributed key generation
-with ROAST coordination so a group can create a key and authorize transactions
-or messages without any participant holding the complete private key during
-normal operation.
+Noosphere is a protocol and Dart/Flutter library for building applications in
+which a group controls one cryptographic signing key. It lets independent
+participants create that key together, review requests, and authorize an
+operation only when enough participants agree—without assembling the complete
+private key during ordinary signing.
 
-The protocol has two roles:
+It combines **FROST** for distributed key generation and threshold Schnorr
+signing, **ROAST** for coordinating signing with asynchronous participants, and
+**Iroh** for authenticated, encrypted peer-to-peer communication. The host
+application supplies the user experience, approval policy, key custody and
+durable storage.
 
-- **Participants** hold independent identity keys, review proposals and keep
-  their own FROST key shares.
-- A **coordinator** authenticates the participants, orders the work, routes
-  protocol messages and collects enough valid contributions to complete an
-  operation. It does not need a participant share and cannot produce a
-  threshold signature by itself.
+For example, a treasury app can give five people separate key shares and
+require three to authorize a payment. Noosphere coordinates their contributions
+and returns a signature under the group's public key. The app constructs the
+payment, shows each signer what they are approving, and broadcasts the signed
+transaction.
 
-A group first runs distributed key generation (DKG). Every participant receives
-a private share while the group receives one public key. Later, any permitted
-threshold of the group can use ROAST to produce Schnorr signatures despite
-participants being asynchronous or temporarily unavailable. A request may
-contain multiple signatures, such as one for every input of a transaction.
+## What you can build
 
-Noosphere currently understands two principal kinds of signing request:
+Noosphere supplies shared cryptographic authorization that applications can
+use for more than payments:
 
-- **Transactions**, where typed metadata binds the transaction, signing
-  digests, group keys and derivation paths that participants must verify.
-- **Messages**, where the exact UTF-8 text is converted to a domain-separated
-  digest and signed by the untweaked group key. The result is a portable
-  BIP-340 signature that can be verified without the coordinator or signing
-  transcript.
+| Application | How Noosphere fits |
+| --- | --- |
+| Shared wallets and treasuries | Require a threshold of owners to sign compatible transactions; batch signatures for multiple inputs in one request. |
+| Personal wallets with multiple devices | Distribute signing authority across devices so one device does not hold the complete signing key. |
+| Team approvals and administrative tools | Sign an exact command or policy document after enough authorized members approve; the receiving service verifies the group signature before acting. |
+| Collective attestations | Produce a portable group signature over a statement, certificate payload or release manifest that others can verify independently. |
+| Document approval workflows | Sign a document digest after the application delivers the document and each signer verifies the bytes and their meaning. |
+| Embedded or headless signing services | Integrate participant and coordinator roles into a Dart service or a Flutter application using the same protocol. |
 
-The importing application remains responsible for identity presentation, user
-consent, key custody, durable storage and application policy. For a wallet,
-that also includes constructing, validating, broadcasting and tracking
-transactions. Noosphere coordinates cryptographic authorization; it does not
-decide what the group should authorize.
+These are application patterns, not bundled products. Wallet integrations must
+supply chain-specific transaction construction, validation and broadcasting;
+other integrations must define their payload formats, authorization context
+and external effects. A group signature only has meaning to a system that
+knows the group public key and accepts the signature scheme and signed data.
 
-Coordinators can explicitly enable a separate unauthenticated, read-only event
-feed for notifications and transparency. See the [public feed and Sygnature
-integration guide](docs/architecture/public-feed.md) for configuration, privacy,
-signed checkpoints, retention, and the lightweight polling client.
+## How FROST and ROAST fit together
 
-## Encrypted peer-to-peer communication
+A group has a roster of participants and a signing threshold, such as 3-of-5.
+There are two roles:
 
-Noosphere uses [Iroh](https://iroh.computer) as its reference network transport. Iroh provides
-authenticated, encrypted peer-to-peer QUIC connections, endpoint identity,
-discovery and direct connectivity with relay fallback. Participants pin the
-coordinator's Iroh identity independently of its changing network addresses.
+- **Participants** authenticate with their own identity keys, review proposals,
+  and hold their own private FROST shares.
+- A **coordinator** authenticates participants, orders protocol operations,
+  routes messages and collects contributions. The coordinator role does not
+  require a FROST share and cannot sign on the group's behalf by itself.
 
-Protocol traffic is coordinator-routed rather than a participant gossip
-network. A participant sends an authenticated request to the coordinator, and
-the coordinator delivers the resulting events to the relevant participants
-over their persistent Iroh sessions. Participant signatures embedded in those
-events provide end-to-end authenticity for signed proposals and contributions.
-The coordinator is still trusted for availability and routing: it can delay,
-omit or replay traffic, but it cannot silently alter participant-signed content
-or sign on behalf of the threshold group.
+During **distributed key generation (DKG)**, participants jointly create a
+shared public key and a private share for each participant. There is no dealer
+that first creates and distributes a complete private key. Participant identity
+keys, the coordinator's Iroh identity and the generated FROST shares have
+separate purposes; restoring an identity mnemonic does not restore a FROST
+share.
 
-Iroh is the reference transport, not the definition of the protocol. The
-domain model, canonical signed encodings and state transitions remain separate
-from their protobuf and QUIC representation.
-
-## Events define the protocol
-
-An `Event` is a typed input from the coordinator to a participant's protocol
-state machine. It can announce something to review, carry another
-participant's contribution, start a signing round, report progress or deliver
-a result. Processing an event may verify cryptographic data, change local
-state, write durable state, send a follow-up request and expose a higher-level
-notification to the host application.
-
-The core event family covers:
-
-- participant presence and session state;
-- DKG proposals, commitments, encrypted round-two shares and acknowledgements;
-- signing proposals, ROAST rounds, progress, completion and failure;
-- encrypted recovery-share delivery and key-reconstruction notices; and
-- transport keepalives.
-
-These events are the vocabulary of Noosphere. Their allowed order, validation
-rules and state effects define its behavior. The protobuf schema alone does
-not: a message that can be decoded may still be invalid for the current group,
-request, round or participant.
+**FROST** lets a threshold of participants contribute to one Schnorr signature.
+**ROAST** coordinates signing attempts so slow, unavailable or uncooperative
+participants need not prevent completion when enough responsive, cooperating
+signers remain. It does not remove the threshold requirement or the need for
+an available coordinator.
 
 ```text
-participant request
-  -> coordinator validation and state transition
-  -> typed domain Event
-  -> protobuf EventMessage on an encrypted Iroh session
-  -> participant validation and state transition
-  -> optional application-facing notification or follow-up request
+Form a group and choose a threshold
+  -> jointly generate a key with DKG
+  -> propose a transaction or message
+  -> participants review and approve
+  -> ROAST coordinates FROST signing contributions
+  -> verify the resulting group signature
+  -> application records the result and acts on it
 ```
 
-Network events are a sealed, typed set rather than arbitrary application
-messages. Each event has an explicit protobuf variant and protocol meaning.
-Applications see later client or worker projections of selected outcomes;
-those local notifications are not the network events themselves and the event
-stream is not a durable application log.
+Noosphere orchestrates the cryptography through Frosty and Coinlib. It also
+supports encrypted recovery-share delivery and explicit key-reconstruction
+workflows; recovery is separate from normal threshold signing and its policy
+belongs to the application.
 
-## Room enrollment links
+## What can be signed
 
-A room creator collects each signer's identity public key and issues a separate
-`RoomInvite` for that signer. The invite binds a random secret token to the
-room, the expected signer public key, the pinned Iroh coordinator endpoint ID
-and an expiry. The coordinator stores only the token hash. Redeeming the invite
-also requires a fresh challenge signature from the matching private key, so
-possession of a copied link is insufficient to enroll a different signer.
+The protocol currently defines two principal kinds of signing request:
 
-`NoosphereRoomInvite` is only the clickable-link representation. It prepends an
-application-owned URI prefix such as `sygnature-roast-v1:` to the existing
-unpadded Base64URL `RoomInvite` encoding. It does not introduce JSON, another
-credential or wallet metadata. Applications should register the URI scheme and
-must not log the complete link because it contains the enrollment token.
+- **Transactions:** typed metadata binds the transaction, signing digests,
+  group keys and derivation paths that participants must verify. One request
+  can ask for multiple signatures.
+- **Text messages:** the exact UTF-8 text is converted to a domain-separated
+  digest and signed with the untweaked group key. The resulting `SignedMessage`
+  contains a portable BIP-340 signature that can be verified without the
+  coordinator or the signing transcript.
 
-After decoding the link, the participant calls
-`IrohRoomEnrollmentApi.joinRoom(invite, getPrivateKey)`. Room models carry only
-the coordinator's stable Iroh endpoint ID; Iroh discovery resolves its current
-network route. IP addresses and relay locations are not part of the invite or
-persisted room state.
+Text messages can carry short JSON documents as well as human-readable text.
+The message limit is 1,024 UTF-8 bytes. Applications define their schema and
+include any required domain, operation ID, recipient and expiry in the signed
+content. Whitespace, key order and Unicode representation affect the signed
+bytes, so interoperable JSON workflows need an agreed canonical encoding.
 
-## Protocol extensions
+Lower-level digest signing is available through `SingleSignatureDetails`.
+Signing a digest does not deliver or explain its original document: the app
+must provide an authenticated delivery path and let signers recompute it.
+See [application data and signing](docs/architecture/generic-data.md).
 
-Security-critical behavior such as login, DKG, ROAST, signature results and
-key recovery belongs in the typed core protocol. Transaction and message
-metadata are also defined types: unknown metadata cannot be used to smuggle an
-unreviewed signing operation or as a generic broadcast channel.
+## Peer-to-peer communication with Iroh
 
-A negotiated extension mechanism is proposed for optional,
-application-specific collaboration. It would add one stable `ExtensionEvent`
-envelope containing an extension ID, negotiated version, event type,
-deduplication ID and bounded payload. Registered extension packages would own
-their typed codecs and validation, while Noosphere would enforce capability
-negotiation, routing and resource limits.
+Iroh provides authenticated, encrypted QUIC connections, endpoint discovery,
+direct connectivity and relay fallback. Participants pin the coordinator's
+stable Iroh endpoint identity independently of its changing IP or relay
+addresses.
 
-Extensions are intended to provide context or discovery that composes with the
-core protocol. For example, a Peercoin minting extension could announce and
-validate a staking candidate, then hand the exact digests to the ordinary
-review and ROAST signing flow. An extension must not bypass participant
-approval, weaken signing policy or gain direct access to private FROST state.
+The topology is **coordinator-routed**: participants connect to a coordinator,
+submit authenticated requests, and receive typed protocol events over
+persistent sessions. Participants do not need a full mesh of connections.
+A coordinator can run as a standalone service or be embedded in an app,
+including an app that also participates in signing. A co-located participant
+can use `LocalCoordinatorApi` to run the same protocol in process.
 
-The extension envelope and registry are a design proposal and are not
-implemented in the current protocol. Today, adding a network event requires a
-coordinated change to the core event model, wire schema, coordinator and
-participant state machines.
+Iroh authenticates the transport endpoint; separate participant signatures
+prove the authorship of signed proposals and contributions. The coordinator
+can delay, omit or replay traffic, but cannot silently modify participant-signed
+content or manufacture a threshold signature. Transport encryption does not
+hide ordinary proposals or message text from the coordinator. DKG and recovery
+shares additionally use recipient-specific encryption.
 
-Further detail is available in the
-[protocol semantics](packages/noosphere_protocol/spec/PROTOCOL.md),
-[event model](docs/architecture/events.md),
-[protocol extension design](docs/architecture/protocol-extensions.md) and
-[security model](packages/noosphere_protocol/spec/SECURITY.md).
+Iroh is the reference transport. Domain models, canonical signed encodings and
+protocol state transitions remain separate from protobuf and QUIC framing.
+See [transport details](docs/architecture/iroh-transport.md).
+
+## Stateless library, application-owned persistence
+
+Noosphere is stateless with respect to storage ownership: the library does not
+select or operate an application database, own a wallet store, or decide how
+secrets are encrypted and retained. The importing application owns durable
+state and supplies storage providers and key-access callbacks.
+
+The protocol itself is stateful. Running clients and coordinators maintain
+sessions, ceremonies, signing rounds and pending operations in memory. Safe
+restart and signing require the host to persist the state specified by the
+library's contracts.
+
+| State | Application responsibility |
+| --- | --- |
+| Identity keys and Iroh secret | Supply secure access and preserve the identities used by peers. |
+| FROST shares and recovery material | Protect and persist them independently of identity mnemonics. |
+| Signing nonces and prepared operations | Implement atomic writes through `ClientStorageInterface` so crashes or uncertain RPC outcomes cannot cause nonce reuse. |
+| Temporary DKG secrets | Store the opaque resume blob through `persistDkgSecret`, restore it explicitly with `importDkgSecret`, and decide when to delete it. |
+| Coordinator state | Implement `ServerPersistence` for atomic snapshots of ceremonies, attempts and results. |
+| Rooms and invitations | Implement `RoomPersistence` for enrollment state and consumed or revoked invitations. |
+| History and external effects | Store approval history, deduplicate results, and track actions such as transaction broadcast. |
+
+Temporary DKG secrets are never included in general client storage or
+coordinator snapshots. Noosphere awaits the application's DKG durability
+callback before sending the corresponding contribution; a callback failure
+prevents submission. After a process restart, the app reads its own secret
+store and explicitly imports the saved blob to resume the ceremony.
+
+Reconnection establishes a fresh authenticated session and obtains current
+state. It does not blindly replay mutations. DKG can resume with the required
+coordinator snapshot and participant secret; unfinished signing attempts are
+blocked after coordinator restart. Results can be redelivered, so application
+effects must be idempotent. In-memory providers are for tests and demonstrations.
+See [state, persistence and recovery](docs/architecture/state-and-persistence.md).
+
+## Enrollment, events and application integration
+
+Rooms let an application collect a roster before key generation. A creator
+issues a separate `RoomInvite` for each known participant identity key. The
+invite binds a secret token to the room, participant, coordinator endpoint ID
+and expiry. Redemption also requires proof of the matching private key, so a
+copied link cannot enroll a different signer.
+
+`NoosphereRoomInvite` wraps the invite in an application-owned URI scheme for
+clickable links. The app registers the scheme and handles the enrollment UI;
+Iroh resolves the coordinator's network route from its endpoint ID. See
+[rooms and enrollment](docs/architecture/rooms-and-transitions.md).
+
+Protocol events carry proposals, DKG contributions, signing rounds, progress,
+results and recovery notifications. Each has a defined meaning and validation
+rules. The app receives client or worker notifications and decides what to
+present, approve and retain. The live event stream is not a durable application
+history or a general-purpose messaging bus.
+
+Coordinators can optionally enable a separate unauthenticated, read-only
+public feed for notifications and transparency. It provides a durable,
+redacted journal with signed checkpoints and a lightweight polling client.
+See the [public feed integration guide](docs/architecture/public-feed.md).
+
+Negotiated application extensions and end-to-end membership-transition
+orchestration are **proposed, not implemented**. Transition models and a
+single-signer coordinator-switching helper exist, but do not provide automatic
+group governance or migration. See the
+[extension design](docs/architecture/protocol-extensions.md) and
+[group-transition specification](packages/noosphere_protocol/spec/GROUP_TRANSITIONS.md).
+
+## Packages and getting started
+
+This repository is a Dart workspace with a Flutter facade:
+
+| Package | Purpose |
+| --- | --- |
+| [noosphere_protocol](packages/noosphere_protocol) | Shared domain types, signed encodings, protobuf, configuration and room models. |
+| [noosphere_client](packages/noosphere_client) | Participant state machine, storage contracts and Iroh client. |
+| [noosphere_server](packages/noosphere_server) | Coordinator state machine, persistence contracts, Iroh server and standalone CLI. |
+| [noosphere_flutter](packages/noosphere_flutter) | `NoosphereWorker` facade that runs protocol work and cryptography in an isolate. |
+
+For Flutter, start with `package:noosphere_flutter/noosphere_flutter.dart`.
+Dart services can import the client and server packages directly. The host
+supplies participant identities, trusted group configuration, the coordinator
+pin, durable providers and approval handling.
+
+- Run the [desktop demo](apps/demo/README.md) to try DKG and signing across two
+  computers. It uses public test identities and temporary storage.
+- Follow the [client setup and connection examples](packages/noosphere_client/README.md)
+  for a Dart participant, including native-library requirements.
+- Use the [server guide](packages/noosphere_server/README.md) for a headless
+  coordinator, or build the container below.
+- Read the [architecture guide](docs/architecture/README.md),
+  [protocol specification](packages/noosphere_protocol/spec/PROTOCOL.md) and
+  [security model](packages/noosphere_protocol/spec/SECURITY.md) for integration
+  contracts and trust boundaries.
+- See [development and testing](docs/architecture/development-and-testing.md)
+  for workspace checks and native integration tests.
 
 ## Standalone coordinator container
 
