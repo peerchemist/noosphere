@@ -1,6 +1,6 @@
 # Noosphere Network
 
-A **framework for off-chain / layer two apps** in Dart and Flutter.
+Noosphere framework for decentralized off-chain applications.
 Noosphere combines peer-to-peer networking, group coordination and threshold
 signing. Your app defines the rules; participants approve operations and sign
 together without assembling the complete private key.
