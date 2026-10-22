@@ -4,6 +4,7 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_protocol/common.dart';
 import 'package:noosphere_protocol/config.dart';
 import 'package:noosphere_protocol/domain.dart';
+import 'package:noosphere_protocol/message_limits.dart';
 import 'package:noosphere_protocol/public_feed.dart';
 
 import 'public_feed.dart';
@@ -20,7 +21,7 @@ class ServerConfig with cl.Writable {
 
   static const maxDkgParticipants = 64;
   static const maxActiveDkgs = 32;
-  static const maxEncryptedDkgShareBytes = 4096;
+  static const maxEncryptedDkgShareBytes = encryptedDkgShareMaxBytes;
   static const maxDkgStateBytes = 16 * 1024 * 1024;
   static const maxDkgRequestsPerMinute = 8;
 

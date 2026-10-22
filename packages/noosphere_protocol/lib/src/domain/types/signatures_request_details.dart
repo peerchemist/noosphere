@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:frosty/frosty.dart';
+import 'package:noosphere_protocol/message_limits.dart';
 import 'package:noosphere_protocol/src/common/serial.dart';
 
 import 'expiry.dart';
@@ -43,7 +44,7 @@ class SignaturesRequestId with cl.Writable, NoosphereWritable {
 /// Details of requested required signatures
 class SignaturesRequestDetails with cl.Writable, NoosphereWritable, Signable {
   /// Maximum UTF-8 byte length of the request explanation.
-  static const int maxMessageBytes = 1024;
+  static const int maxMessageBytes = signatureRequestMessageMaxBytes;
 
   /// A request can be for one or more signatures at a time
   final List<SingleSignatureDetails> requiredSigs;

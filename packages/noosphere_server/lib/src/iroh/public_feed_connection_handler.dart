@@ -53,7 +53,9 @@ final class PublicFeedConnectionHandler({
         return;
       }
       final body = await reader
-          .readToEnd(maxLength: min(config.maxMessageLength, 256))
+          .readToEnd(
+            maxLength: min(config.maxMessageLength, publicFeedMaxRequestBytes),
+          )
           .timeout(config.rpcTimeout);
       final request = GetPublicFeedRequest.fromBuffer(body);
       // uint64 values outside Dart's positive signed range become negative.

@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-const int defaultMaxMessageLength = 1024 * 1024;
+import 'package:noosphere_protocol/message_limits.dart';
+
 const int maximumQuicVarInt = 0x3fffffffffffffff;
 
 sealed class FrameException implements Exception {

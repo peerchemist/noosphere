@@ -4,12 +4,12 @@ import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:noosphere_protocol/message_limits.dart';
 
 import 'generated/noosphere.pb.dart' as wire;
 
 const publicFeedSchemaVersion = 1;
 const publicFeedMaxPageEntries = 100;
-const publicFeedMaxResponseBytes = 64 * 1024;
 const publicFeedMaxCursor = 0x7ffffffffffffffe;
 
 /// An opaque, randomly generated 256-bit identifier; never a group fingerprint.

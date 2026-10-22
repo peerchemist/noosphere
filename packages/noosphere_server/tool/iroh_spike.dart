@@ -6,7 +6,7 @@ import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_protocol/wire.dart' as pb;
 
 const _alpn = 'noosphere/roast/1';
-const _maxFrameLength = 1024 * 1024;
+const _maxFrameLength = pb.defaultMaxMessageLength;
 
 Future<void> main(List<String> args) async {
   if (args.isEmpty) {

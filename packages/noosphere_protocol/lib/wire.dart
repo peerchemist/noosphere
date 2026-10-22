@@ -1,6 +1,7 @@
 /// Shared protobuf wire messages, codecs, framing, and protocol constants.
 library;
 
+export 'message_limits.dart' show defaultMaxMessageLength;
 export 'src/wire/event_wire.dart'
     show
         decodeConstructedKeyEvent,
