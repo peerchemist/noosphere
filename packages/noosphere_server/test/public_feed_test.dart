@@ -259,15 +259,15 @@ void main() {
     final packageConfig = File('.dart_tool/package_config.json').existsSync()
         ? '.dart_tool/package_config.json'
         : '../../.dart_tool/package_config.json';
-    final standalone = await Process.run(Platform.resolvedExecutable, [
+    final isolatedPoller = await Process.run(Platform.resolvedExecutable, [
       '--packages=$packageConfig',
       helper,
       base64Encode(_address(server).encode()),
       server.id.toHex(),
       id.hex,
     ]);
-    expect(standalone.exitCode, 0, reason: standalone.stderr as String);
-    expect(jsonDecode((standalone.stdout as String).trim()), {
+    expect(isolatedPoller.exitCode, 0, reason: isolatedPoller.stderr as String);
+    expect(jsonDecode((isolatedPoller.stdout as String).trim()), {
       'entries': 0,
       'cursor': 0,
     });

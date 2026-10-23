@@ -4,13 +4,13 @@ import 'dart:io';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_server/noosphere_server.dart';
 
-import '../bin/src/server_state_file.dart';
 import 'data.dart';
+import 'support/process_persistence.dart';
 
 Future<void> main(List<String> arguments) async {
   await cl.loadCoinlib();
   await loadFrosty();
-  final persistence = FileServerPersistence(Directory(arguments.first));
+  final persistence = TestProcessPersistence(Directory(arguments.first));
   final handler = ServerApiHandler(
     config: arguments.length > 2
         ? ServerConfig(

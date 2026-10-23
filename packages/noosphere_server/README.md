@@ -6,68 +6,20 @@ and ROAST threshold signatures, while replacing the original gRPC transport
 with authenticated Iroh QUIC connections.
 
 The fork contains no gRPC server, generated gRPC stubs, or gRPC configuration.
-Instead, it owns the Iroh endpoint lifecycle, uses a persistent Iroh identity,
-and serves the protocol over dedicated ALPNs with direct connectivity and relay
-fallback. Applications migrating from the original package must use the Iroh
-configuration and bootstrap model described below.
+Instead, it owns the Iroh endpoint lifecycle, accepts a stable identity from
+the application wrapper, and serves the protocol over dedicated ALPNs with
+direct connectivity and relay fallback. Applications migrating from the
+original package must use the Iroh configuration and bootstrap model described
+below.
 
 The `noosphere_server.dart` entry point exports server configuration, the
 coordinator API, Iroh server lifecycle, room management and host persistence
 contracts. Connection contexts, dispatchers, connection handlers and wire
 conversion helpers under `lib/src/iroh/` are internal implementation details.
 
-YAML parsing belongs only to the standalone CLI in `bin/src/config.dart`.
-Embedded callers construct `GroupConfig`, `ServerConfig` and `IrohConfig`
-directly. The shared and client libraries have no YAML conversion API.
-
-## Run the server
-
-Copy `config/iroh-server.example.yaml`, replace the group and participant keys,
-and keep `secret-key-path` on durable storage. The file contains relay,
-deadline and resource-limit settings with production defaults.
-
-```sh
-dart run noosphere_server:iroh_server --config config.yaml
-```
-
-At startup the CLI prints:
-
-```text
-Iroh endpoint ID is <full-hex-id>
-IROH_SERVER_READY <full-hex-id> <base64url-address>
-```
-
-Distribute the full endpoint ID through a trusted channel so clients can pin
-it independently from address hints. Preserve the secret key file across
-restarts: replacing it changes the endpoint ID. SIGINT and SIGTERM stop
-accepting connections and perform bounded graceful shutdown.
-
-The default relay policy permits direct connectivity and n0 relay fallback.
-Set `relay.policy` to `disabled`, `staging`, or `custom`; a custom policy also
-requires a `relay.urls` list.
-
-## Container
-
-The multi-stage image consumes the protocol, client and server packages from
-the same workspace revision. It pins the Dart and Rust toolchains, lets Dart's
-native-asset hooks build Frosty and Coinlib from the locked dependencies,
-installs Iroh's signed upstream prebuilt, and bundles the AOT-compiled CLI with
-all three required native libraries.
-
-```sh
-podman build -f deploy/coordinator/Containerfile -t noosphere-server .
-podman run --rm \
-  -v noosphere-data:/var/lib/noosphere \
-  -v "$PWD/config.yaml:/config/server.yaml:ro,Z" \
-  noosphere-server
-```
-
-The root [container documentation](../../README.md#standalone-coordinator-container)
-explains the build context, persisted data and networking model. The named
-`/var/lib/noosphere` volume preserves the server identity and protocol state.
-
-Run the build from the monorepository root so all local package sources are in
-the container build context.
+The package contains no CLI, filesystem persistence or YAML parsing. The
+application wrapper constructs `GroupConfig`, `ServerConfig` and `IrohConfig`,
+supplies identity keys and implements the persistence contracts.
 
 ## Native development setup
 
@@ -105,14 +57,9 @@ it according to its own policy before starting the server.
 `secretKeyPath`; remove that argument from embedding code and load the key in
 your wrapper instead.
 
-The standalone CLI still accepts `secret-key-path` in its YAML. Its provider
-lives under `bin/src/`, serializes cooperating processes with a file lock and
-writes the identity with mode 0600 on POSIX. Database, secure-storage and backup
-policy for other hosts belongs to those hosts.
-
-The CLI stores protocol snapshots under `state-directory` (default:
-`<config-path>.state`). Embedders must implement `ServerPersistence.write` as
-an atomic durable replacement and must fail startup when loading fails.
+The wrapper must implement `ServerPersistence.write` as an atomic durable
+replacement and must fail startup when loading fails. Database, secure-storage,
+backup and retention policy belong entirely to that wrapper.
 
 `RoomManager.open` requires an explicit `RoomPersistence` provider. Tests and
 examples can import `package:noosphere_server/testing.dart` and pass

@@ -80,7 +80,7 @@ import 'package:noosphere_flutter/testing.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  testWidgets('standalone consumer loads native bindings and serves', (_) async {
+  testWidgets('external consumer loads native bindings and serves', (_) async {
     await NoosphereFlutter.initialize();
     final group = GroupConfig(id: 'consumer', participants: {
       for (var i = 1; i <= 2; i++)

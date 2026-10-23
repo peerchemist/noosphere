@@ -93,9 +93,9 @@ addresses.
 The topology is **coordinator-routed**: participants connect to a coordinator,
 submit authenticated requests, and receive typed protocol events over
 persistent sessions. Participants do not need a full mesh of connections.
-A coordinator can run as a standalone service or be embedded in an app,
-including an app that also participates in signing. A co-located participant
-can use `LocalCoordinatorApi` to run the same protocol in process.
+A coordinator is embedded in its host application, including an app that also
+participates in signing. A co-located participant can use
+`LocalCoordinatorApi` to run the same protocol in process.
 
 Iroh authenticates the transport endpoint; separate participant signatures
 prove the authorship of signed proposals and contributions. The coordinator
@@ -182,7 +182,7 @@ This repository is a Dart workspace with a Flutter facade:
 | --- | --- |
 | [noosphere_protocol](packages/noosphere_protocol) | Shared domain types, signed encodings, protobuf, configuration and room models. |
 | [noosphere_client](packages/noosphere_client) | Participant state machine, storage contracts and Iroh client. |
-| [noosphere_server](packages/noosphere_server) | Coordinator state machine, persistence contracts, Iroh server and standalone CLI. |
+| [noosphere_server](packages/noosphere_server) | Storage-agnostic coordinator state machine, persistence contracts and Iroh server. |
 | [noosphere_flutter](packages/noosphere_flutter) | `NoosphereWorker` facade that runs protocol work and cryptography in an isolate. |
 
 For Flutter, start with `package:noosphere_flutter/noosphere_flutter.dart`.
@@ -194,46 +194,11 @@ pin, durable providers and approval handling.
   computers. It uses public test identities and temporary storage.
 - Follow the [client setup and connection examples](packages/noosphere_client/README.md)
   for a Dart participant, including native-library requirements.
-- Use the [server guide](packages/noosphere_server/README.md) for a headless
-  coordinator, or build the container below.
+- Use the [server guide](packages/noosphere_server/README.md) to embed a
+  coordinator in your application wrapper.
 - Read the [architecture guide](docs/architecture/README.md),
   [protocol specification](packages/noosphere_protocol/spec/PROTOCOL.md) and
   [security model](packages/noosphere_protocol/spec/SECURITY.md) for integration
   contracts and trust boundaries.
 - See [development and testing](docs/architecture/development-and-testing.md)
   for workspace checks and native integration tests.
-
-## Standalone coordinator container
-
-The coordinator [`Containerfile`](deploy/coordinator/Containerfile) builds the standalone Linux
-coordinator from the `noosphere_protocol`, `noosphere_client` and `noosphere_server`
-packages at the same workspace revision. The Flutter facade and example are
-development hosts rather than server-image runtime dependencies; CI analyzes
-and tests them directly on Linux as part of the complete workspace
-verification. The container is a deployment artifact, not the integration-test
-environment.
-
-Build the image from the repository root so the complete package workspace is
-available as the build context:
-
-```sh
-podman build --file deploy/coordinator/Containerfile --tag noosphere-server .
-```
-
-Docker can be used with the same arguments by replacing `podman` with
-`docker`. Copy
-[`packages/noosphere_server/config/iroh-server.example.yaml`](packages/noosphere_server/config/iroh-server.example.yaml),
-replace the example group and participant keys, and run the image with the
-configuration mounted read-only:
-
-```sh
-podman run --rm \
-  --volume noosphere-data:/var/lib/noosphere \
-  --volume "$PWD/config.yaml:/config/server.yaml:ro,Z" \
-  noosphere-server
-```
-
-The `/var/lib/noosphere` volume preserves both the Iroh identity and protocol
-state. No fixed port is exposed because Iroh uses dynamic UDP sockets and can
-fall back to the configured relay. A direct-only deployment must publish the
-actual UDP socket through its own container-network configuration.

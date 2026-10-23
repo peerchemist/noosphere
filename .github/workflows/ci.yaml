@@ -58,7 +58,7 @@ jobs:
           xvfb-run -a flutter test integration_test/worker_forced_shutdown_test.dart -d linux
           xvfb-run -a flutter test integration_test/worker_process_relaunch_test.dart -d linux --dart-define=NOOSPHERE_RELAUNCH_PHASE=prepare
           xvfb-run -a flutter test integration_test/worker_process_relaunch_test.dart -d linux --dart-define=NOOSPHERE_RELAUNCH_PHASE=recover
-      - name: Validate standalone source consumer
+      - name: Validate external source consumer
         working-directory: noosphere
         run: xvfb-run -a ./tool/validate_release_consumer.sh
       - name: Analyze and build example

@@ -24,20 +24,14 @@ domain TTL policy; Iroh configs add transport limits and timeouts.
 The server's slightly smaller minimums allow transit time. Each side validates
 its own bounds.
 
-Only the standalone server parses YAML. Shared libraries use typed values and
-binary codecs; YAML milliseconds are not a network or snapshot format. Flutter
-options explicitly encode all client TTLs.
+Libraries use typed values and binary codecs; application wrappers decide how
+configuration is loaded. Flutter options explicitly encode all client TTLs.
 
 ## Hosts and platforms
 
-The standalone [`iroh_server`](../../packages/noosphere_server/bin/iroh_server.dart)
-loads YAML, a filesystem Iroh identity and file-backed coordinator snapshots.
-It writes through temporary files and rename, but is neither an encrypted store
-nor a multi-process database. It does not expose room management.
-
-The coordinator [`Containerfile`](../../deploy/coordinator/Containerfile) builds that host and its native
-dependencies from the monorepository workspace. Deployments must still provide
-durable identity/state paths and real group configuration.
+Coordinator deployments are application wrappers around `IrohServer`. The
+wrapper supplies identity keys, typed configuration and persistence providers;
+Noosphere does not ship a filesystem-backed executable or deployment image.
 
 The workspace targets Dart `^3.13.0`, Flutter `>=3.47.0`, Linux and macOS. The
 current repository does not support Android, iOS, Windows or web. The example
@@ -78,10 +72,9 @@ flutter test integration_test/example_session_test.dart -d linux
 CI verifies the complete Linux workspace in one job: the shared protocol,
 client, server, Flutter facade, native end-to-end flows, release consumer,
 and example application. Native integration tests run directly through Flutter
-on Linux; the coordinator container is a deployment artifact and is not used as the
-test environment. Protocol changes should test codecs plus complete
-request/event/snapshot paths. Documentation-only changes need link and
-source-claim validation, not native rebuilds.
+on Linux. Protocol changes should test codecs plus complete
+request/event/snapshot paths. Documentation-only changes need link and source-claim
+validation, not native rebuilds.
 
 `./tool/validate_release_consumer.sh` stages the runtime packages outside the
 workspace, creates a fresh Flutter consumer, analyzes it and starts/closes an

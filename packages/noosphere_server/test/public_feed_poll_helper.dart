@@ -1,4 +1,4 @@
-// Deliberately standalone: no signer client, server, storage, or FROST setup.
+// Deliberately isolated: no signer client, server, storage, or FROST setup.
 import 'dart:convert';
 import 'dart:io';
 

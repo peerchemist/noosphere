@@ -9,7 +9,7 @@ to the shared protocol package:
 | --- | --- |
 | [`noosphere_protocol`](../../packages/noosphere_protocol) | Domain types, configuration, codecs, protobuf, framing, rooms and transition models |
 | [`noosphere_client`](../../packages/noosphere_client) | Participant state machine, storage contract, Iroh client and reconnects |
-| [`noosphere_server`](../../packages/noosphere_server) | Coordinator state machine, persistence, Iroh server, rooms and CLI |
+| [`noosphere_server`](../../packages/noosphere_server) | Storage-agnostic coordinator state machine, Iroh server and persistence contracts |
 | [`noosphere_flutter`](../../packages/noosphere_flutter) | Isolate worker, initialization and Flutter lifecycle |
 | [`demo`](../../apps/demo) | Demonstration UI with intentionally temporary storage |
 | [`integration_host`](../../apps/integration_host) | Native runners for library end-to-end tests |
@@ -62,9 +62,8 @@ interchangeable. Memory-only persistence is exposed through each package's
 - Each application owns its `linux/` and `macos/` runners. Demo UI tests live
   with the demo; library integration tests live with the integration host.
   `.dart_tool/` and `build/` are generated.
-- `deploy/coordinator/` contains the container and its Dart-only workspace
-  manifest. `tool/` contains workspace release and consumer checks, while
-  protocol generation remains in `packages/noosphere_protocol/tool/`.
+- `tool/` contains workspace release and consumer checks, while protocol
+  generation remains in `packages/noosphere_protocol/tool/`.
 
 Noosphere orchestrates pinned Iroh, Coinlib and Frosty dependencies. It does
 not implement QUIC or elliptic-curve arithmetic. See [Iroh transport](iroh-transport.md)

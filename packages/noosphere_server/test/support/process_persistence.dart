@@ -3,12 +3,9 @@ import 'dart:io';
 
 import 'package:noosphere_server/noosphere_server.dart';
 
-/// CLI-owned file persistence. Embedders should use their transactional store.
-final class FileServerPersistence implements ServerPersistence {
-  FileServerPersistence(this.directory);
-
-  final Directory directory;
-
+/// Models an application wrapper across real test processes.
+final class TestProcessPersistence(final Directory directory)
+    implements ServerPersistence {
   File _file(String groupId) =>
       File('${directory.path}/${base64Url.encode(utf8.encode(groupId))}.state');
 
@@ -22,11 +19,6 @@ final class FileServerPersistence implements ServerPersistence {
   @override
   Future<void> write(String groupId, ServerStateSnapshot state) async {
     await directory.create(recursive: true);
-    final target = _file(groupId);
-    final temporary = File(
-      '${target.path}.$pid.${DateTime.now().microsecondsSinceEpoch}.tmp',
-    );
-    await temporary.writeAsBytes(state.toBytes(), flush: true);
-    await temporary.rename(target.path);
+    await _file(groupId).writeAsBytes(state.toBytes(), flush: true);
   }
 }

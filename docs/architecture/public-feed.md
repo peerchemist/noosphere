@@ -27,8 +27,6 @@ final config = ServerConfig(
 );
 ```
 
-The CLI accepts the equivalent `server.public-feed` block shown in
-[`iroh-server.example.yaml`](../../packages/noosphere_server/config/iroh-server.example.yaml).
 Each configured group has its own `ServerConfig.publicFeed`. Frozen enrollment
 room groups opt in separately through `IrohConfig.roomPublicFeeds`, keyed by
 their group IDs. They do not inherit the primary group's feed. Duplicate feed

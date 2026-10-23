@@ -4,7 +4,7 @@
 
 `NoosphereWorker` is the Flutter execution API. It runs participant and embedded
 coordinator roles in a long-lived isolate and exposes a DTO-based interface to
-the host. Headless coordinators use `IrohServer` or the standalone CLI instead.
+the host. Other application wrappers embed `IrohServer` directly.
 
 ## Worker boundary
 

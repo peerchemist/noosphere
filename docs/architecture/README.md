@@ -36,17 +36,17 @@ flowchart TB
     Shared --> Crypto
 ```
 
-A typical deployment runs Flutter participants against a durable standalone
-coordinator. An application can also embed either or both roles. When a signer
-targets a matching coordinator in the same process, `LocalCoordinatorApi`
+A typical deployment runs Flutter participants against a coordinator embedded
+in an application wrapper. An application can embed either or both roles. When
+a signer targets a matching coordinator in the same process, `LocalCoordinatorApi`
 bypasses protobuf and QUIC but preserves login, sessions, events and the
 server's per-group ordering. Remote participants continue to use Iroh.
 
 `NoosphereWorker` keeps protocol objects and synchronous cryptography in one
 long-lived isolate; providers and UI state stay on the host isolate. This is a
 scheduling/ownership boundary, not an OS security boundary. Its internal
-runtime composes embedded roles but is not a public execution mode. Headless
-coordinators use `IrohServer` or the standalone CLI.
+runtime composes embedded roles but is not a public execution mode. Other
+application wrappers embed `IrohServer` directly.
 
 | Capability | Status |
 | --- | --- |

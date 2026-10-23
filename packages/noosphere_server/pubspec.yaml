@@ -20,8 +20,6 @@ dependencies:
   protobuf: ^4.0.0
   collection: ^1.17.1
   iroh_quic: 1.1.0
-  yaml: ^3.1.2
-  args: ^2.6.0
 
 dev_dependencies:
   lints: ^6.0.0
