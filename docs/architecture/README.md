@@ -110,10 +110,14 @@ delivery, then validated by the participant state machine. `ClientEvent` and
 worker events are later local projections, not wire messages or durable logs.
 
 The host stores client keys/nonces, coordinator snapshots and rooms through
-explicit interfaces. Restart creates new sessions. Completed results and
-recovery shares can be redelivered; unfinished DKG becomes interrupted and
-unfinished signing becomes blocked. Prepared client operations remain evidence
-of a possibly sent mutation, preventing blind retry and FROST nonce reuse.
+explicit interfaces. Restart creates new sessions. Snapshot v4 restores the
+coordinator side of active DKG, including commitments, encrypted-share
+mailboxes and completion acknowledgements. A participant can resume only when
+its host restores the matching opaque round secret; Noosphere never persists
+that private state. Unfinished signing becomes blocked. Completed results and
+recovery shares can be redelivered, while prepared client operations remain
+evidence of a possibly sent mutation, preventing blind retry and FROST nonce
+reuse. See [state and persistence](state-and-persistence.md#resumable-dkg-boundary).
 
 Generic text can be threshold-signed through typed message metadata, but the
 protocol has no arbitrary event bus. A negotiated extension envelope is

@@ -52,13 +52,18 @@ commitments delivered by events while the fetch was in flight. Invalid proofs,
 ciphertexts or shares
 reject the attempt.
 
-Noosphere remains stateless with respect to durable application data. A host
-can export opaque private state with `Client.exportDkgSecret` (or the matching
-worker API), protect those bytes in its own encrypted storage, then import them
-after recreating the client. The host must export again after each DKG round
-transition. Until matching state is imported, a published contribution is
-exposed as non-resumable and explicit refresh fails with `MissingDkgSecret`;
-the host may still reject it. Noosphere never substitutes fresh randomness.
+Noosphere remains stateless with respect to durable application data. For
+crash-safe DKG, the host supplies `persistDkgSecret`; Noosphere awaits that
+callback after preparing each round's opaque private state and before sending
+the corresponding contribution. A failed callback prevents submission. The
+host protects and atomically replaces those bytes in its own storage, then
+imports them after recreating the client. `Client.exportDkgSecret` (or the
+matching worker API) remains available for explicit export, but exporting only
+after a transition is not a durability barrier for the preceding submission.
+Until matching state is imported, a published contribution is exposed as
+non-resumable and explicit refresh fails with `MissingDkgSecret`; the host may
+still reject it. Noosphere never substitutes fresh randomness. See the
+[resumable DKG persistence contract](state-and-persistence.md#resumable-dkg-boundary).
 
 Stored FROST keys carry the ceremony ID and transcript hash that created them.
 Recovery matches those values rather than the display name. A fetched snapshot

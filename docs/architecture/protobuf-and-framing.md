@@ -13,6 +13,7 @@ framing helpers through `package:noosphere_protocol/wire.dart`.
 | --- | --- |
 | `noosphere/roast/1` | Login, sessions, DKG and signing |
 | `noosphere/roast-enrollment/1` | Invite enrollment |
+| `noosphere/public-feed/1` | Unauthenticated public-feed polling |
 
 ALPN selects the wire protocol. `LoginRequest.protocol_version` is a separate
 domain check and is currently exactly `3`. Only the current DKG proposal,

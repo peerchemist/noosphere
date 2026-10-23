@@ -54,14 +54,16 @@ from `requested` to its terminal entry. They have no derivation from names,
 participant identities, fingerprints, or protocol request IDs. A newly accepted
 attempt receives a fresh ID even when a participant reuses a DKG name.
 
-Version 1 emits `requested` and terminal `completed`, `rejected`, `cancelled`, or
-`expired` entries. `progress` is reserved by the domain vocabulary; version 1
-does not publish intermediate counts or individual votes. A signing operation
-is `rejected` when rejection prevents its threshold from being reached; a
-partial participant rejection is not a terminal operation. Other unrecoverable
-signing failures are `cancelled`. Completion of DKG means the coordinator has
-received all round-two submissions, not that it possesses or independently
-verified participants' resulting keys.
+Version 1 emits `requested` and terminal `completed`, `rejected`, `cancelled`,
+`expired`, or `failed` entries. `progress` is reserved by the domain vocabulary;
+version 1 does not publish intermediate counts or individual votes. A signing
+operation is `rejected` when rejection prevents its threshold from being
+reached; a partial participant rejection is not a terminal operation. An
+explicit creator cancellation is `cancelled`; other unrecoverable signing
+failures are `failed`. Completion of DKG means every participant has submitted
+a positive completion acknowledgement bound to the ceremony, transcript and
+same group public key. The coordinator validates those acknowledgements but
+does not possess the resulting private key shares.
 
 No request details, proposals, transaction data, amounts, derivation paths,
 messages, participant data, key material, commitments, nonces, shares, ROAST
@@ -149,11 +151,12 @@ snapshot as the corresponding protocol transition. Only the committed journal
 is readable. An uncertain write makes the handler refuse public responses until
 it is recreated. Retries that do not cause a new protocol transition do not add
 entries; replay cannot reopen an already completed signing request still held
-in coordinator storage. Recovery cancels active DKG and signing attempts that
-the existing protocol cannot resume (signing requests remain privately blocked
-until expiry). Those cancellations are committed once before accepting requests.
-Already expired attempts receive `expired` instead. Later restarts add no repeat
-terminal entries. Polling does not perform recovery or expiry transitions.
+in coordinator storage. Recovery restores active DKG coordinator state. Active
+signing rounds cannot resume: they remain privately blocked until expiry and
+receive one `failed` public-feed entry. Already expired attempts receive
+`expired` instead. Recovery changes are committed before requests are accepted,
+and later restarts add no repeat terminal entries. Polling does not perform
+recovery or expiry transitions.
 Public reads use the immutable committed view directly and do not queue work
 in the participant mutation lane, including while host persistence is pending.
 
@@ -201,13 +204,13 @@ Both RPC directions use the existing QUIC-varint operation/status prefix and
 FIN-delimited protobuf framing. Disabled and unknown valid feed IDs have the
 same `NOT_FOUND` response and disclose no group information.
 
-Snapshot version 1 gains optional `publicFeed` data. Existing snapshots without
-it load as disabled/empty unless configuration explicitly opts in. Enabled
-`ServerConfig` serialization gains a trailing versioned extension, including
-the feed ID and retention policy, so it also crosses the existing Flutter
-worker configuration boundary. Disabled configuration retains its original
-bytes. New readers accept the original bytes. Frozen room feed configuration
-must be supplied again by the host on startup.
+Snapshot version 4 contains optional `publicFeed` data. A version 4 snapshot
+without it loads as disabled/empty unless configuration explicitly opts in.
+Enabled `ServerConfig` serialization gains a trailing versioned extension,
+including the feed ID and retention policy, so it also crosses the existing
+Flutter worker configuration boundary. Disabled configuration retains its
+original bytes. New readers accept the original bytes. Frozen room feed
+configuration must be supplied again by the host on startup.
 
 Do not downgrade an enabled coordinator to a binary that discards public-feed
 snapshot fields or restore an older backup over a live journal: either can

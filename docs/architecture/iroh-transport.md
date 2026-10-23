@@ -44,10 +44,17 @@ locations out of canonical room models and invite encodings.
 
 ## Streams and routing
 
-The server selects ROAST or enrollment by ALPN. Each RPC gets an independent
-bidirectional stream. A separate long-lived stream sends `SessionStarted` and
-length-prefixed events. Participant contributions use RPCs; clients cannot
-publish arbitrary `EventMessage` values.
+The server selects a route by ALPN:
+
+| ALPN | Route |
+| --- | --- |
+| `noosphere/roast/1` | Authenticated participant RPCs and sessions |
+| `noosphere/roast-enrollment/1` | Invite enrollment |
+| `noosphere/public-feed/1` | Unauthenticated public-feed polling |
+
+Each RPC gets an independent bidirectional stream. A separate long-lived
+ROAST stream sends `SessionStarted` and length-prefixed events. Participant
+contributions use RPCs; clients cannot publish arbitrary `EventMessage` values.
 
 Per-group dispatch serializes domain mutations even though QUIC multiplexes
 streams. Socket writes occur after dispatch releases the group lane. A written

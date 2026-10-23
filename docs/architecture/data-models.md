@@ -83,8 +83,9 @@ and BIP-340 signature for offline verification.
   rejections consistently. Prepared operations prevent unsafe nonce reuse;
   they are not an automatic replay queue.
 - `ServerStateSnapshot` is opaque versioned JSON containing attempts,
-  completed results and encrypted recovery shares. It cannot resume live
-  cryptographic rounds after restart.
+  completed results and encrypted recovery shares. Snapshot v4 restores the
+  coordinator side of active DKG, but never contains the participant's private
+  round secret. Signing rounds remain non-resumable after restart.
 - `RoomInvite` is the participant-bound enrollment credential;
   `NoosphereRoomInvite` only adds an application URI prefix for clickable
   delivery. Room models retain the coordinator endpoint ID, not changing IP or
