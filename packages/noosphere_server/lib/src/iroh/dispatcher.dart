@@ -30,7 +30,7 @@ final class IrohDispatchResult<T>(final T value);
 /// Callbacks may invoke [ServerApiHandler] methods but must not perform network
 /// reads or writes.
 final class IrohDispatcher {
-  IrohDispatcher(Iterable<ServerApiHandler> handlers) {
+  IrohDispatcher(Iterable<ServerApiHandler> handlers, {this.onError}) {
     try {
       for (final handler in handlers) {
         addHandler(handler);
@@ -44,10 +44,13 @@ final class IrohDispatcher {
     if (_lanes.isEmpty) throw ArgumentError('at least one group is required');
   }
 
-  factory IrohDispatcher.single(ServerApiHandler handler) =>
-      IrohDispatcher([handler]);
+  factory IrohDispatcher.single(
+    ServerApiHandler handler, {
+    void Function(Object error, StackTrace stackTrace)? onError,
+  }) => IrohDispatcher([handler], onError: onError);
 
   final Map<_GroupKey, _GroupLane> _lanes = {};
+  final void Function(Object error, StackTrace stackTrace)? onError;
   bool _closed = false;
 
   /// Adds a newly frozen enrollment room to the ordinary ROAST dispatcher.
@@ -70,9 +73,13 @@ final class IrohDispatcher {
       // accumulating maintenance jobs behind slow host persistence.
       if (_closed || lane.queue.pending != 0) return;
       unawaited(
-        lane.queue.run(handler.maintainPublicFeed).catchError((Object _) {
+        lane.queue.run(handler.maintainPublicFeed).catchError((
+          Object error,
+          StackTrace stackTrace,
+        ) {
           // Handler fails closed on an uncertain durable write. Reads will
           // refuse to publish that state; the host must restart the handler.
+          onError?.call(error, stackTrace);
         }),
       );
     });

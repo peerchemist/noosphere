@@ -83,7 +83,11 @@ final class IrohServer {
           handler ??
           ServerApiHandler(config: config.server, persistence: persistence);
       await api.ready;
-      dispatcher = IrohDispatcher.single(api);
+      dispatcher = IrohDispatcher.single(
+        api,
+        onError: (error, stackTrace) =>
+            _reportHostError(onError, error, stackTrace),
+      );
       if (rooms != null) {
         for (final room in await rooms.getRooms()) {
           if (room.lifecycle == RoomLifecycle.frozen) {
@@ -123,13 +127,17 @@ final class IrohServer {
   final ServerPersistence persistence;
   final SecretKey _signingKey;
 
-  /// Reports unexpected background transport failures. Request validation
-  /// failures are returned to the peer instead. Defaults to stderr logging.
-  /// The affected connection is closed; other connections keep serving.
+  /// Reports unexpected background failures, including transport and scheduled
+  /// maintenance failures. Request validation failures are returned to the
+  /// peer instead. Defaults to stderr logging. An affected connection is
+  /// closed when applicable; other connections keep serving.
   final void Function(Object error, StackTrace stackTrace)? onError;
 
-  void _reportError(Object error, StackTrace stackTrace) {
-    final report = onError;
+  static void _reportHostError(
+    void Function(Object error, StackTrace stackTrace)? report,
+    Object error,
+    StackTrace stackTrace,
+  ) {
     if (report != null) {
       try {
         report(error, stackTrace);
@@ -142,6 +150,9 @@ final class IrohServer {
     }
     stderr.writeln('Noosphere Iroh task failed: $error\n$stackTrace');
   }
+
+  void _reportError(Object error, StackTrace stackTrace) =>
+      _reportHostError(onError, error, stackTrace);
 
   Future<void>? _closing;
   Future<void>? _serving;
