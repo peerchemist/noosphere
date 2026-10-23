@@ -325,7 +325,9 @@ void main() {
         IrohConfig(
           server: serverConfig,
           relay: IrohRelayConfig.disabled(),
-          authTimeout: const Duration(milliseconds: 100),
+          // Keep the connection deadline later than the partial-body timeout
+          // so this test exercises the per-stream error response.
+          authTimeout: const Duration(seconds: 2),
           rpcTimeout: const Duration(milliseconds: 100),
           shutdownTimeout: const Duration(seconds: 2),
           nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],

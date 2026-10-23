@@ -33,7 +33,12 @@ final class IrohConnectionHandler {
   final ConnectionContext context;
   final Set<Future<void>> _streams = {};
 
+  Timer? _authenticationDeadline;
+
   Future<void> run() async {
+    _authenticationDeadline = Timer(config.authTimeout, () {
+      connection.close(reason: 'authentication deadline exceeded'.codeUnits);
+    });
     try {
       while (!context.isClosed) {
         final (send, receive) = await connection.acceptBi();
@@ -52,6 +57,7 @@ final class IrohConnectionHandler {
     } on IrohConnectionException {
       // Normal when the remote closes the connection.
     } finally {
+      _authenticationDeadline?.cancel();
       final group = context.groupFingerprint;
       if (!context.isClosed && group != null) {
         await dispatcher.disconnect(
@@ -214,6 +220,7 @@ final class IrohConnectionHandler {
         ),
       ),
     );
+    _authenticationDeadline?.cancel();
     return RespondToChallengeResponse(authenticated: EmptySuccess());
   }
 

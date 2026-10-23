@@ -27,6 +27,16 @@ final class IrohEnrollmentConnectionHandler {
   final Set<Future<void>> _streams = {};
 
   Future<void> run() async {
+    var accepting = true;
+    Timer? idleDeadline;
+    void armIdleDeadline() {
+      if (!accepting || _streams.isNotEmpty) return;
+      idleDeadline = Timer(timeout, () {
+        connection.close(reason: 'idle connection deadline exceeded'.codeUnits);
+      });
+    }
+
+    armIdleDeadline();
     try {
       while (true) {
         final (send, receive) = await connection.acceptBi();
@@ -35,16 +45,19 @@ final class IrohEnrollmentConnectionHandler {
           await receive.stop(1);
           continue;
         }
+        idleDeadline?.cancel();
         late final Future<void> handling;
-        handling = _handle(
-          send,
-          receive,
-        ).whenComplete(() => _streams.remove(handling));
+        handling = _handle(send, receive).whenComplete(() {
+          _streams.remove(handling);
+          armIdleDeadline();
+        });
         _streams.add(handling);
       }
     } on IrohConnectionException {
       // Normal peer disconnect.
     } finally {
+      accepting = false;
+      idleDeadline?.cancel();
       await Future.wait(_streams.toList(), eagerError: false);
     }
   }

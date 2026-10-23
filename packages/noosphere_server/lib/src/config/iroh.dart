@@ -70,6 +70,10 @@ final class IrohConfig {
   final Duration rpcTimeout;
   final Duration shutdownTimeout;
   final int maxMessageLength;
+
+  /// Total accepted connections. Public-feed and enrollment connections
+  /// together may use at most half (rounded down), reserving the rest for
+  /// signer traffic. A value of one admits signer traffic only.
   final int maxConnections;
   final int maxStreamsPerConnection;
   final String? nativeLibraryPath;

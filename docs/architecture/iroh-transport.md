@@ -68,7 +68,21 @@ durable event offset.
 | RPC timeout | 30 s | 30 s |
 | Server shutdown timeout | 5 s | 5 s |
 
-These are resource bounds, not a complete abuse-prevention system.
+The authentication deadline starts when the ROAST connection is accepted,
+including before its first stream, and ends only after successful participant
+authentication. Issuing a challenge or opening more streams does not extend it.
+Public-feed connections expire after `rpcTimeout` without an active request;
+enrollment connections use `authTimeout` for the same idle policy. The idle
+clock restarts after the last in-flight request finishes. Per-stream deadlines
+still apply while requests are active.
+
+Public-feed and enrollment connections together may occupy at most
+`maxConnections ~/ 2` slots. The remaining slots are reserved for ROAST traffic,
+within the unchanged total connection limit. Setting `maxConnections` to one
+therefore admits signer traffic only. Unauthenticated ROAST connections can
+briefly fill signer slots until their authentication deadlines expire; this is
+not protection against sustained connection floods. Hosts still need admission
+and rate controls appropriate to their deployment.
 
 ## Reconnect and shutdown
 

@@ -119,6 +119,7 @@ final class IrohServer {
   Future<void>? _closing;
   Future<void>? _serving;
   final Set<Future<void>> _connections = {};
+  int _auxiliaryConnections = 0;
   final Set<LocalCoordinatorApi> _localApis = {};
 
   EndpointId get id => endpoint.id;
@@ -211,37 +212,48 @@ final class IrohServer {
     while (!endpoint.isClosed) {
       final connection = await endpoint.accept();
       if (connection == null) break;
-      if (_connections.length >= config.maxConnections) {
+      final alpn = String.fromCharCodes(connection.alpn);
+      final auxiliary =
+          alpn == noospherePublicFeedAlpn || alpn == noosphereEnrollmentAlpn;
+      // Public/enrollment traffic cannot consume the signer reservation.
+      // With a one-connection budget, only signer traffic is admitted.
+      if (_connections.length >= config.maxConnections ||
+          (auxiliary && _auxiliaryConnections >= config.maxConnections ~/ 2)) {
         connection.close(reason: 'connection limit reached'.codeUnits);
         continue;
       }
-      late final Future<void> handling;
-      final alpn = String.fromCharCodes(connection.alpn);
+      final Future<void> running;
       if (alpn == noosphereEnrollmentAlpn && rooms != null) {
-        handling = IrohEnrollmentConnectionHandler(
+        running = IrohEnrollmentConnectionHandler(
           connection: connection,
           rooms: rooms!,
           timeout: config.authTimeout,
           maxMessageLength: config.maxMessageLength,
           maxStreams: config.maxStreamsPerConnection,
-        ).run().whenComplete(() => _connections.remove(handling));
+        ).run();
       } else if (alpn == noospherePublicFeedAlpn) {
-        handling = PublicFeedConnectionHandler(
+        running = PublicFeedConnectionHandler(
           connection: connection,
           dispatcher: dispatcher,
           config: config,
           signingKey: _signingKey,
-        ).run().whenComplete(() => _connections.remove(handling));
+        ).run();
       } else if (alpn == config.alpn) {
-        handling = IrohConnectionHandler(
+        running = IrohConnectionHandler(
           connection: connection,
           dispatcher: dispatcher,
           config: config,
-        ).run().whenComplete(() => _connections.remove(handling));
+        ).run();
       } else {
         connection.close(reason: 'unsupported ALPN'.codeUnits);
         continue;
       }
+      if (auxiliary) _auxiliaryConnections++;
+      late final Future<void> handling;
+      handling = running.whenComplete(() {
+        _connections.remove(handling);
+        if (auxiliary) _auxiliaryConnections--;
+      });
       _connections.add(handling);
     }
   }
