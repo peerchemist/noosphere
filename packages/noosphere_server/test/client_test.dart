@@ -1292,11 +1292,16 @@ void main() {
       );
 
       test("handles wrong secret", () async {
-        // Send in bad secret
+        // Generate a valid native share for a different transcript, then send
+        // it under the real transcript's envelope. Frosty rejects mismatched
+        // round-one secrets before an invalid share can otherwise be built.
+        final wrongPart1 = getDkgPart1(0);
+        final wrongCommitments = DkgCommitmentSet([
+          for (final (id, commitment) in commitmentSet.list)
+            (id, id == ids[0] ? wrongPart1.public : commitment),
+        ]);
         ctx.api.debugState.sendEventToAll(
-          // A fresh round-one secret has the correct sender identifier but
-          // does not match the commitment published in [commitmentSet].
-          getRound2ShareEvent(commitmentSet, 0, 9, getDkgPart1(0), commonHash),
+          getRound2ShareEvent(wrongCommitments, 0, 9, wrongPart1, commonHash),
         );
 
         // Send in all but one good secrets
@@ -2545,6 +2550,20 @@ void main() {
         });
 
         test("sucessful sharing and construction", () async {
+          // Model completed DKG keys, including their durable roster ACKs.
+          for (final store in stores) {
+            for (var key in store.keys.values.toList()) {
+              for (var i = 0; i < ids.length; i++) {
+                key = key.addOrReplaceAck(
+                  getDkgAck(i, true, groupKey: key.groupKey),
+                );
+              }
+              await store.addOrReplaceFrostKey(key);
+            }
+          }
+          await reloginAll();
+          // Recovery must also work after the coordinator's ACK cache expires.
+          ctx.api.debugState.dkgAckCache.clear();
           Future<void> doShare(int i, [Set<int>? to]) =>
               tcs[i].client.shareKeySecret(
                 groupKeys.first,

@@ -84,6 +84,38 @@ The server caps rosters at 64 members, active ceremonies at 32, encrypted
 shares at 4 KiB, retained DKG payload at 16 MiB, serialized coordinator state
 at 64 MiB and DKG creation at eight requests per participant per minute.
 
+Signing admission caps each group at 32 active requests and 128 total retained
+requests, including completed results, blocked requests, cancellations and
+terminal records. Cancellation therefore does not immediately free retained
+capacity. A request may contain at most 16 signatures and 16 KiB of signed
+details, aggregate keys and initial commitments combined. Each participant may
+create eight requests per rolling minute. Expiry frees retained capacity through
+the normal durable maintenance path.
+
+Recovery is bounded separately: at most 32 key mailboxes, 256 bytes per encrypted
+share and 4 MiB of canonical recovery payload per group. The payload budget
+counts group keys, recipient identifiers and encoded pending-share/completion
+events; it is not the JSON snapshot's byte size. A participant may submit at
+most 32 state-changing recovery batches/acknowledgements per rolling minute.
+Identical already-stored shares are no-ops and do not spend that rate budget.
+All admission checks precede the corresponding state mutation.
+
+A new recovery mailbox requires positive possession ACKs from every roster
+member, matching the same key, ceremony and transcript. The client resubmits its
+stored ACKs before sharing because the coordinator's ACK cache is ephemeral.
+A construction acknowledgement is accepted only for an existing recipient
+mailbox; it cannot allocate a new key record. Pending ciphertexts remain until
+that recipient acknowledges reconstruction, then become a small signed completion
+record. Mailboxes and completion records are retained without automatic expiry
+within the count/byte limits; a full store rejects new allocations instead of
+evicting another recipient's recovery data. Thus admission can require capacity
+planning for long-lived coordinators.
+
+Signing/recovery count and payload bounds are also checked on snapshot restore;
+over-limit snapshots fail validation. Rate windows are process-local, while
+retained-capacity limits survive restart. These bounds limit resource growth;
+they do not promise fair scheduling against a continuously abusive roster member.
+
 Each session has a 100-event pause buffer. It drops older transient entries
 when full and provides neither durable replay nor exactly-once delivery.
 Persisted completions are separate. Endpoint limits supplement, but do not

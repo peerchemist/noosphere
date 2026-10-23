@@ -719,6 +719,11 @@ void main() {
       contains(ids[1]),
     );
 
+    await api0.sendDkgAcks(
+      sid: login0.id,
+      acks: {for (var i = 1; i < ids.length; i++) getDkgAck(i, true)},
+    );
+    await events1.getExpectOneEvent<DkgAckEvent>();
     final encryptedShare = EncryptedKeyShare.encrypt(
       keyShare: getPrivkey(2),
       recipientKey: getPrivkey(1).pubkey,

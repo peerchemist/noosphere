@@ -1,3 +1,4 @@
+import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_protocol/domain.dart';
 
 class KeyShareFromSender {
@@ -10,6 +11,9 @@ class KeyShareFromSender {
 class KeySharingState {
   /// The stored encrypted shares for a given recipient.
   final Map<Identifier, ParticipantShareState> receiverShares = {};
+
+  int payloadBytes(cl.ECCompressedPublicKey groupKey) => receiverShares.values
+      .fold(0, (total, receiver) => total + receiver.payloadBytes(groupKey));
 
   /// Returns true if the receiver can use the share and it was added to the
   /// state
@@ -42,6 +46,22 @@ class KeySharingState {
 
 sealed class ParticipantShareState {
   List<KeyShareFromSender> get pendingShares => [];
+
+  int payloadBytes(cl.ECCompressedPublicKey groupKey) => switch (this) {
+    ParticipantDoneShareState(:final constructedEvent) =>
+      32 + constructedEvent.toBytes().length,
+    ParticipantPendingShareState() => pendingShares.fold(
+      0,
+      (total, share) =>
+          total +
+          32 +
+          SecretShareEvent(
+            sender: share.sender,
+            keyShare: share.share,
+            groupKey: groupKey,
+          ).toBytes().length,
+    ),
+  };
 }
 
 class ParticipantPendingShareState extends ParticipantShareState {

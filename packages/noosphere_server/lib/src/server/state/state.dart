@@ -63,6 +63,8 @@ class ServerRuntimeState {
     expireOnRead: false,
   );
   final Map<Identifier, List<DateTime>> dkgRequestTimes = {};
+  final Map<Identifier, List<DateTime>> signingRequestTimes = {};
+  final Map<Identifier, List<DateTime>> recoveryRequestTimes = {};
 }
 
 /// Protocol state represented in the host-owned durable snapshot.
@@ -113,6 +115,18 @@ class ServerState {
   int get dkgPayloadBytes =>
       nameToDkg.values.fold(0, (total, dkg) => total + dkg.persistedByteSize) +
       persistent.terminalDkgs.length * 40;
+
+  int get retainedSigningCount =>
+      sigRequests.values.length +
+      completedSigs.values.length +
+      persistent.blockedSignatures.length +
+      persistent.cancelledSignatures.values.length +
+      persistent.terminalSignatures.length;
+
+  int get recoveryPayloadBytes => secretShares.entries.fold(
+    0,
+    (total, entry) => total + 33 + entry.value.payloadBytes(entry.key),
+  );
 
   /// Ends [session] exactly once and removes it only when it is still the
   /// current session for its participant.
@@ -300,6 +314,14 @@ class ServerState {
     }
 
     final root = jsonDecode(utf8.decode(snapshot.toBytes())) as Map;
+    require((root['shares'] as List).length <= ServerConfig.maxRecoveryKeys);
+    require(
+      ['signing', 'completed', 'cancelled', 'terminalSigning'].fold<int>(
+            0,
+            (total, name) => total + (root[name] as List).length,
+          ) <=
+          ServerConfig.maxRetainedSignaturesRequests,
+    );
     var changed = false;
     if (root['publicFeed'] case final Map<Object?, Object?> raw) {
       persistent.publicFeed = PublicFeedJournal.fromJson(raw);
@@ -501,6 +523,12 @@ class ServerState {
     for (final raw in root['signing']! as List) {
       final record = raw as Map;
       final event = SignaturesRequestEvent.fromBytes(bytes(record['event']));
+      require(
+        event.details.obj.requiredSigs.length <=
+                ServerConfig.maxSignaturesPerRequest &&
+            event.details.toBytes().length <=
+                ServerConfig.maxSigningRequestBytes,
+      );
       if (persistent.cancelledSignatures.containsKey(event.details.obj.id)) {
         changed = true;
         continue;
@@ -534,6 +562,13 @@ class ServerState {
       final result = CompletedSignaturesRequest.fromBytes(
         bytes(record['result']),
       );
+      require(
+        result.details.obj.requiredSigs.length <=
+                ServerConfig.maxSignaturesPerRequest &&
+            result.details.toBytes().length <=
+                ServerConfig.maxSigningRequestBytes &&
+            result.signatures.length == result.details.obj.requiredSigs.length,
+      );
       if (persistent.cancelledSignatures.containsKey(result.details.obj.id)) {
         throw StateError('Completed signatures conflict with cancellation');
       }
@@ -549,22 +584,52 @@ class ServerState {
     for (final raw in root['shares']! as List) {
       final record = raw as Map;
       final groupKey = cl.ECCompressedPublicKey(bytes(record['groupKey']));
+      require(!secretShares.containsKey(groupKey));
+      require(
+        (record['receivers'] as List).length <=
+            config.group.participants.length,
+      );
       final sharing = secretSharesForKey(groupKey);
       for (final receiverRaw in record['receivers']! as List) {
         final receiver = receiverRaw as Map;
         final receiverId = id(receiver['id']);
+        require(
+          config.group.participants.containsKey(receiverId) &&
+              !sharing.receiverShares.containsKey(receiverId),
+        );
         if (receiver['kind'] == 'done') {
-          sharing.receiverShares[receiverId] = ParticipantDoneShareState(
-            ConstructedKeyEvent.fromBytes(bytes(receiver['event'])),
+          final event = ConstructedKeyEvent.fromBytes(bytes(receiver['event']));
+          require(
+            event.participant == receiverId &&
+                event.constructedKey.obj.publicKey == groupKey &&
+                event.constructedKey.verify(
+                  config.group.participants[receiverId]!,
+                ),
           );
+          sharing.receiverShares[receiverId] = ParticipantDoneShareState(event);
         } else {
+          require(
+            receiver['kind'] == 'pending' &&
+                (receiver['events'] as List).length <
+                    config.group.participants.length,
+          );
           for (final encoded in receiver['events']! as List) {
             final event = SecretShareEvent.fromBytes(bytes(encoded));
-            sharing.maybeAddShare(event.sender, receiverId, event.keyShare);
+            require(
+              event.groupKey == groupKey &&
+                  event.sender != receiverId &&
+                  config.group.participants.containsKey(event.sender) &&
+                  event.keyShare.ciphertext.toBytes().length <=
+                      ServerConfig.maxEncryptedRecoveryShareBytes,
+            );
+            require(
+              sharing.maybeAddShare(event.sender, receiverId, event.keyShare),
+            );
           }
         }
       }
     }
+    require(recoveryPayloadBytes <= ServerConfig.maxRecoveryStateBytes);
     changed = (persistent.publicFeed?.expire() ?? false) || changed;
     return changed;
   }

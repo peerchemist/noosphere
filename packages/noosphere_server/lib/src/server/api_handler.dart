@@ -267,6 +267,21 @@ class ServerApiHandler implements ApiRequestInterface {
 
   int get _participantN => config.group.participants.length;
 
+  void _admitRequestRate(
+    Map<Identifier, List<DateTime>> times,
+    Identifier participant,
+    int maximum,
+  ) {
+    final now = DateTime.now();
+    final cutoff = now.subtract(const Duration(minutes: 1));
+    final requests = times.putIfAbsent(participant, () => []);
+    requests.removeWhere((time) => !time.isAfter(cutoff));
+    if (requests.length >= maximum) {
+      throw InvalidRequest('Request rate exceeded');
+    }
+    requests.add(now);
+  }
+
   void _checkDkgAdmission(Identifier creator) {
     if (_state.nameToDkg.values.length >= ServerConfig.maxActiveDkgs) {
       throw InvalidRequest.dkgCapacityExceeded();

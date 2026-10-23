@@ -98,6 +98,26 @@ extension _ServerSigning on ServerApiHandler {
       throw InvalidRequest.invalidSigReqSignature();
     }
 
+    if (numSigs > ServerConfig.maxSignaturesPerRequest ||
+        signedDetails.toBytes().length +
+                keys.fold<int>(0, (size, key) => size + key.toBytes().length) +
+                commitments.fold<int>(
+                  0,
+                  (size, value) => size + value.toBytes().length,
+                ) >
+            ServerConfig.maxSigningRequestBytes ||
+        _state.sigRequests.values.length >=
+            ServerConfig.maxActiveSignaturesRequests ||
+        _state.retainedSigningCount >=
+            ServerConfig.maxRetainedSignaturesRequests) {
+      throw InvalidRequest('Signing resource capacity exceeded');
+    }
+    _admitRequestRate(
+      _state.runtime.signingRequestTimes,
+      pid,
+      ServerConfig.maxSigningRequestsPerMinute,
+    );
+
     // Create state for request
     final reqState = _state.sigRequests[details.id] =
         SignaturesCoordinationState(

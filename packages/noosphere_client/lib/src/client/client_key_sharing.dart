@@ -12,6 +12,9 @@ extension _ClientKeySharing on Client {
     final ourKey = await getPrivateKey(KeyPurpose.secretShare);
     final shareTime = DateTime.now();
 
+    // The coordinator's possession cache is ephemeral. Reannounce the stored
+    // roster attestations before asking it to allocate a recovery mailbox.
+    await api.sendDkgAcks(sid: _state.sessionID, acks: key.acks);
     await api.shareSecretShare(
       sid: _state.sessionID,
       groupKey: key.groupKey,

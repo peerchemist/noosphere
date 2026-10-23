@@ -1942,6 +1942,11 @@ void main() {
           recipientKey: groupPublicKey,
           senderKey: getPrivkey(0),
         );
+        final cache = DkgAckCache(futureExpiry);
+        for (var i = 0; i < ids.length; i++) {
+          cache.acks[ids[i]] = getDkgAck(i, true).signed;
+        }
+        ctx.api.debugState.dkgAckCache[groupPublicKey] = cache;
         await expectOnlyLoginEventsForAll();
       });
 
@@ -2087,6 +2092,24 @@ void main() {
         ),
       );
 
+      // A claim alone must not allocate a mailbox.
+      await expectInvalid(
+        () => ctx.api.ackKeyConstructed(
+          sid: client.sid,
+          constructedKey: validSigned,
+        ),
+      );
+      ctx.api.debugState
+          .secretSharesForKey(groupPublicKey)
+          .maybeAddShare(
+            ids[1],
+            ids[0],
+            EncryptedKeyShare.encrypt(
+              keyShare: getPrivkey(1),
+              recipientKey: getPrivkey(0).pubkey,
+              senderKey: getPrivkey(1),
+            ),
+          );
       // Cannot do twice
       Future<void> doMethod() => ctx.api.ackKeyConstructed(
         sid: client.sid,

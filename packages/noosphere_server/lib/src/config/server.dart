@@ -25,6 +25,16 @@ class ServerConfig with cl.Writable {
   static const maxDkgStateBytes = 16 * 1024 * 1024;
   static const maxDkgRequestsPerMinute = 8;
 
+  static const maxActiveSignaturesRequests = 32;
+  static const maxRetainedSignaturesRequests = 128;
+  static const maxSignaturesPerRequest = 16;
+  static const maxSigningRequestBytes = 16 * 1024;
+  static const maxSigningRequestsPerMinute = 8;
+  static const maxRecoveryKeys = 32;
+  static const maxEncryptedRecoveryShareBytes = 256;
+  static const maxRecoveryStateBytes = 4 * 1024 * 1024;
+  static const maxRecoveryRequestsPerMinute = 32;
+
   final GroupConfig group;
   final Duration challengeTTL;
   final Duration sessionTTL;
