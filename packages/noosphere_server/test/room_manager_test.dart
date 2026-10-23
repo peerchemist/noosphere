@@ -28,13 +28,15 @@ void main() {
   Future<RoomInvite> issue(
     RoomManager rooms,
     String room,
-    cl.ECPrivateKey key,
-  ) => rooms.issueRoomInvite(
+    cl.ECPrivateKey key, {
+    DateTime? now,
+  }) => rooms.issueRoomInvite(
     roomId: room,
     expectedParticipantPublicKey: cl.ECCompressedPublicKey.fromPubkey(
       key.pubkey,
     ),
-    expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+    expiresAt: (now ?? DateTime.now()).add(const Duration(minutes: 5)),
+    now: now,
   );
 
   test('valid proof enrolls once and does not expose the token', () async {
@@ -195,6 +197,152 @@ void main() {
     expect(results.whereType<RoomSnapshot>(), hasLength(1));
     expect(results.whereType<RoomException>(), hasLength(1));
     expect((await rooms.getRoom('room')).participants, hasLength(1));
+  });
+
+  test('a newer enrollment challenge replaces the previous one', () async {
+    final (rooms, _) = await manager();
+    await rooms.createRoom(
+      roomId: 'room',
+      expectedParticipants: 2,
+      threshold: 1,
+    );
+    final key = cl.ECPrivateKey.generate();
+    final invite = await issue(rooms, 'room', key);
+    final first = await rooms.beginEnrollment(
+      invite: invite,
+      participantPublicKey: invite.expectedParticipantPublicKey,
+    );
+    final second = await rooms.beginEnrollment(
+      invite: invite,
+      participantPublicKey: invite.expectedParticipantPublicKey,
+    );
+
+    await expectLater(
+      rooms.redeemRoomInvite(first.sign(key)),
+      throwsA(
+        isA<RoomException>().having(
+          (error) => error.code,
+          'code',
+          RoomFailureCode.replayedChallenge,
+        ),
+      ),
+    );
+    expect(
+      (await rooms.redeemRoomInvite(second.sign(key))).participants,
+      hasLength(1),
+    );
+  });
+
+  test(
+    'challenge capacity is bounded and expired entries are reclaimed',
+    () async {
+      final (rooms, _) = await manager();
+      final now = DateTime.utc(2026);
+      var issued = 0;
+      for (var roomIndex = 0; roomIndex < 4; roomIndex++) {
+        final roomId = 'room-$roomIndex';
+        await rooms.createRoom(
+          roomId: roomId,
+          expectedParticipants: 64,
+          threshold: 1,
+        );
+        for (var participant = 0; participant < 64; participant++) {
+          final key = cl.ECPrivateKey.generate();
+          final invite = await issue(rooms, roomId, key, now: now);
+          await rooms.beginEnrollment(
+            invite: invite,
+            participantPublicKey: invite.expectedParticipantPublicKey,
+            now: now,
+          );
+          issued++;
+        }
+      }
+      expect(issued, RoomManager.maxPendingEnrollmentChallenges);
+
+      await rooms.createRoom(
+        roomId: 'overflow',
+        expectedParticipants: 2,
+        threshold: 1,
+      );
+      final overflowKey = cl.ECPrivateKey.generate();
+      final overflow = await issue(rooms, 'overflow', overflowKey, now: now);
+      await expectLater(
+        rooms.beginEnrollment(
+          invite: overflow,
+          participantPublicKey: overflow.expectedParticipantPublicKey,
+          now: now,
+        ),
+        throwsA(
+          isA<RoomException>().having(
+            (error) => error.code,
+            'code',
+            RoomFailureCode.challengeCapacityExceeded,
+          ),
+        ),
+      );
+
+      final afterExpiry = now.add(const Duration(seconds: 21));
+      expect(
+        await rooms.beginEnrollment(
+          invite: overflow,
+          participantPublicKey: overflow.expectedParticipantPublicKey,
+          now: afterExpiry,
+        ),
+        isA<EnrollmentChallenge>(),
+      );
+    },
+  );
+
+  test('terminal invite and room changes invalidate challenges', () async {
+    final (rooms, _) = await manager();
+    await rooms.createRoom(
+      roomId: 'revoked',
+      expectedParticipants: 2,
+      threshold: 1,
+    );
+    final revokedKey = cl.ECPrivateKey.generate();
+    final revokedInvite = await issue(rooms, 'revoked', revokedKey);
+    final revokedChallenge = await rooms.beginEnrollment(
+      invite: revokedInvite,
+      participantPublicKey: revokedInvite.expectedParticipantPublicKey,
+    );
+    await rooms.revokeRoomInvite(
+      roomId: 'revoked',
+      inviteId: revokedInvite.inviteId,
+    );
+    await expectLater(
+      rooms.redeemRoomInvite(revokedChallenge.sign(revokedKey)),
+      throwsA(
+        isA<RoomException>().having(
+          (error) => error.code,
+          'code',
+          RoomFailureCode.replayedChallenge,
+        ),
+      ),
+    );
+
+    await rooms.createRoom(
+      roomId: 'closed',
+      expectedParticipants: 2,
+      threshold: 1,
+    );
+    final closedKey = cl.ECPrivateKey.generate();
+    final closedInvite = await issue(rooms, 'closed', closedKey);
+    final closedChallenge = await rooms.beginEnrollment(
+      invite: closedInvite,
+      participantPublicKey: closedInvite.expectedParticipantPublicKey,
+    );
+    await rooms.closeRoom('closed');
+    await expectLater(
+      rooms.redeemRoomInvite(closedChallenge.sign(closedKey)),
+      throwsA(
+        isA<RoomException>().having(
+          (error) => error.code,
+          'code',
+          RoomFailureCode.replayedChallenge,
+        ),
+      ),
+    );
   });
 
   test('frozen roster and fingerprint survive restart', () async {

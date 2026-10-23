@@ -27,6 +27,7 @@ enum RoomFailureCode {
   roomFull,
   roomNotEnrolling,
   rosterIncomplete,
+  challengeCapacityExceeded,
 }
 
 final class RoomException implements Exception {
@@ -56,6 +57,8 @@ final class RoomException implements Exception {
     RoomFailureCode.roomFull => 'room is full',
     RoomFailureCode.roomNotEnrolling => 'room is not accepting enrollment',
     RoomFailureCode.rosterIncomplete => 'room roster is not complete',
+    RoomFailureCode.challengeCapacityExceeded =>
+      'enrollment challenge capacity exceeded',
   };
 
   @override
@@ -81,6 +84,8 @@ final class RoomEnrollmentRejected {
 
 /// Atomic state machine for pubkey-bound room enrollment.
 final class RoomManager implements RoomEnrollmentApi {
+  static const maxPendingEnrollmentChallenges = 256;
+
   RoomManager._({
     required Uint8List coordinatorEndpointId,
     required this.persistence,
@@ -254,6 +259,7 @@ final class RoomManager implements RoomEnrollmentApi {
     invites[index] = invite.copyWith(revokedAt: time);
     final updated = current.copyWith(invites: invites);
     await _commit(updated);
+    _removeChallengesForInvite(roomId, inviteId);
     return _emit(updated);
   });
 
@@ -265,6 +271,7 @@ final class RoomManager implements RoomEnrollmentApi {
   }) => _serial.run(() async {
     _requireWritable();
     final time = now ?? DateTime.now();
+    _expireChallenges(time);
     try {
       if (invite.version != noosphereEnrollmentProtocolVersion) {
         throw const RoomException(RoomFailureCode.unsupportedVersion);
@@ -287,6 +294,10 @@ final class RoomManager implements RoomEnrollmentApi {
       }
       if (room.participants.length >= room.expectedParticipants) {
         throw const RoomException(RoomFailureCode.roomFull);
+      }
+      _removeChallengesForInvite(invite.roomId, invite.inviteId);
+      if (_challenges.length >= maxPendingEnrollmentChallenges) {
+        throw const RoomException(RoomFailureCode.challengeCapacityExceeded);
       }
       final nonce = cl.generateRandomBytes(32);
       final transcript = EnrollmentTranscript.forInvite(invite, nonce);
@@ -376,6 +387,7 @@ final class RoomManager implements RoomEnrollmentApi {
       // The single serial lane plus durable write-before-publish makes invite
       // consumption and participant insertion one atomic state transition.
       await _commit(updated);
+      _removeChallengesForInvite(transcript.roomId, transcript.inviteId);
       return _emit(updated);
     } on RoomException catch (error) {
       _reject(
@@ -415,15 +427,20 @@ final class RoomManager implements RoomEnrollmentApi {
       groupConfig: group,
     );
     await _commit(updated);
+    _removeChallengesForRoom(roomId);
     return _emit(updated);
   });
 
   Future<RoomSnapshot> closeRoom(String roomId) => _serial.run(() async {
     _requireWritable();
     final current = _requireRoom(roomId);
-    if (current.lifecycle == RoomLifecycle.closed) return _snapshot(current);
+    if (current.lifecycle == RoomLifecycle.closed) {
+      _removeChallengesForRoom(roomId);
+      return _snapshot(current);
+    }
     final updated = current.copyWith(lifecycle: RoomLifecycle.closed);
     await _commit(updated);
+    _removeChallengesForRoom(roomId);
     return _emit(updated);
   });
 
@@ -454,6 +471,26 @@ final class RoomManager implements RoomEnrollmentApi {
         'Room storage outcome is unknown; reopen RoomManager before mutating.',
       );
     }
+  }
+
+  void _expireChallenges(DateTime now) {
+    _challenges.removeWhere(
+      (_, challenge) => !challenge.expiresAt.isAfter(now),
+    );
+  }
+
+  void _removeChallengesForInvite(String roomId, String inviteId) {
+    _challenges.removeWhere(
+      (_, challenge) =>
+          challenge.transcript.roomId == roomId &&
+          challenge.transcript.inviteId == inviteId,
+    );
+  }
+
+  void _removeChallengesForRoom(String roomId) {
+    _challenges.removeWhere(
+      (_, challenge) => challenge.transcript.roomId == roomId,
+    );
   }
 
   RoomSnapshot _requireRoom(String roomId) {
