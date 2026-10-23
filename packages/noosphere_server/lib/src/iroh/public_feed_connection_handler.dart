@@ -11,6 +11,7 @@ import 'dispatcher.dart';
 /// A deliberately separate transport handler with no signer connection context.
 final class PublicFeedConnectionHandler({
   required final Connection connection,
+  required final void Function(Object, StackTrace) onError,
   required final IrohDispatcher dispatcher,
   required final IrohConfig config,
   required final SecretKey signingKey,
@@ -38,10 +39,15 @@ final class PublicFeedConnectionHandler({
         }
         idleDeadline?.cancel();
         late final Future<void> handling;
-        handling = _handle(send, receive).whenComplete(() {
-          _streams.remove(handling);
-          armIdleDeadline();
-        });
+        handling = _handle(send, receive)
+            .catchError((Object error, StackTrace stackTrace) {
+              connection.close(reason: 'internal stream failure'.codeUnits);
+              onError(error, stackTrace);
+            })
+            .whenComplete(() {
+              _streams.remove(handling);
+              armIdleDeadline();
+            });
         _streams.add(handling);
       }
     } on IrohConnectionException {
@@ -108,7 +114,8 @@ final class PublicFeedConnectionHandler({
           .writeAll(encodeQuicVarInt(RpcResponseStatus.success))
           .timeout(config.rpcTimeout);
       await send.writeAll(response).timeout(config.rpcTimeout);
-    } on Exception {
+    } catch (error) {
+      if (error is! Exception && error is! ArgumentError) rethrow;
       try {
         await _error(
           send,

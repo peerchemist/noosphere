@@ -55,6 +55,13 @@ event is not an acknowledgment that the recipient processed, persisted or
 approved it. Reconnect starts a new session and snapshot rather than resuming a
 durable event offset.
 
+Request decoding treats `ArgumentError` as invalid input and returns a generic
+protocol error. Each stream and connection task installs an immediate error
+handler. Unexpected errors close the affected connection and are reported through
+`IrohServer.start(onError: ...)`, or to stderr when no callback is supplied.
+If that callback throws, both failures are logged to stderr. Other connections
+continue serving; internal error details are not sent to the peer.
+
 ## Defaults
 
 | Setting | Core | Flutter |

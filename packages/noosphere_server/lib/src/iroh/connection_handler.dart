@@ -20,6 +20,7 @@ import 'dispatcher.dart';
 final class IrohConnectionHandler {
   IrohConnectionHandler({
     required this.connection,
+    required this.onError,
     required this.dispatcher,
     required this.config,
   }) : context = ConnectionContext(
@@ -28,6 +29,7 @@ final class IrohConnectionHandler {
        );
 
   final Connection connection;
+  final void Function(Object, StackTrace) onError;
   final IrohDispatcher dispatcher;
   final IrohConfig config;
   final ConnectionContext context;
@@ -48,10 +50,12 @@ final class IrohConnectionHandler {
           continue;
         }
         late final Future<void> handling;
-        handling = _handleStream(
-          send,
-          receive,
-        ).whenComplete(() => _streams.remove(handling));
+        handling = _handleStream(send, receive)
+            .catchError((Object error, StackTrace stackTrace) {
+              connection.close(reason: 'internal stream failure'.codeUnits);
+              onError(error, stackTrace);
+            })
+            .whenComplete(() => _streams.remove(handling));
         _streams.add(handling);
       }
     } on IrohConnectionException {
@@ -100,7 +104,8 @@ final class IrohConnectionHandler {
         };
         await _handleRpc(send, operation, body).timeout(timeout);
       }
-    } on Exception catch (error) {
+    } catch (error) {
+      if (error is! Exception && error is! ArgumentError) rethrow;
       try {
         if (persistentResponse) {
           await send.reset(1);
@@ -180,12 +185,15 @@ final class IrohConnectionHandler {
           'session operation reached RPC dispatcher',
         ),
       };
-    } on Exception catch (error) {
+    } catch (error) {
+      if (error is! Exception && error is! ArgumentError) rethrow;
       await _writeError(
         send,
         ProtocolError(
           code: ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
-          message: '$error',
+          message: error is ArgumentError
+              ? 'invalid request arguments'
+              : '$error',
         ),
       );
       return;
@@ -630,7 +638,7 @@ final class IrohConnectionHandler {
       TimeoutException() => ProtocolErrorCode.PROTOCOL_ERROR_DEADLINE_EXCEEDED,
       _ => ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
     },
-    message: '$error',
+    message: error is ArgumentError ? 'invalid request arguments' : '$error',
   );
 }
 

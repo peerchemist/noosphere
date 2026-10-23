@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
@@ -28,6 +29,7 @@ final class IrohServer {
     required this.rooms,
     required this.persistence,
     required this._signingKey,
+    required this.onError,
   });
 
   /// Starts with a host-owned identity. The host must persist a newly created
@@ -38,6 +40,7 @@ final class IrohServer {
     required ServerPersistence persistence,
     ServerApiHandler? handler,
     RoomManager? rooms,
+    void Function(Object error, StackTrace stackTrace)? onError,
   }) async {
     await Iroh.init(libraryPath: config.nativeLibraryPath);
     return _bind(
@@ -46,6 +49,7 @@ final class IrohServer {
       persistence: persistence,
       handler: handler,
       rooms: rooms,
+      onError: onError,
     );
   }
 
@@ -55,6 +59,7 @@ final class IrohServer {
     required ServerPersistence persistence,
     ServerApiHandler? handler,
     RoomManager? rooms,
+    void Function(Object error, StackTrace stackTrace)? onError,
   }) async {
     final endpoint = await Endpoint.bind(
       secretKey: secretKey,
@@ -102,6 +107,7 @@ final class IrohServer {
         rooms: rooms,
         persistence: persistence,
         signingKey: secretKey,
+        onError: onError,
       );
     } catch (_) {
       await dispatcher?.close();
@@ -116,6 +122,27 @@ final class IrohServer {
   final RoomManager? rooms;
   final ServerPersistence persistence;
   final SecretKey _signingKey;
+
+  /// Reports unexpected background transport failures. Request validation
+  /// failures are returned to the peer instead. Defaults to stderr logging.
+  /// The affected connection is closed; other connections keep serving.
+  final void Function(Object error, StackTrace stackTrace)? onError;
+
+  void _reportError(Object error, StackTrace stackTrace) {
+    final report = onError;
+    if (report != null) {
+      try {
+        report(error, stackTrace);
+        return;
+      } catch (callbackError, callbackStack) {
+        stderr.writeln(
+          'Noosphere Iroh error callback failed: $callbackError\n$callbackStack',
+        );
+      }
+    }
+    stderr.writeln('Noosphere Iroh task failed: $error\n$stackTrace');
+  }
+
   Future<void>? _closing;
   Future<void>? _serving;
   final Set<Future<void>> _connections = {};
@@ -226,6 +253,7 @@ final class IrohServer {
       if (alpn == noosphereEnrollmentAlpn && rooms != null) {
         running = IrohEnrollmentConnectionHandler(
           connection: connection,
+          onError: _reportError,
           rooms: rooms!,
           timeout: config.authTimeout,
           maxMessageLength: config.maxMessageLength,
@@ -234,6 +262,7 @@ final class IrohServer {
       } else if (alpn == noospherePublicFeedAlpn) {
         running = PublicFeedConnectionHandler(
           connection: connection,
+          onError: _reportError,
           dispatcher: dispatcher,
           config: config,
           signingKey: _signingKey,
@@ -241,6 +270,7 @@ final class IrohServer {
       } else if (alpn == config.alpn) {
         running = IrohConnectionHandler(
           connection: connection,
+          onError: _reportError,
           dispatcher: dispatcher,
           config: config,
         ).run();
@@ -250,10 +280,15 @@ final class IrohServer {
       }
       if (auxiliary) _auxiliaryConnections++;
       late final Future<void> handling;
-      handling = running.whenComplete(() {
-        _connections.remove(handling);
-        if (auxiliary) _auxiliaryConnections--;
-      });
+      handling = running
+          .catchError((Object error, StackTrace stackTrace) {
+            connection.close(reason: 'internal connection failure'.codeUnits);
+            _reportError(error, stackTrace);
+          })
+          .whenComplete(() {
+            _connections.remove(handling);
+            if (auxiliary) _auxiliaryConnections--;
+          });
       _connections.add(handling);
     }
   }

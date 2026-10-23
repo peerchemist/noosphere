@@ -13,6 +13,7 @@ import '../room/manager.dart';
 final class IrohEnrollmentConnectionHandler {
   IrohEnrollmentConnectionHandler({
     required this.connection,
+    required this.onError,
     required this.rooms,
     required this.timeout,
     required this.maxMessageLength,
@@ -20,6 +21,7 @@ final class IrohEnrollmentConnectionHandler {
   });
 
   final Connection connection;
+  final void Function(Object, StackTrace) onError;
   final RoomManager rooms;
   final Duration timeout;
   final int maxMessageLength;
@@ -47,10 +49,15 @@ final class IrohEnrollmentConnectionHandler {
         }
         idleDeadline?.cancel();
         late final Future<void> handling;
-        handling = _handle(send, receive).whenComplete(() {
-          _streams.remove(handling);
-          armIdleDeadline();
-        });
+        handling = _handle(send, receive)
+            .catchError((Object error, StackTrace stackTrace) {
+              connection.close(reason: 'internal stream failure'.codeUnits);
+              onError(error, stackTrace);
+            })
+            .whenComplete(() {
+              _streams.remove(handling);
+              armIdleDeadline();
+            });
         _streams.add(handling);
       }
     } on IrohConnectionException {
@@ -78,6 +85,7 @@ final class IrohEnrollmentConnectionHandler {
       final response = await _dispatch(operation, body);
       await _write(send, protocol.RpcResponseStatus.success, response);
     } on Object catch (error) {
+      if (error is! Exception && error is! ArgumentError) rethrow;
       final failure = _protocolError(error);
       try {
         await _write(send, protocol.RpcResponseStatus.error, failure);
