@@ -102,6 +102,68 @@ void main() {
   });
 
   test(
+    'room activation can be retried after handler initialization fails',
+    () async {
+      final secret = SecretKey.generate();
+      final roomPersistence = InMemoryRoomPersistence();
+      final room = RoomSnapshot(
+        roomId: 'retry-room',
+        lifecycle: RoomLifecycle.enrolling,
+        expectedParticipants: 2,
+        threshold: 2,
+        coordinatorEndpointId: secret.publicKey.asBytes(),
+        invites: const [],
+        participants: [
+          for (final publicKey in serverConfig.group.participants.values.take(
+            2,
+          ))
+            RoomParticipantSnapshot(
+              publicKey: publicKey,
+              enrolledAt: DateTime.utc(2026),
+              identifier: null,
+            ),
+        ],
+        groupConfig: null,
+      );
+      await roomPersistence.write(room.roomId, room.toBytes());
+      final rooms = await RoomManager.open(
+        coordinatorEndpointId: secret.publicKey.asBytes(),
+        persistence: roomPersistence,
+      );
+      final persistence = _TransientRoomLoadFailure(room.roomId);
+      final server = await IrohServer.start(
+        config(),
+        secretKey: secret,
+        persistence: persistence,
+        rooms: rooms,
+      );
+      addTearDown(server.close);
+
+      await expectLater(server.freezeRoom(room.roomId), throwsStateError);
+      final frozen = await rooms.getRoom(room.roomId);
+      expect(frozen.lifecycle, RoomLifecycle.frozen);
+      expect(
+        server.canServeLocally(
+          coordinatorId: server.id,
+          groupFingerprint: frozen.groupFingerprint!,
+        ),
+        isFalse,
+      );
+
+      persistence.failRoomLoad = false;
+      final activated = await server.freezeRoom(room.roomId);
+      expect(
+        server.canServeLocally(
+          coordinatorId: server.id,
+          groupFingerprint: activated.groupFingerprint!,
+        ),
+        isTrue,
+      );
+      expect(await server.freezeRoom(room.roomId), isA<RoomSnapshot>());
+    },
+  );
+
+  test(
     'scheduled expiry reports persistence failure once to the host',
     () async {
       final persistence = _FailingPersistence();
@@ -173,4 +235,22 @@ final class _FailingPersistence implements ServerPersistence {
     if (fail) throw StateError('simulated storage failure');
     return delegate.write(groupId, state);
   }
+}
+
+final class _TransientRoomLoadFailure(final String roomId)
+    implements ServerPersistence {
+  final delegate = InMemoryServerPersistence();
+  bool failRoomLoad = true;
+
+  @override
+  Future<ServerStateSnapshot?> load(String groupId) {
+    if (failRoomLoad && groupId == roomId) {
+      throw StateError('simulated room state load failure');
+    }
+    return delegate.load(groupId);
+  }
+
+  @override
+  Future<void> write(String groupId, ServerStateSnapshot state) =>
+      delegate.write(groupId, state);
 }

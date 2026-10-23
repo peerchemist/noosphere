@@ -7,6 +7,7 @@ import 'package:noosphere_protocol/config.dart';
 import 'package:noosphere_protocol/api/types/signed.dart';
 import 'package:noosphere_protocol/room.dart';
 
+import '../config/server.dart';
 import 'persistence.dart';
 
 enum RoomFailureCode {
@@ -84,6 +85,7 @@ final class RoomEnrollmentRejected {
 
 /// Atomic state machine for pubkey-bound room enrollment.
 final class RoomManager implements RoomEnrollmentApi {
+  static const maxParticipants = ServerConfig.maxDkgParticipants;
   static const maxPendingEnrollmentChallenges = 256;
 
   RoomManager._({
@@ -146,11 +148,11 @@ final class RoomManager implements RoomEnrollmentApi {
     required int threshold,
   }) => _serial.run(() async {
     _requireWritable();
-    if (expectedParticipants < 2 || expectedParticipants > 0xffff) {
+    if (expectedParticipants < 2 || expectedParticipants > maxParticipants) {
       throw RangeError.range(
         expectedParticipants,
         2,
-        0xffff,
+        maxParticipants,
         'expectedParticipants',
       );
     }
@@ -403,7 +405,17 @@ final class RoomManager implements RoomEnrollmentApi {
 
   Future<RoomSnapshot> freezeRoom(String roomId) => _serial.run(() async {
     _requireWritable();
-    final current = _requireEnrolling(_requireRoom(roomId));
+    final room = _requireRoom(roomId);
+    if (room.lifecycle == RoomLifecycle.frozen) return _snapshot(room);
+    final current = _requireEnrolling(room);
+    if (current.expectedParticipants > maxParticipants) {
+      throw RangeError.range(
+        current.expectedParticipants,
+        2,
+        maxParticipants,
+        'expectedParticipants',
+      );
+    }
     if (current.participants.length != current.expectedParticipants) {
       throw const RoomException(RoomFailureCode.rosterIncomplete);
     }

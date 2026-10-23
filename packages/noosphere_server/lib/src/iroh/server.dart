@@ -216,6 +216,8 @@ final class IrohServer {
   Future<RoomSnapshot> freezeRoom(String roomId) async {
     final manager = _roomManager();
     final room = await manager.freezeRoom(roomId);
+    final fingerprint = room.groupFingerprint!;
+    if (dispatcher.hasGroup(fingerprint)) return room;
     final handler = ServerApiHandler(
       config: _configForGroup(
         config.server,

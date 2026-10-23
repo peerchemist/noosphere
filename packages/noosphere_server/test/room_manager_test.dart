@@ -169,6 +169,77 @@ void main() {
     );
   });
 
+  test(
+    'supports the maximum roster and rejects one participant over',
+    () async {
+      final (rooms, _) = await manager();
+      await expectLater(
+        rooms.createRoom(
+          roomId: 'oversized',
+          expectedParticipants: RoomManager.maxParticipants + 1,
+          threshold: 2,
+        ),
+        throwsRangeError,
+      );
+      await rooms.createRoom(
+        roomId: 'maximum',
+        expectedParticipants: RoomManager.maxParticipants,
+        threshold: 2,
+      );
+      for (var i = 0; i < RoomManager.maxParticipants; i++) {
+        final key = cl.ECPrivateKey.generate();
+        final invite = await issue(rooms, 'maximum', key);
+        await RoomEnrollmentClient(rooms).joinRoom(invite, (_) async => key);
+      }
+
+      final frozen = await rooms.freezeRoom('maximum');
+
+      expect(frozen.lifecycle, RoomLifecycle.frozen);
+      expect(frozen.participants, hasLength(RoomManager.maxParticipants));
+      expect(ServerConfig(group: frozen.groupConfig!), isA<ServerConfig>());
+    },
+  );
+
+  test(
+    'legacy oversized roster is rejected before freeze is persisted',
+    () async {
+      final persistence = InMemoryRoomPersistence();
+      final now = DateTime.utc(2026);
+      final room = RoomSnapshot(
+        roomId: 'legacy',
+        lifecycle: RoomLifecycle.enrolling,
+        expectedParticipants: RoomManager.maxParticipants + 1,
+        threshold: 2,
+        coordinatorEndpointId: endpointId,
+        invites: const [],
+        participants: [
+          for (var i = 0; i <= RoomManager.maxParticipants; i++)
+            RoomParticipantSnapshot(
+              publicKey: cl.ECCompressedPublicKey.fromPubkey(
+                cl.ECPrivateKey.generate().pubkey,
+              ),
+              enrolledAt: now,
+              identifier: null,
+            ),
+        ],
+        groupConfig: null,
+      );
+      await persistence.write(room.roomId, room.toBytes());
+      final rooms = await RoomManager.open(
+        coordinatorEndpointId: endpointId,
+        persistence: persistence,
+      );
+
+      await expectLater(rooms.freezeRoom(room.roomId), throwsRangeError);
+
+      final durable = RoomSnapshot.fromBytes(
+        (await persistence.loadAll())[room.roomId]!,
+      );
+      expect(durable.lifecycle, RoomLifecycle.enrolling);
+      expect(durable.groupConfig, isNull);
+    },
+  );
+
   test('parallel redemption is atomic and replay-safe', () async {
     final (rooms, _) = await manager();
     await rooms.createRoom(
