@@ -16,7 +16,7 @@ dependencies:
     git:
       url: https://github.com/peerchemist/frosty.git
       ref: 5.1.0
-  noosphere_protocol: ^0.3.2
+  noosphere_protocol: ^0.4.0
   protobuf: ^4.0.0
   collection: ^1.17.1
   iroh_quic: 1.1.0
