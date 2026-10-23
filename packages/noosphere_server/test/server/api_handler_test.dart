@@ -41,7 +41,7 @@ void main() {
           () => ctx.api.login(
             groupFingerprint: groupConfig.fingerprint,
             participantId: ids.first,
-            protocolVersion: noosphereRoastProtocolVersion + 1,
+            protocolVersion: noosphereProtocolVersion + 1,
           ),
         );
 
@@ -802,7 +802,7 @@ void main() {
               if (j != i)
                 ids[j]: DkgEncryptedSecret.encrypt(
                   secretShare: part2s[i].sharesToGive[ids[j]]!,
-                  protocolVersion: noosphereRoastProtocolVersion,
+                  protocolVersion: noosphereProtocolVersion,
                   ceremonyId: getDkgDetails(name: 'round2').ceremonyId,
                   transcriptHash: commitmentSet.hash,
                   sender: ids[i],

@@ -23,7 +23,7 @@ import 'package:noosphere_protocol/api/types/signatures_request_details.dart';
 import 'package:noosphere_protocol/api/types/signed.dart';
 import 'package:noosphere_protocol/api/types/signed_dkg_ack.dart';
 import 'package:noosphere_protocol/domain.dart'
-    show noosphereRoastProtocolVersion;
+    show noosphereProtocolVersion;
 import 'package:noosphere_protocol/wire.dart' as protocol;
 import 'package:protobuf/protobuf.dart';
 
@@ -89,7 +89,7 @@ final class IrohClientApi implements ApiRequestInterface {
   Future<ExpirableAuthChallengeResponse> login({
     required Uint8List groupFingerprint,
     required Identifier participantId,
-    int protocolVersion = noosphereRoastProtocolVersion,
+    int protocolVersion = noosphereProtocolVersion,
   }) async {
     final response = await _rpc(
       protocol.RoastOperation.login,

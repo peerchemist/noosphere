@@ -385,7 +385,7 @@ class ServerState {
       require(
         creatorKey != null &&
             signedDetails.verify(creatorKey) &&
-            details.protocolVersion == noosphereRoastProtocolVersion &&
+            details.protocolVersion == noosphereProtocolVersion &&
             cl.bytesEqual(details.groupFingerprint, config.group.fingerprint) &&
             details.threshold <= config.group.participants.length &&
             details.expiry.ttl <= config.maxDkgRequestTTL &&

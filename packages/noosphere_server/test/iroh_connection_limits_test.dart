@@ -162,7 +162,7 @@ void main() {
         ...wire.LoginRequest(
           groupFingerprint: groupConfig.fingerprint,
           participantId: ids.first.toBytes(),
-          protocolVersion: noosphereRoastProtocolVersion,
+          protocolVersion: noosphereProtocolVersion,
         ).writeToBuffer(),
       ]);
       await send.finish();

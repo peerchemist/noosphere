@@ -91,7 +91,7 @@ The DKG commitment, rejection and round-two-share variants contain a mandatory
 32-byte ceremony ID. Clients ignore delayed events for another attempt with the
 same name, treat byte-identical contribution replay as idempotent and reject a
 conflicting contribution. ACK requests carry ceremony and transcript context;
-context-free ACKs are not part of protocol v4.
+context-free ACKs are not part of protocol v1.
 
 The server converts domain events with `encodeEvent`; the client incrementally
 decodes records with `decodeEvent` and applies protocol-specific validation.

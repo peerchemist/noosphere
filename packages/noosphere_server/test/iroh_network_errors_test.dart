@@ -99,7 +99,7 @@ void main() {
             wire.LoginRequest(
               groupFingerprint: groupConfig.fingerprint,
               participantId: ids[participant].toBytes(),
-              protocolVersion: noosphereRoastProtocolVersion,
+              protocolVersion: noosphereProtocolVersion,
             ).writeToBuffer(),
           );
           expect(response.first, 0);

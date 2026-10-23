@@ -496,7 +496,7 @@ void main() {
         secrets: {
           ids[other]: DkgEncryptedSecret.encrypt(
             secretShare: part2.sharesToGive[ids[other]]!,
-            protocolVersion: noosphereRoastProtocolVersion,
+            protocolVersion: noosphereProtocolVersion,
             ceremonyId: details.obj.ceremonyId,
             transcriptHash: details.obj.hashWithCommitments(commitments),
             sender: ids[i],

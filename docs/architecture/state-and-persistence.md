@@ -113,9 +113,9 @@ written through the same caller-provided `ServerPersistence`; replaying the
 same signed proposal cannot revive it during that bound. A replacement requires
 a new attempt ID and may reuse only the display name.
 
-## Protocol v4 source breaks
+## Protocol v1 grammar
 
-Only the protocol v4 grammar is defined. DKG events have mandatory ceremony
+Only the protocol v1 grammar is defined. DKG events have mandatory ceremony
 IDs, authenticated DKG fetch/mutation APIs require a ceremony ID, ACK requests
 require ceremony and transcript context, Frost-key storage uses the current
 versioned encoding, context-bound encrypted shares, and coordinator persistence

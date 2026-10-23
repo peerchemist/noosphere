@@ -111,7 +111,7 @@ void main() {
           round1Secret: part1.secret,
           commitments: commitments,
         ).sharesToGive[ids[receiver]]!,
-        protocolVersion: noosphereRoastProtocolVersion,
+        protocolVersion: noosphereProtocolVersion,
         ceremonyId: getDkgDetails(name: altName ?? "123").ceremonyId,
         transcriptHash: commonHash,
         sender: ids[sender],

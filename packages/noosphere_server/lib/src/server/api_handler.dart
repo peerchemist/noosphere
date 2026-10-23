@@ -31,7 +31,7 @@ typedef _PublicFeedView = ({List<PublicFeedEntry> entries, int latestCursor});
 ///
 /// The methods should be called sequentially without concurrency.
 class ServerApiHandler implements ApiRequestInterface {
-  static const currentProtocolVersion = noosphereRoastProtocolVersion;
+  static const currentProtocolVersion = noosphereProtocolVersion;
 
   final ServerConfig config;
   final ServerState _state;

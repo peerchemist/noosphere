@@ -34,5 +34,5 @@ export 'src/domain/types/single_signature_details.dart';
 export 'group_transition.dart';
 export 'room.dart';
 
-/// R&D baseline; revised in place until the first stable protocol release.
-const int noosphereRoastProtocolVersion = 4;
+/// First stable Noosphere protocol version.
+const int noosphereProtocolVersion = 1;

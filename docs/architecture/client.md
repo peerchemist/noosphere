@@ -38,7 +38,7 @@ host store.
 5. The client persists the new key before sending a completion acknowledgement
    bound to the ceremony, transcript and resulting group public key.
 
-`NewDkgDetails` protocol version 4 authenticates the target group fingerprint
+`NewDkgDetails` protocol version 1 authenticates the target group fingerprint
 (and therefore its roster identity keys), a fresh 32-byte attempt ID, threshold,
 expiry and display metadata. Reusing a display name does not reuse an attempt.
 The canonical transcript includes that signed proposal and the complete

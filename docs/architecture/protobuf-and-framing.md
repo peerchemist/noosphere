@@ -16,7 +16,7 @@ framing helpers through `package:noosphere_protocol/wire.dart`.
 | `noosphere/public-feed/1` | Unauthenticated public-feed polling |
 
 ALPN selects the wire protocol. `LoginRequest.protocol_version` is a separate
-domain check and is currently exactly `3`. Only the current DKG proposal,
+domain check and is currently exactly `1`. Only the current DKG proposal,
 event, ACK and storage grammars are defined; other bytes are malformed input.
 
 ## RPC framing

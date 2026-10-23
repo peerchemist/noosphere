@@ -493,7 +493,7 @@ void main() {
       for (var i = 1; i < 10; i++)
         ids[i]: DkgEncryptedSecret.encrypt(
           secretShare: part2.sharesToGive[ids[i]]!,
-          protocolVersion: noosphereRoastProtocolVersion,
+          protocolVersion: noosphereProtocolVersion,
           ceremonyId: round2Details.obj.ceremonyId,
           transcriptHash: commitmentSet.hash,
           sender: ids[0],

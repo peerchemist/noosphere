@@ -11,7 +11,7 @@ import 'signed.dart';
 /// Details of DKG requested by a participant. This is signed by the participant
 /// and sent to the other participants.
 class NewDkgDetails with cl.Writable, NoosphereWritable, Signable {
-  static const int currentProtocolVersion = 4;
+  static const int currentProtocolVersion = 1;
   static const int minNameLength = 3;
   static const int maxNameLength = 40;
   static const int maxDescLength = 1000;

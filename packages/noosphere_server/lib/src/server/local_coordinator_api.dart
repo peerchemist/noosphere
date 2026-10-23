@@ -45,7 +45,7 @@ final class LocalCoordinatorApi implements ApiRequestInterface {
   Future<ExpirableAuthChallengeResponse> login({
     required Uint8List groupFingerprint,
     required Identifier participantId,
-    int protocolVersion = noosphereRoastProtocolVersion,
+    int protocolVersion = noosphereProtocolVersion,
   }) {
     _ensureOpen();
     if (_loginStarted) throw StateError('login has already started');

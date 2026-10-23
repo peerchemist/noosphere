@@ -133,7 +133,7 @@ extension _ClientDkg on Client {
     );
     if (snapshot == null || snapshot.expiry.isExpired) return;
     Client._checkSigned(config, snapshot.details, snapshot.creator);
-    if (snapshot.details.obj.protocolVersion != noosphereRoastProtocolVersion ||
+    if (snapshot.details.obj.protocolVersion != noosphereProtocolVersion ||
         !cl.bytesEqual(
           snapshot.details.obj.groupFingerprint,
           config.group.fingerprint,
@@ -387,7 +387,7 @@ extension _ClientDkg on Client {
       });
 
   Future<void> _requestDkg(NewDkgDetails details) async {
-    if (details.protocolVersion != noosphereRoastProtocolVersion ||
+    if (details.protocolVersion != noosphereProtocolVersion ||
         !cl.bytesEqual(details.groupFingerprint, config.group.fingerprint)) {
       throw ArgumentError.value(details, 'details', 'wrong group or protocol');
     }
