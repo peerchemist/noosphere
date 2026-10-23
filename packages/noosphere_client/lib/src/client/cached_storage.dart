@@ -154,27 +154,6 @@ class ClientCachedStorage {
       )
       .toSet();
 
-  Future<void> addSignaturesNonces({
-    required SignaturesRequestId id,
-    required SignaturesNonces nonces,
-    required int capacity,
-  }) async {
-    requireReady();
-    if (cancelledRequests.containsKey(id)) {
-      throw StateError('Signatures request was cancelled');
-    }
-    await _underlying.addSignaturesNonces(id, nonces, capacity);
-    if (sigNonces.containsKey(id)) {
-      final previous = sigNonces[id]!;
-      sigNonces[id] = SignaturesNonces({
-        ...previous.map,
-        ...nonces.map,
-      }, previous.expiry);
-    } else {
-      sigNonces[id] = nonces;
-    }
-  }
-
   Future<void> addRejectedSigsRequest(
     SignaturesRequestId id,
     Expiry expiry,

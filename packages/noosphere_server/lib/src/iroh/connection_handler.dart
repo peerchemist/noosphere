@@ -16,6 +16,7 @@ import '../config/iroh.dart';
 import '../config/server.dart';
 import 'connection_context.dart';
 import 'dispatcher.dart';
+import 'stream_policy.dart';
 
 final class IrohConnectionHandler {
   IrohConnectionHandler({
@@ -26,6 +27,12 @@ final class IrohConnectionHandler {
   }) : context = ConnectionContext(
          connectionId: connection.stableId,
          remoteEndpointId: connection.remoteId,
+       ),
+       _streamPolicy = IrohStreamPolicy(
+         connection: connection,
+         onError: onError,
+         timeout: config.rpcTimeout,
+         maxConcurrent: config.maxStreamsPerConnection,
        );
 
   final Connection connection;
@@ -33,7 +40,7 @@ final class IrohConnectionHandler {
   final IrohDispatcher dispatcher;
   final IrohConfig config;
   final ConnectionContext context;
-  final Set<Future<void>> _streams = {};
+  final IrohStreamPolicy _streamPolicy;
 
   Timer? _authenticationDeadline;
 
@@ -44,19 +51,11 @@ final class IrohConnectionHandler {
     try {
       while (!context.isClosed) {
         final (send, receive) = await connection.acceptBi();
-        if (_streams.length >= config.maxStreamsPerConnection) {
-          await send.reset(1);
-          await receive.stop(1);
-          continue;
-        }
-        late final Future<void> handling;
-        handling = _handleStream(send, receive)
-            .catchError((Object error, StackTrace stackTrace) {
-              connection.close(reason: 'internal stream failure'.codeUnits);
-              onError(error, stackTrace);
-            })
-            .whenComplete(() => _streams.remove(handling));
-        _streams.add(handling);
+        await _streamPolicy.admit(
+          send: send,
+          receive: receive,
+          handle: () => _handleStream(send, receive),
+        );
       }
     } on IrohConnectionException {
       // Normal when the remote closes the connection.
@@ -71,18 +70,20 @@ final class IrohConnectionHandler {
       } else if (!context.isClosed) {
         context.close();
       }
-      await Future.wait(_streams.toList(), eagerError: false);
+      await _streamPolicy.drain();
     }
   }
 
   Future<void> _handleStream(SendStream send, RecvStream receive) async {
-    final reader = QuicStreamReader(_readChunks(receive));
+    final reader = QuicStreamReader(readIrohChunks(receive));
+    var requestReceived = false;
     var persistentResponse = false;
     try {
       final operationId = await reader.readVarInt().timeout(config.authTimeout);
       final body = await reader
           .readToEnd(maxLength: config.maxMessageLength)
           .timeout(config.rpcTimeout);
+      requestReceived = true;
       final operation = RoastOperation.fromId(operationId);
       if (operation == null) {
         await _writeError(
@@ -105,7 +106,7 @@ final class IrohConnectionHandler {
         await _handleRpc(send, operation, body).timeout(timeout);
       }
     } catch (error) {
-      if (error is! Exception && error is! ArgumentError) rethrow;
+      if (!isIrohRequestError(error)) rethrow;
       try {
         if (persistentResponse) {
           await send.reset(1);
@@ -116,16 +117,12 @@ final class IrohConnectionHandler {
         // The stream may already have been closed/reset by the peer.
       }
     } finally {
-      try {
-        await reader.cancel();
-      } on Exception {
-        // Connection loss may also surface while cancelling the decoder.
-      }
-      try {
-        await send.finish().timeout(config.rpcTimeout);
-      } on Exception {
-        // The peer may have closed the connection first.
-      }
+      await _streamPolicy.finishStream(
+        send: send,
+        receive: receive,
+        reader: reader,
+        requestReceived: requestReceived,
+      );
     }
   }
 
@@ -186,7 +183,7 @@ final class IrohConnectionHandler {
         ),
       };
     } catch (error) {
-      if (error is! Exception && error is! ArgumentError) rethrow;
+      if (!isIrohRequestError(error)) rethrow;
       await _writeError(
         send,
         ProtocolError(
@@ -632,20 +629,7 @@ final class IrohConnectionHandler {
       .timeout(config.rpcTimeout);
 
   ProtocolError _protocolError(Object error) => ProtocolError(
-    code: switch (error) {
-      FrameTooLargeException() =>
-        ProtocolErrorCode.PROTOCOL_ERROR_RESOURCE_EXHAUSTED,
-      TimeoutException() => ProtocolErrorCode.PROTOCOL_ERROR_DEADLINE_EXCEEDED,
-      _ => ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
-    },
+    code: commonIrohProtocolErrorCode(error),
     message: error is ArgumentError ? 'invalid request arguments' : '$error',
   );
-}
-
-Stream<List<int>> _readChunks(RecvStream receive) async* {
-  while (true) {
-    final chunk = await receive.read(64 * 1024);
-    if (chunk == null) return;
-    if (chunk.isNotEmpty) yield chunk;
-  }
 }

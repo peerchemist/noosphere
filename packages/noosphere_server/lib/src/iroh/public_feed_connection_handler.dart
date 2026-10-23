@@ -7,6 +7,7 @@ import 'package:noosphere_protocol/wire.dart';
 
 import '../config/iroh.dart';
 import 'dispatcher.dart';
+import 'stream_policy.dart';
 
 /// A deliberately separate transport handler with no signer connection context.
 final class PublicFeedConnectionHandler({
@@ -16,51 +17,35 @@ final class PublicFeedConnectionHandler({
   required final IrohConfig config,
   required final SecretKey signingKey,
 }) {
-  final Set<Future<void>> _streams = {};
+  final IrohStreamPolicy _streamPolicy = IrohStreamPolicy(
+    connection: connection,
+    onError: onError,
+    timeout: config.rpcTimeout,
+    maxConcurrent: config.maxStreamsPerConnection,
+    idleTimeout: config.rpcTimeout,
+  );
 
   Future<void> run() async {
-    var accepting = true;
-    Timer? idleDeadline;
-    void armIdleDeadline() {
-      if (!accepting || _streams.isNotEmpty) return;
-      idleDeadline = Timer(config.rpcTimeout, () {
-        connection.close(reason: 'idle connection deadline exceeded'.codeUnits);
-      });
-    }
-
-    armIdleDeadline();
+    _streamPolicy.startIdleDeadline();
     try {
       while (true) {
         final (send, receive) = await connection.acceptBi();
-        if (_streams.length >= config.maxStreamsPerConnection) {
-          await send.reset(1);
-          await receive.stop(1);
-          continue;
-        }
-        idleDeadline?.cancel();
-        late final Future<void> handling;
-        handling = _handle(send, receive)
-            .catchError((Object error, StackTrace stackTrace) {
-              connection.close(reason: 'internal stream failure'.codeUnits);
-              onError(error, stackTrace);
-            })
-            .whenComplete(() {
-              _streams.remove(handling);
-              armIdleDeadline();
-            });
-        _streams.add(handling);
+        await _streamPolicy.admit(
+          send: send,
+          receive: receive,
+          handle: () => _handle(send, receive),
+        );
       }
     } on IrohConnectionException {
       // Normal connection closure; there is no participant to disconnect.
     } finally {
-      accepting = false;
-      idleDeadline?.cancel();
-      await Future.wait(_streams.toList(), eagerError: false);
+      await _streamPolicy.drain();
     }
   }
 
   Future<void> _handle(SendStream send, RecvStream receive) async {
-    final reader = QuicStreamReader(_chunks(receive));
+    final reader = QuicStreamReader(readIrohChunks(receive));
+    var requestReceived = false;
     try {
       final operation = await reader.readVarInt().timeout(config.rpcTimeout);
       if (operation != PublicFeedOperation.getPublicFeed.id) {
@@ -76,6 +61,7 @@ final class PublicFeedConnectionHandler({
             maxLength: min(config.maxMessageLength, publicFeedMaxRequestBytes),
           )
           .timeout(config.rpcTimeout);
+      requestReceived = true;
       final request = GetPublicFeedRequest.fromBuffer(body);
       // uint64 values outside Dart's positive signed range become negative.
       final cursor = request.afterCursor.toInt();
@@ -115,32 +101,23 @@ final class PublicFeedConnectionHandler({
           .timeout(config.rpcTimeout);
       await send.writeAll(response).timeout(config.rpcTimeout);
     } catch (error) {
-      if (error is! Exception && error is! ArgumentError) rethrow;
+      if (!isIrohRequestError(error)) rethrow;
       try {
         await _error(
           send,
-          ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
+          commonIrohProtocolErrorCode(error),
           'invalid public request',
         );
       } on Exception {
         // Stream or peer already closed. Never expose internal errors.
       }
     } finally {
-      try {
-        await send.finish().timeout(config.rpcTimeout);
-      } on Exception {
-        // Peer already closed/reset the response.
-      }
-      try {
-        await receive.stop(0).timeout(config.rpcTimeout);
-      } on Exception {
-        // A FIN-completed receive half may already be closed.
-      }
-      try {
-        await reader.cancel();
-      } on Exception {
-        // Decoder already closed.
-      }
+      await _streamPolicy.finishStream(
+        send: send,
+        receive: receive,
+        reader: reader,
+        requestReceived: requestReceived,
+      );
     }
   }
 
@@ -155,13 +132,5 @@ final class PublicFeedConnectionHandler({
     await send
         .writeAll(ProtocolError(code: code, message: message).writeToBuffer())
         .timeout(config.rpcTimeout);
-  }
-}
-
-Stream<List<int>> _chunks(RecvStream receive) async* {
-  while (true) {
-    final chunk = await receive.read(4096);
-    if (chunk == null) return;
-    if (chunk.isNotEmpty) yield chunk;
   }
 }

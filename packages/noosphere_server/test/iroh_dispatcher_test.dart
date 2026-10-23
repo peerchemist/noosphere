@@ -5,8 +5,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:iroh_quic/iroh_quic.dart';
-import 'package:noosphere_protocol/wire.dart';
-import 'package:noosphere_server/noosphere_server.dart' hide KeepaliveEvent;
+import 'package:noosphere_server/noosphere_server.dart';
 import 'package:noosphere_server/src/iroh/connection_context.dart';
 import 'package:noosphere_server/src/iroh/dispatcher.dart';
 import 'package:test/test.dart';
@@ -100,34 +99,6 @@ void main() {
     expect(second.value, 2);
     gate.complete();
     expect((await first).value, 1);
-  });
-
-  test('slow network writer does not retain the group lane', () async {
-    final dispatcher = IrohDispatcher.single(getApiHandler());
-    addTearDown(dispatcher.close);
-    final writeStarted = Completer<void>();
-    final releaseWriter = Completer<void>();
-
-    final first = dispatcher.invokeAndSend(
-      groupFingerprint: groupConfig.fingerprint,
-      connection: connection(),
-      operation: (_, _) => IrohDispatchResult(1, outgoing: [KeepaliveEvent()]),
-      send: (_) {
-        writeStarted.complete();
-        return releaseWriter.future;
-      },
-    );
-    await writeStarted.future;
-
-    final second = await dispatcher.invoke(
-      groupFingerprint: groupConfig.fingerprint,
-      connection: connection(2),
-      operation: (_, _) => IrohDispatchResult(2),
-    );
-
-    expect(second.value, 2);
-    releaseWriter.complete();
-    expect(await first, 1);
   });
 
   test('an operation error does not poison later mutations', () async {

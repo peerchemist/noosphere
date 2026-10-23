@@ -9,6 +9,7 @@ import 'package:noosphere_protocol/room.dart';
 import 'package:protobuf/protobuf.dart';
 
 import '../room/manager.dart';
+import 'stream_policy.dart';
 
 final class IrohEnrollmentConnectionHandler {
   IrohEnrollmentConnectionHandler({
@@ -18,7 +19,13 @@ final class IrohEnrollmentConnectionHandler {
     required this.timeout,
     required this.maxMessageLength,
     required this.maxStreams,
-  });
+  }) : _streamPolicy = IrohStreamPolicy(
+         connection: connection,
+         onError: onError,
+         timeout: timeout,
+         maxConcurrent: maxStreams,
+         idleTimeout: timeout,
+       );
 
   final Connection connection;
   final void Function(Object, StackTrace) onError;
@@ -26,53 +33,30 @@ final class IrohEnrollmentConnectionHandler {
   final Duration timeout;
   final int maxMessageLength;
   final int maxStreams;
-  final Set<Future<void>> _streams = {};
+  final IrohStreamPolicy _streamPolicy;
 
   Future<void> run() async {
-    var accepting = true;
-    Timer? idleDeadline;
-    void armIdleDeadline() {
-      if (!accepting || _streams.isNotEmpty) return;
-      idleDeadline = Timer(timeout, () {
-        connection.close(reason: 'idle connection deadline exceeded'.codeUnits);
-      });
-    }
-
-    armIdleDeadline();
+    _streamPolicy.startIdleDeadline();
     try {
       while (true) {
         final (send, receive) = await connection.acceptBi();
-        if (_streams.length >= maxStreams) {
-          await send.reset(1);
-          await receive.stop(1);
-          continue;
-        }
-        idleDeadline?.cancel();
-        late final Future<void> handling;
-        handling = _handle(send, receive)
-            .catchError((Object error, StackTrace stackTrace) {
-              connection.close(reason: 'internal stream failure'.codeUnits);
-              onError(error, stackTrace);
-            })
-            .whenComplete(() {
-              _streams.remove(handling);
-              armIdleDeadline();
-            });
-        _streams.add(handling);
+        await _streamPolicy.admit(
+          send: send,
+          receive: receive,
+          handle: () => _handle(send, receive),
+        );
       }
     } on IrohConnectionException {
       // Normal peer disconnect.
     } finally {
-      accepting = false;
-      idleDeadline?.cancel();
-      await Future.wait(_streams.toList(), eagerError: false);
+      await _streamPolicy.drain();
     }
   }
 
   Future<void> _handle(SendStream send, RecvStream receive) async {
+    final reader = protocol.QuicStreamReader(readIrohChunks(receive));
     var requestReceived = false;
     try {
-      final reader = protocol.QuicStreamReader(_readChunks(receive));
       final operationId = await reader.readVarInt().timeout(timeout);
       final body = await reader
           .readToEnd(maxLength: maxMessageLength)
@@ -82,34 +66,23 @@ final class IrohEnrollmentConnectionHandler {
       if (operation == null) {
         throw FormatException('unknown enrollment operation ID $operationId');
       }
-      final response = await _dispatch(operation, body);
+      final response = await _dispatch(operation, body).timeout(timeout);
       await _write(send, protocol.RpcResponseStatus.success, response);
-    } on Object catch (error) {
-      if (error is! Exception && error is! ArgumentError) rethrow;
+    } catch (error) {
+      if (!isIrohRequestError(error)) rethrow;
       final failure = _protocolError(error);
       try {
         await _write(send, protocol.RpcResponseStatus.error, failure);
-      } on Object {
+      } on Exception {
         // The peer may already have closed the stream.
       }
     } finally {
-      try {
-        await send.finish().timeout(timeout);
-      } on Object {
-        // Connection loss is already represented by the failed request.
-      }
-      if (!requestReceived) {
-        try {
-          // Finish the reply before stopping a potentially blocked native read.
-          await receive.stop(1).timeout(timeout);
-        } on TimeoutException {
-          connection.close(
-            reason: 'enrollment stream cleanup failed'.codeUnits,
-          );
-        } on Object {
-          // Preserve the request failure if the stream is already closed.
-        }
-      }
+      await _streamPolicy.finishStream(
+        send: send,
+        receive: receive,
+        reader: reader,
+        requestReceived: requestReceived,
+      );
     }
   }
 
@@ -168,21 +141,9 @@ protocol.ProtocolError _protocolError(Object error) {
     code: switch (error) {
       _ when roomError?.code == RoomFailureCode.unsupportedVersion =>
         protocol.ProtocolErrorCode.PROTOCOL_ERROR_UNSUPPORTED_VERSION,
-      protocol.FrameTooLargeException() =>
-        protocol.ProtocolErrorCode.PROTOCOL_ERROR_RESOURCE_EXHAUSTED,
-      TimeoutException() =>
-        protocol.ProtocolErrorCode.PROTOCOL_ERROR_DEADLINE_EXCEEDED,
-      _ => protocol.ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
+      _ => commonIrohProtocolErrorCode(error),
     },
     message: roomError?.message ?? 'invalid enrollment request',
     roomFailureCode: roomError?.code.index,
   );
-}
-
-Stream<List<int>> _readChunks(RecvStream receive) async* {
-  while (true) {
-    final chunk = await receive.read(64 * 1024);
-    if (chunk == null) return;
-    if (chunk.isNotEmpty) yield chunk;
-  }
 }

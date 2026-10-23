@@ -5,7 +5,6 @@ import 'package:noosphere_protocol/domain.dart';
 import 'package:noosphere_protocol/public_feed.dart';
 import 'package:noosphere_protocol/wire.dart'
     hide PublicFeedPage, PublicFeedEntry;
-import 'package:protobuf/protobuf.dart';
 
 import '../server/api_handler.dart';
 import 'connection_context.dart';
@@ -24,22 +23,12 @@ final class ConnectionGroupMismatchException implements Exception {
   String toString() => 'ConnectionGroupMismatchException';
 }
 
-/// A state transition result plus messages that may be written afterwards.
-final class IrohDispatchResult<T> {
-  IrohDispatchResult(
-    this.value, {
-    Iterable<GeneratedMessage> outgoing = const [],
-  }) : outgoing = List.unmodifiable(outgoing);
-
-  final T value;
-  final List<GeneratedMessage> outgoing;
-}
+final class IrohDispatchResult<T>(final T value);
 
 /// Serializes state mutations independently for each configured group.
 ///
 /// Callbacks may invoke [ServerApiHandler] methods but must not perform network
-/// reads or writes. [invokeAndSend] deliberately runs its send callback only
-/// after the group's lane has been released.
+/// reads or writes.
 final class IrohDispatcher {
   IrohDispatcher(Iterable<ServerApiHandler> handlers) {
     try {
@@ -295,28 +284,6 @@ final class IrohDispatcher {
       }
       return operation(lane.handler, connection);
     });
-  }
-
-  Future<T> invokeAndSend<T>({
-    required List<int> groupFingerprint,
-    required ConnectionContext connection,
-    required FutureOr<IrohDispatchResult<T>> Function(
-      ServerApiHandler handler,
-      ConnectionContext connection,
-    )
-    operation,
-    required Future<void> Function(List<GeneratedMessage> outgoing) send,
-  }) async {
-    final result = await invoke(
-      groupFingerprint: groupFingerprint,
-      connection: connection,
-      operation: operation,
-    );
-
-    // The group's serial lane has been released before network backpressure is
-    // observed here.
-    if (result.outgoing.isNotEmpty) await send(result.outgoing);
-    return result.value;
   }
 
   Future<void> schedule({
