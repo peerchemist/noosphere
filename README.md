@@ -5,9 +5,10 @@ Noosphere combines peer-to-peer networking, group coordination and threshold
 signing. Your app defines the rules; participants approve operations and sign
 together without assembling the complete private key.
 
-**FROST** handles shared keys and signatures, **ROAST** coordinates signing,
-and **Iroh** connects peers. Your app owns the UI, key custody, storage and
-chain integration.
+**[FROST](https://eprint.iacr.org/2020/852)** handles shared keys and signatures,
+**[ROAST](https://eprint.iacr.org/2022/550)** coordinates signing, and
+**[Iroh](https://www.iroh.computer/)** connects peers. Your app owns the UI, key
+custody, storage and chain integration.
 
 ## What you can build
 
