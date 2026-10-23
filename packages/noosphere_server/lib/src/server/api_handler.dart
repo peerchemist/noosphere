@@ -242,8 +242,6 @@ class ServerApiHandler implements ApiRequestInterface {
   }
 
   Future<void> _persist() async {
-    final next = _state.snapshot();
-    final feed = _captureFeed();
     // Lost-session callbacks can arrive outside the transport's serial lane.
     // Keep host writes in capture order, and publish exactly the view that was
     // captured with this snapshot, even if another callback has since run.
@@ -251,6 +249,10 @@ class ServerApiHandler implements ApiRequestInterface {
     final completed = Completer<void>();
     _writing = completed.future;
     try {
+      // Live state has already changed. Capture failures must fail closed too,
+      // even when no host write has begun.
+      final next = _state.snapshot();
+      final feed = _captureFeed();
       await preceding;
       if (_writeOutcomeUnknown) {
         throw StateError('Server persistence outcome is unknown');

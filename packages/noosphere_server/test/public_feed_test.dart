@@ -951,6 +951,66 @@ void main() {
     },
   );
 
+  for (final failure in [
+    const FormatException('Server state snapshot is too large.'),
+    StateError('snapshot construction failed'),
+  ]) {
+    test('snapshot capture failure latches the handler: $failure', () async {
+      final id = PublicFeedId.generate();
+      final persistence = _GatedPersistence();
+      final state = _FailingSnapshotState();
+      final handler = ServerApiHandler(
+        config: _config(PublicFeedConfig(feedId: id)),
+        persistence: persistence,
+        state: state,
+      );
+      addTearDown(handler.shutdown);
+      final sid = await _login(handler, 0);
+      await _dkg(handler, sid, 'committed');
+      final before = handler.state.toBytes();
+      final writes = persistence.writes;
+      state.failure = failure;
+
+      await expectLater(
+        _dkg(handler, sid, 'uncommitted'),
+        throwsA(same(failure)),
+      );
+      // The failure occurs after live mutation but before provider.write.
+      expect(state.nameToDkg['uncommitted'], isNotNull);
+      expect(persistence.writes, writes);
+      expect(
+        (await persistence.load(handler.config.group.id))!.toBytes(),
+        before,
+      );
+      expect(handler.state.toBytes(), before);
+      expect(await handler.getPublicFeed(id, 0, 100), isNull);
+
+      // Even if serialization starts working again, this handler must not
+      // accept requests or persist the previously failed mutation.
+      state.failure = null;
+      await expectLater(_dkg(handler, sid, 'later'), throwsStateError);
+      await expectLater(_login(handler, 1), throwsStateError);
+      await handler.maintainPublicFeed();
+      expect(state.nameToDkg['later'], isNull);
+      expect(persistence.writes, writes);
+      await handler.endSessionForTransport(handler.sessionForTransport(sid)!);
+      expect(handler.sessionForTransport(sid), isNull);
+      expect(persistence.writes, writes);
+
+      final restored = ServerApiHandler(
+        config: handler.config,
+        persistence: persistence,
+      );
+      addTearDown(restored.shutdown);
+      final restoredSid = await _login(restored, 0);
+      expect(restored.debugState.nameToDkg['committed'], isNotNull);
+      expect(restored.debugState.nameToDkg['uncommitted'], isNull);
+      expect((await restored.getPublicFeed(id, 0, 100))!.latestCursor, 1);
+      await _dkg(restored, restoredSid, 'after-reload');
+      expect((await restored.getPublicFeed(id, 0, 100))!.latestCursor, 2);
+    });
+  }
+
   test(
     'failed atomic writes cannot expose uncommitted journal entries',
     () async {
@@ -1085,4 +1145,15 @@ bool _contains(List<int> bytes, List<int> needle) {
     if (found) return true;
   }
   return false;
+}
+
+final class _FailingSnapshotState extends ServerState {
+  Object? failure;
+
+  @override
+  ServerStateSnapshot snapshot() {
+    final error = failure;
+    if (error != null) throw error;
+    return super.snapshot();
+  }
 }

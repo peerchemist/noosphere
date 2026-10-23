@@ -78,7 +78,11 @@ resource bounds. Active signing requests become blocked records. Rejected and
 expired DKG ceremony IDs remain terminal for the configured maximum DKG request
 TTL. Completed signatures and encrypted recovery shares remain available for
 redelivery. A write with unknown outcome blocks further mutations until the
-handler reloads storage.
+handler reloads storage. Snapshot or public-feed capture failures after a live
+mutation also latch the handler closed, even before a host write starts. The
+committed snapshot remains unchanged, public-feed reads become unavailable, and
+transport sessions can still close. Recreate the handler from durable storage
+to resume operations.
 
 The server caps rosters at 64 members, active ceremonies at 32, encrypted
 shares at 4 KiB, retained DKG payload at 16 MiB, serialized coordinator state
