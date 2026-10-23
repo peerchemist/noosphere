@@ -1575,11 +1575,19 @@ void main() {
           // Duplicate response
           await expectMalicious([validResp, validResp]);
 
-          // Invalid signature index
+          // Invalid signature index from the wire. The unsigned 16-bit maximum
+          // is valid in the domain object but outside this request.
+          final wireReply = Uint8List.fromList(getReply(1, 0).toBytes())
+            ..[0] = 0xff
+            ..[1] = 0xff;
+          await expectMalicious([SignatureReply.fromBytes(wireReply)]);
+
+          // Defend the local API boundary even if a caller bypasses the
+          // SignatureReply constructor invariant.
           await expectMalicious([
-            SignatureReply(
-              sigI: 4,
-              nextCommitment: getReply(1, 3).nextCommitment,
+            _UncheckedSignatureReply(
+              sigI: -1,
+              nextCommitment: getReply(1, 0).nextCommitment,
             ),
           ]);
 
@@ -2124,4 +2132,16 @@ void main() {
       await ctx.api.shutdown();
     });
   });
+}
+
+final class _UncheckedSignatureReply extends SignatureReply {
+  _UncheckedSignatureReply({required int sigI, required super.nextCommitment})
+    : super(sigI: 0) {
+    _sigI = sigI;
+  }
+
+  late final int _sigI;
+
+  @override
+  int get sigI => _sigI;
 }

@@ -14,11 +14,8 @@ class SignatureReply with cl.Writable, NoosphereWritable {
   /// When a ROAST round has been initiated, the signature share is provided.
   final SignatureShare? share;
 
-  SignatureReply({
-    required this.sigI,
-    required this.nextCommitment,
-    this.share,
-  });
+  SignatureReply({required int sigI, required this.nextCommitment, this.share})
+    : sigI = RangeError.checkValueInInterval(sigI, 0, 0xffff, 'sigI');
 
   SignatureReply.fromReader(cl.BytesReader reader)
     : this(

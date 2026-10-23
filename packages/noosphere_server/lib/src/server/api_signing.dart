@@ -256,7 +256,7 @@ extension _ServerSigning on ServerApiHandler {
     for (final reply in replies) {
       final sigI = reply.sigI;
 
-      if (sigI >= sigDetails.requiredSigs.length) {
+      if (sigI < 0 || sigI >= sigDetails.requiredSigs.length) {
         await throwMalicious(InvalidRequest.invalidSigIndex());
       }
 
