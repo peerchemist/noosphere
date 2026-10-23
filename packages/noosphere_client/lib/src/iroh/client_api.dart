@@ -22,8 +22,7 @@ import 'package:noosphere_protocol/api/types/signature_reply.dart';
 import 'package:noosphere_protocol/api/types/signatures_request_details.dart';
 import 'package:noosphere_protocol/api/types/signed.dart';
 import 'package:noosphere_protocol/api/types/signed_dkg_ack.dart';
-import 'package:noosphere_protocol/domain.dart'
-    show noosphereProtocolVersion;
+import 'package:noosphere_protocol/domain.dart' show noosphereProtocolVersion;
 import 'package:noosphere_protocol/wire.dart' as protocol;
 import 'package:protobuf/protobuf.dart';
 
@@ -125,31 +124,57 @@ final class IrohClientApi implements ApiRequestInterface {
       timeout: config.authTimeout,
     );
 
-    final (send, receive) = await _connection.openBi();
-    await _writeRequest(
-      send,
-      protocol.RoastOperation.startSession.id,
-      protocol.StartSession(),
-    );
-    await send.finish();
-    final iterator = StreamIterator(
-      protocol.decodeLengthPrefixedMessages(
-        _readChunks(receive),
-        maxMessageLength: config.maxMessageLength,
-      ),
-    );
-    if (!await iterator.moveNext().timeout(config.authTimeout)) {
-      throw const IrohProtocolException('session stream ended before snapshot');
-    }
-    final started = protocol.SessionStarted.fromBuffer(iterator.current);
+    final body = _requestBody(protocol.StartSession());
+    final deadline = _OperationDeadline(config.authTimeout);
+    SendStream? send;
+    RecvStream? receive;
+    StreamIterator<Uint8List>? iterator;
+    var requestFinished = false;
+    try {
+      (send, receive) = await deadline.run(_connection.openBi);
+      await deadline.run(
+        () =>
+            _writeRequest(send!, protocol.RoastOperation.startSession.id, body),
+      );
+      await deadline.run(send!.finish);
+      requestFinished = true;
+      iterator = StreamIterator(
+        protocol.decodeLengthPrefixedMessages(
+          _readChunks(receive!),
+          maxMessageLength: config.maxMessageLength,
+        ),
+      );
+      if (!await deadline.run(iterator.moveNext)) {
+        throw const IrohProtocolException(
+          'session stream ended before snapshot',
+        );
+      }
+      final started = protocol.SessionStarted.fromBuffer(iterator.current);
 
-    late final StreamController<Event> events;
-    events = StreamController<Event>(onCancel: () => logout());
-    unawaited(_pumpEvents(iterator, events));
-    return LoginCompleteResponse.fromBytes(
-      Uint8List.fromList(started.snapshot),
-      events.stream,
-    );
+      late final StreamController<Event> events;
+      events = StreamController<Event>(onCancel: () => logout());
+      unawaited(_pumpEvents(iterator, events));
+      return LoginCompleteResponse.fromBytes(
+        Uint8List.fromList(started.snapshot),
+        events.stream,
+      );
+    } on Object catch (error) {
+      if (send == null || receive == null) {
+        if (error is TimeoutException) {
+          _connection.close(reason: 'session stream open timed out'.codeUnits);
+        }
+      } else {
+        await _cleanupStream(
+          send: send,
+          receive: receive,
+          readerCancel: iterator?.cancel,
+          resetSend: !requestFinished,
+          stopReceive: true,
+          timeout: config.authTimeout,
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<void> logout() async {
@@ -168,30 +193,50 @@ final class IrohClientApi implements ApiRequestInterface {
     Duration? timeout,
   }) async {
     if (_closed) throw const IrohClientClosedException();
+    final body = _requestBody(request);
     return _rpcStreams.run(() async {
       if (_closed) throw const IrohClientClosedException();
-      final (send, receive) = await _connection.openBi();
+      final operationTimeout = timeout ?? config.rpcTimeout;
+      final deadline = _OperationDeadline(operationTimeout);
+      SendStream? send;
+      RecvStream? receive;
+      protocol.QuicStreamReader? reader;
+      var requestFinished = false;
+      var responseFinished = false;
       try {
-        await _writeRequest(send, operation.id, request);
-        await send.finish();
-        final reader = protocol.QuicStreamReader(_readChunks(receive));
-        final status = await reader.readVarInt().timeout(
-          timeout ?? config.rpcTimeout,
+        (send, receive) = await deadline.run(_connection.openBi);
+        await deadline.run(() => _writeRequest(send!, operation.id, body));
+        await deadline.run(send!.finish);
+        requestFinished = true;
+        reader = protocol.QuicStreamReader(_readChunks(receive!));
+        final status = await deadline.run(reader.readVarInt);
+        final responseBody = await deadline.run(
+          () => reader!.readToEnd(maxLength: config.maxMessageLength),
         );
-        final body = await reader
-            .readToEnd(maxLength: config.maxMessageLength)
-            .timeout(timeout ?? config.rpcTimeout);
+        responseFinished = true;
         if (status == protocol.RpcResponseStatus.error) {
-          final error = protocol.ProtocolError.fromBuffer(body);
+          final error = protocol.ProtocolError.fromBuffer(responseBody);
           throw IrohProtocolException(error.message, error: error);
         }
         if (status != protocol.RpcResponseStatus.success) {
           throw IrohProtocolException('unknown response status $status');
         }
-        return decodeResponse(body);
-      } on TimeoutException {
-        await send.reset(1);
-        await receive.stop(1);
+        return decodeResponse(responseBody);
+      } on Object catch (error) {
+        if (send == null || receive == null) {
+          if (error is TimeoutException) {
+            _connection.close(reason: 'RPC stream open timed out'.codeUnits);
+          }
+        } else {
+          await _cleanupStream(
+            send: send,
+            receive: receive,
+            readerCancel: reader?.cancel,
+            resetSend: !requestFinished,
+            stopReceive: !responseFinished,
+            timeout: operationTimeout,
+          );
+        }
         rethrow;
       }
     });
@@ -217,11 +262,7 @@ final class IrohClientApi implements ApiRequestInterface {
     }
   }
 
-  Future<void> _writeRequest(
-    SendStream send,
-    int operationId,
-    GeneratedMessage request,
-  ) async {
+  Uint8List _requestBody(GeneratedMessage request) {
     final body = request.writeToBuffer();
     if (body.length > config.maxMessageLength) {
       throw protocol.FrameTooLargeException(
@@ -229,8 +270,49 @@ final class IrohClientApi implements ApiRequestInterface {
         maximum: config.maxMessageLength,
       );
     }
+    return body;
+  }
+
+  Future<void> _writeRequest(
+    SendStream send,
+    int operationId,
+    List<int> body,
+  ) async {
     await send.writeAll(protocol.encodeQuicVarInt(operationId));
     await send.writeAll(body);
+  }
+
+  Future<void> _cleanupStream({
+    required SendStream send,
+    required RecvStream receive,
+    required Future<void> Function()? readerCancel,
+    required bool resetSend,
+    required bool stopReceive,
+    required Duration timeout,
+  }) async {
+    Future<void> ignoreFailure(Future<void> operation) async {
+      try {
+        await operation;
+      } on Object {
+        // Preserve the request failure if the stream is already closed.
+      }
+    }
+
+    final cleanup = () async {
+      if (resetSend) await ignoreFailure(send.reset(1));
+      if (stopReceive) await ignoreFailure(receive.stop(1));
+      if (readerCancel != null) await ignoreFailure(readerCancel());
+    }();
+    final cleanupTimeout = timeout < const Duration(seconds: 1)
+        ? timeout
+        : const Duration(seconds: 1);
+    try {
+      await cleanup.timeout(cleanupTimeout);
+    } on TimeoutException {
+      _connection.close(reason: 'RPC stream cleanup timed out'.codeUnits);
+    } on Object {
+      _connection.close(reason: 'RPC stream cleanup failed'.codeUnits);
+    }
   }
 
   @override
@@ -529,6 +611,23 @@ final class IrohClientApi implements ApiRequestInterface {
       ),
       protocol.AckKeyConstructedResponse.fromBuffer,
     );
+  }
+}
+
+final class _OperationDeadline {
+  _OperationDeadline(this.timeout) : _elapsed = (Stopwatch()..start());
+
+  final Duration timeout;
+  final Stopwatch _elapsed;
+
+  Future<T> run<T>(Future<T> Function() operation) {
+    final remaining = timeout - _elapsed.elapsed;
+    if (remaining <= Duration.zero) {
+      return Future.error(
+        TimeoutException('Iroh operation timed out', timeout),
+      );
+    }
+    return operation().timeout(remaining);
   }
 }
 

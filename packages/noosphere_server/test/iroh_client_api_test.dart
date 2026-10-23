@@ -258,6 +258,213 @@ void main() {
     expect(handler.maxActive, 1);
   });
 
+  test('client deadline includes stalled request writes', () async {
+    final endpoint = await Endpoint.bind(
+      alpns: [noosphereIrohAlpn.codeUnits],
+      relayMode: RelayMode.disabled,
+    );
+    addTearDown(endpoint.close);
+    final streamAccepted = Completer<void>();
+    final release = Completer<void>();
+    addTearDown(() {
+      if (!release.isCompleted) release.complete();
+    });
+    final serving = () async {
+      final connection = await endpoint.accept();
+      final streams = await connection!.acceptBi();
+      streamAccepted.complete();
+      await release.future;
+      await streams.$1.reset(1).catchError((_) {});
+      await streams.$2.stop(1).catchError((_) {});
+    }();
+
+    final api = await IrohClientApi.connect(
+      IrohClientTransportConfig(
+        bootstrapAddress: EndpointAddr(
+          endpoint.id,
+          ipAddrs: _loopbackAddresses(endpoint.boundSockets),
+        ),
+        pinnedServerId: endpoint.id,
+        relay: IrohRelayConfig.disabled(),
+        rpcTimeout: const Duration(milliseconds: 50),
+        maxMessageLength: 16 * 1024 * 1024,
+        nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
+      ),
+    );
+    addTearDown(api.close);
+    final elapsed = Stopwatch()..start();
+    final request = api.requestSignatures(
+      sid: SessionID(),
+      keys: const {},
+      signedDetails: Signed.sign(
+        obj: getSignaturesDetails(),
+        key: getPrivkey(0),
+      ),
+      commitments: List.filled(100000, getSignPart1().commitment),
+    );
+    await streamAccepted.future.timeout(const Duration(seconds: 2));
+
+    await expectLater(request, throwsA(isA<TimeoutException>()));
+    expect(elapsed.elapsed, lessThan(const Duration(seconds: 1)));
+
+    await api.close();
+    release.complete();
+    await serving;
+  });
+
+  test('client uses one deadline across response reads', () async {
+    final endpoint = await Endpoint.bind(
+      alpns: [noosphereIrohAlpn.codeUnits],
+      relayMode: RelayMode.disabled,
+    );
+    addTearDown(endpoint.close);
+    final serving = () async {
+      final connection = await endpoint.accept();
+      final (send, receive) = await connection!.acceptBi();
+      await receive.readToEnd(64 * 1024);
+      await Future<void>.delayed(const Duration(milliseconds: 70));
+      try {
+        await send.writeAll(
+          protocol.encodeQuicVarInt(protocol.RpcResponseStatus.success),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 70));
+        final response = protocol.ExtendSessionResponse(
+          expiry: Expiry(const Duration(minutes: 1)).toBytes(),
+        ).writeToBuffer();
+        await send.writeAll(response);
+        await send.finish();
+      } on Exception {
+        // Expected when the client deadline stops the response stream.
+      }
+    }();
+
+    final api = await IrohClientApi.connect(
+      IrohClientTransportConfig(
+        bootstrapAddress: EndpointAddr(
+          endpoint.id,
+          ipAddrs: _loopbackAddresses(endpoint.boundSockets),
+        ),
+        pinnedServerId: endpoint.id,
+        relay: IrohRelayConfig.disabled(),
+        rpcTimeout: const Duration(milliseconds: 100),
+        nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
+      ),
+    );
+    addTearDown(api.close);
+
+    await expectLater(
+      api.extendSession(SessionID()),
+      throwsA(isA<TimeoutException>()),
+    );
+    await serving;
+  });
+
+  test('oversized request is rejected before stream allocation', () async {
+    final endpoint = await Endpoint.bind(
+      alpns: [noosphereIrohAlpn.codeUnits],
+      relayMode: RelayMode.disabled,
+    );
+    addTearDown(endpoint.close);
+    final acceptedStreamId = Completer<int>();
+    final serving = () async {
+      final connection = await endpoint.accept();
+      final (send, receive) = await connection!.acceptBi();
+      acceptedStreamId.complete(receive.id);
+      await receive.readToEnd(64 * 1024);
+      final response = protocol.ExtendSessionResponse(
+        expiry: Expiry(const Duration(minutes: 1)).toBytes(),
+      ).writeToBuffer();
+      await send.writeAll(
+        protocol.encodeQuicVarInt(protocol.RpcResponseStatus.success),
+      );
+      await send.writeAll(response);
+      await send.finish();
+    }();
+
+    final api = await IrohClientApi.connect(
+      IrohClientTransportConfig(
+        bootstrapAddress: EndpointAddr(
+          endpoint.id,
+          ipAddrs: _loopbackAddresses(endpoint.boundSockets),
+        ),
+        pinnedServerId: endpoint.id,
+        relay: IrohRelayConfig.disabled(),
+        rpcTimeout: const Duration(seconds: 1),
+        maxMessageLength: 1024,
+        nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
+      ),
+    );
+    addTearDown(api.close);
+
+    await expectLater(
+      api.requestSignatures(
+        sid: SessionID(),
+        keys: const {},
+        signedDetails: Signed.sign(
+          obj: getSignaturesDetails(),
+          key: getPrivkey(0),
+        ),
+        commitments: List.filled(100, getSignPart1().commitment),
+      ),
+      throwsA(isA<protocol.FrameTooLargeException>()),
+    );
+    expect(await api.extendSession(SessionID()), isA<Expiry>());
+    expect(await acceptedStreamId.future, 0);
+    await serving;
+  });
+
+  test('repeated invalid responses release RPC slots', () async {
+    const invalidResponses = 40;
+    final endpoint = await Endpoint.bind(
+      alpns: [noosphereIrohAlpn.codeUnits],
+      relayMode: RelayMode.disabled,
+    );
+    addTearDown(endpoint.close);
+    final serving = () async {
+      final connection = await endpoint.accept();
+      for (var i = 0; i <= invalidResponses; i++) {
+        final (send, receive) = await connection!.acceptBi();
+        await receive.readToEnd(64 * 1024);
+        if (i == invalidResponses) {
+          final response = protocol.ExtendSessionResponse(
+            expiry: Expiry(const Duration(minutes: 1)).toBytes(),
+          ).writeToBuffer();
+          await send.writeAll(
+            protocol.encodeQuicVarInt(protocol.RpcResponseStatus.success),
+          );
+          await send.writeAll(response);
+        } else {
+          await send.writeAll(protocol.encodeQuicVarInt(63));
+        }
+        await send.finish();
+      }
+    }();
+
+    final api = await IrohClientApi.connect(
+      IrohClientTransportConfig(
+        bootstrapAddress: EndpointAddr(
+          endpoint.id,
+          ipAddrs: _loopbackAddresses(endpoint.boundSockets),
+        ),
+        pinnedServerId: endpoint.id,
+        relay: IrohRelayConfig.disabled(),
+        rpcTimeout: const Duration(seconds: 1),
+        maxConcurrentStreams: 1,
+        nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
+      ),
+    );
+    addTearDown(api.close);
+
+    for (var i = 0; i < invalidResponses; i++) {
+      await expectLater(
+        api.extendSession(SessionID()),
+        throwsA(isA<IrohProtocolException>()),
+      );
+    }
+    expect(await api.extendSession(SessionID()), isA<Expiry>());
+    await serving;
+  });
+
   test('server enforces connection and stream limits', () async {
     final handler = BlockingExtendSessionApi();
     final server = await IrohServer.start(
