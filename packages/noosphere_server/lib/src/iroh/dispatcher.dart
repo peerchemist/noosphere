@@ -24,6 +24,13 @@ final class ConnectionGroupMismatchException implements Exception {
   String toString() => 'ConnectionGroupMismatchException';
 }
 
+final class IrohDispatchCapacityException implements Exception {
+  const IrohDispatchCapacityException();
+
+  @override
+  String toString() => 'IrohDispatchCapacityException';
+}
+
 final class IrohDispatchResult<T>(final T value);
 
 /// Serializes state mutations independently for each configured group.
@@ -31,7 +38,21 @@ final class IrohDispatchResult<T>(final T value);
 /// Callbacks may invoke [ServerApiHandler] methods but must not perform network
 /// reads or writes.
 final class IrohDispatcher {
-  IrohDispatcher(Iterable<ServerApiHandler> handlers, {this.onError}) {
+  static const defaultMaxPendingRequestsPerGroup = 32;
+  static const defaultMaxPendingRequestBytesPerGroup = 8 * 1024 * 1024;
+
+  IrohDispatcher(
+    Iterable<ServerApiHandler> handlers, {
+    this.onError,
+    this.maxPendingRequestsPerGroup = defaultMaxPendingRequestsPerGroup,
+    this.maxPendingRequestBytesPerGroup = defaultMaxPendingRequestBytesPerGroup,
+  }) {
+    if (maxPendingRequestsPerGroup < 1) {
+      throw RangeError.range(maxPendingRequestsPerGroup, 1, null);
+    }
+    if (maxPendingRequestBytesPerGroup < 1) {
+      throw RangeError.range(maxPendingRequestBytesPerGroup, 1, null);
+    }
     try {
       for (final handler in handlers) {
         addHandler(handler);
@@ -49,10 +70,19 @@ final class IrohDispatcher {
   factory IrohDispatcher.single(
     ServerApiHandler handler, {
     void Function(Object error, StackTrace stackTrace)? onError,
-  }) => IrohDispatcher([handler], onError: onError);
+    int maxPendingRequestsPerGroup = defaultMaxPendingRequestsPerGroup,
+    int maxPendingRequestBytesPerGroup = defaultMaxPendingRequestBytesPerGroup,
+  }) => IrohDispatcher(
+    [handler],
+    onError: onError,
+    maxPendingRequestsPerGroup: maxPendingRequestsPerGroup,
+    maxPendingRequestBytesPerGroup: maxPendingRequestBytesPerGroup,
+  );
 
   final Map<_GroupKey, _GroupLane> _lanes = {};
   final void Function(Object error, StackTrace stackTrace)? onError;
+  final int maxPendingRequestsPerGroup;
+  final int maxPendingRequestBytesPerGroup;
   bool _closed = false;
 
   /// Adds a newly frozen enrollment room to the ordinary ROAST dispatcher.
@@ -69,7 +99,11 @@ final class IrohDispatcher {
         )) {
       throw ArgumentError('duplicate public feed ID');
     }
-    final lane = _GroupLane(handler);
+    final lane = _GroupLane(
+      handler,
+      maxPendingRequests: maxPendingRequestsPerGroup,
+      maxPendingRequestBytes: maxPendingRequestBytesPerGroup,
+    );
     handler.attachSessionLostHandler(
       (session) => _endLostSession(lane, session),
     );
@@ -141,8 +175,30 @@ final class IrohDispatcher {
   int pendingFor(List<int> groupFingerprint) =>
       _lanes[_GroupKey(groupFingerprint)]?.queue.pending ?? 0;
 
+  int pendingRequestBytesFor(List<int> groupFingerprint) =>
+      _lanes[_GroupKey(groupFingerprint)]?.queue.pendingRequestBytes ?? 0;
+
   bool hasGroup(List<int> groupFingerprint) =>
       !_closed && _lanes.containsKey(_GroupKey(groupFingerprint));
+
+  Future<T> runRequest<T>({
+    required int retainedBytes,
+    required Duration timeout,
+    required Future<T> Function() operation,
+  }) {
+    if (retainedBytes < 0) {
+      throw RangeError.value(retainedBytes, 'retainedBytes');
+    }
+    if (timeout <= Duration.zero) {
+      throw ArgumentError.value(timeout, 'timeout');
+    }
+    return runZoned(
+      operation,
+      zoneValues: {
+        _dispatchRequestZoneKey: _DispatchRequest(retainedBytes, timeout),
+      },
+    );
+  }
 
   Future<ExpirableAuthChallengeResponse> beginAuthentication({
     required List<int> groupFingerprint,
@@ -317,7 +373,7 @@ final class IrohDispatcher {
         throw const ConnectionGroupMismatchException();
       }
       return operation(lane.handler, connection);
-    });
+    }, request: _currentDispatchRequest);
   }
 
   Future<void> schedule({
@@ -351,7 +407,10 @@ final class IrohDispatcher {
     if (_closed) return Future.error(StateError('dispatcher is closed'));
     final lane = _lanes[_GroupKey(groupFingerprint)];
     if (lane == null) return Future.error(const UnknownIrohGroupException());
-    return lane.queue.run(() => operation(lane.handler));
+    return lane.queue.run(
+      () => operation(lane.handler),
+      request: _currentDispatchRequest,
+    );
   }
 
   Future<void> close() async {
@@ -368,10 +427,17 @@ final class IrohDispatcher {
 }
 
 final class _GroupLane {
-  _GroupLane(this.handler);
+  _GroupLane(
+    this.handler, {
+    required int maxPendingRequests,
+    required int maxPendingRequestBytes,
+  }) : queue = _SerialQueue(
+         maxPendingRequests: maxPendingRequests,
+         maxPendingRequestBytes: maxPendingRequestBytes,
+       );
 
   final ServerApiHandler handler;
-  final _SerialQueue queue = _SerialQueue();
+  final _SerialQueue queue;
   Timer? maintenance;
 }
 
@@ -394,6 +460,23 @@ final class _GroupKey {
 }
 
 final Object _activeQueueZoneKey = Object();
+final Object _dispatchRequestZoneKey = Object();
+
+_DispatchRequest? get _currentDispatchRequest {
+  final request = Zone.current[_dispatchRequestZoneKey];
+  return request is _DispatchRequest ? request : null;
+}
+
+final class _DispatchRequest {
+  _DispatchRequest(this.retainedBytes, this.timeout)
+    : elapsed = (Stopwatch()..start());
+
+  final int retainedBytes;
+  final Duration timeout;
+  final Stopwatch elapsed;
+
+  bool get isExpired => elapsed.elapsed >= timeout;
+}
 
 final class _QueueZoneState {
   _QueueZoneState(this.queue);
@@ -403,11 +486,21 @@ final class _QueueZoneState {
 }
 
 final class _SerialQueue {
+  _SerialQueue({
+    required this.maxPendingRequests,
+    required this.maxPendingRequestBytes,
+  });
+
+  final int maxPendingRequests;
+  final int maxPendingRequestBytes;
   Future<void> _tail = Future.value();
   bool _accepting = true;
   int _pending = 0;
+  int _pendingRequests = 0;
+  int _pendingRequestBytes = 0;
 
   int get pending => _pending;
+  int get pendingRequestBytes => _pendingRequestBytes;
   bool get isCurrent {
     final currentZone = Zone.current[_activeQueueZoneKey];
     return currentZone is _QueueZoneState &&
@@ -415,17 +508,37 @@ final class _SerialQueue {
         currentZone.active;
   }
 
-  Future<T> run<T>(FutureOr<T> Function() operation) {
+  Future<T> run<T>(
+    FutureOr<T> Function() operation, {
+    _DispatchRequest? request,
+  }) {
     if (!_accepting) return Future.error(StateError('serial queue is closed'));
     if (isCurrent) {
       return Future.error(StateError('reentrant dispatch would deadlock'));
+    }
+    final isRequest = request != null;
+    final retainedBytes = request?.retainedBytes ?? 0;
+    if (isRequest &&
+        (_pendingRequests >= maxPendingRequests ||
+            retainedBytes > maxPendingRequestBytes - _pendingRequestBytes)) {
+      return Future.error(const IrohDispatchCapacityException());
+    }
+    if (request?.isExpired ?? false) {
+      return Future.error(TimeoutException('queued Iroh request expired'));
     }
 
     final completer = Completer<T>();
     final zoneState = _QueueZoneState(this);
     _pending++;
+    if (isRequest) {
+      _pendingRequests++;
+      _pendingRequestBytes += retainedBytes;
+    }
     _tail = _tail.then((_) async {
       try {
+        if (request?.isExpired ?? false) {
+          throw TimeoutException('queued Iroh request expired');
+        }
         final value = await runZoned(
           () async => operation(),
           zoneValues: {_activeQueueZoneKey: zoneState},
@@ -436,6 +549,10 @@ final class _SerialQueue {
       } finally {
         zoneState.active = false;
         _pending--;
+        if (isRequest) {
+          _pendingRequests--;
+          _pendingRequestBytes -= retainedBytes;
+        }
       }
     });
     return completer.future;

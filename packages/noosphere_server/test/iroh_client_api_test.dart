@@ -9,6 +9,7 @@ import 'package:coinlib/coinlib.dart' as coinlib;
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_client/iroh_transport.dart';
 import 'package:noosphere_client/testing.dart';
+import 'package:noosphere_protocol/wire.dart' as protocol;
 import 'package:noosphere_server/noosphere_server.dart';
 import 'package:noosphere_server/src/server/state/dkg.dart';
 import 'package:test/test.dart';
@@ -315,6 +316,93 @@ void main() {
     expect(handler.calls, 1);
     handler.release.complete();
     await first;
+  });
+
+  test('server bounds timed-out RPC backlog', () async {
+    final handler = BlockingExtendSessionApi();
+    final server = await IrohServer.start(
+      IrohConfig(
+        server: serverConfig,
+        relay: IrohRelayConfig.disabled(),
+        authTimeout: const Duration(seconds: 2),
+        rpcTimeout: const Duration(milliseconds: 50),
+        maxStreamsPerConnection: 64,
+        nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
+      ),
+      handler: handler,
+      secretKey: SecretKey.generate(),
+      persistence: handler.persistence,
+    );
+    unawaited(server.serve());
+    addTearDown(server.close);
+    addTearDown(() {
+      if (!handler.release.isCompleted) handler.release.complete();
+    });
+    final api = await IrohClientApi.connect(
+      IrohClientTransportConfig(
+        bootstrapAddress: EndpointAddr(
+          server.id,
+          ipAddrs: _loopbackAddresses(server.endpoint.boundSockets),
+        ),
+        pinnedServerId: server.id,
+        relay: IrohRelayConfig.disabled(),
+        rpcTimeout: const Duration(seconds: 2),
+        maxConcurrentStreams: 64,
+        nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
+      ),
+    );
+    addTearDown(api.close);
+    final challenge = await api.login(
+      groupFingerprint: groupConfig.fingerprint,
+      participantId: ids[0],
+    );
+    final login = await api.respondToChallenge(
+      Signed.sign(obj: challenge.challenge, key: getPrivkey(0)),
+    );
+
+    Future<Object?> capture(Future<void> request) async {
+      try {
+        await request;
+        return null;
+      } catch (error) {
+        return error;
+      }
+    }
+
+    final active = capture(api.extendSession(login.id));
+    await handler.entered.future;
+    final results = await Future.wait([
+      active,
+      ...List.generate(40, (_) => capture(api.extendSession(login.id))),
+    ]);
+    final protocolErrors = results.whereType<IrohProtocolException>().toList();
+    final codes = protocolErrors.map((error) => error.error?.code).toList();
+
+    expect(protocolErrors, hasLength(41));
+    expect(
+      codes,
+      everyElement(
+        anyOf(
+          protocol.ProtocolErrorCode.PROTOCOL_ERROR_DEADLINE_EXCEEDED,
+          protocol.ProtocolErrorCode.PROTOCOL_ERROR_RESOURCE_EXHAUSTED,
+        ),
+      ),
+    );
+    expect(
+      codes,
+      contains(protocol.ProtocolErrorCode.PROTOCOL_ERROR_RESOURCE_EXHAUSTED),
+    );
+    expect(server.dispatcher.pendingFor(groupConfig.fingerprint), 32);
+    expect(
+      server.dispatcher.pendingRequestBytesFor(groupConfig.fingerprint),
+      inInclusiveRange(1, 8 * 1024 * 1024),
+    );
+
+    handler.release.complete();
+    await waitFor(
+      () => server.dispatcher.pendingFor(groupConfig.fingerprint) == 0,
+    );
+    expect(handler.calls, 1);
   });
 
   test(

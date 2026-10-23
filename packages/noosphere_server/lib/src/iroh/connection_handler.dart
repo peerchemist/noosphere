@@ -96,14 +96,24 @@ final class IrohConnectionHandler {
       } else if (operation == RoastOperation.startSession) {
         StartSession.fromBuffer(body);
         persistentResponse = true;
-        await _handleStartSession(send);
+        await dispatcher.runRequest(
+          retainedBytes: body.length,
+          timeout: config.authTimeout,
+          operation: () => _handleStartSession(send),
+        );
       } else {
         final timeout = switch (operation) {
           RoastOperation.login ||
           RoastOperation.respondToChallenge => config.authTimeout,
           _ => config.rpcTimeout,
         };
-        await _handleRpc(send, operation, body).timeout(timeout);
+        await dispatcher
+            .runRequest(
+              retainedBytes: body.length,
+              timeout: timeout,
+              operation: () => _handleRpc(send, operation, body),
+            )
+            .timeout(timeout);
       }
     } catch (error) {
       if (!isIrohRequestError(error)) rethrow;
@@ -184,15 +194,7 @@ final class IrohConnectionHandler {
       };
     } catch (error) {
       if (!isIrohRequestError(error)) rethrow;
-      await _writeError(
-        send,
-        ProtocolError(
-          code: ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
-          message: error is ArgumentError
-              ? 'invalid request arguments'
-              : '$error',
-        ),
-      );
+      await _writeError(send, _protocolError(error));
       return;
     }
     await _writeResponse(send, response);
@@ -629,7 +631,11 @@ final class IrohConnectionHandler {
       .timeout(config.rpcTimeout);
 
   ProtocolError _protocolError(Object error) => ProtocolError(
-    code: commonIrohProtocolErrorCode(error),
+    code: switch (error) {
+      IrohDispatchCapacityException() =>
+        ProtocolErrorCode.PROTOCOL_ERROR_RESOURCE_EXHAUSTED,
+      _ => commonIrohProtocolErrorCode(error),
+    },
     message: error is ArgumentError ? 'invalid request arguments' : '$error',
   );
 }

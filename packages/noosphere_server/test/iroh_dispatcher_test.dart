@@ -153,6 +153,143 @@ void main() {
     expect(order, ['request-start', 'request-end', 'callback']);
   });
 
+  test(
+    'bounds queued requests and discards them after their deadline',
+    () async {
+      final dispatcher = IrohDispatcher.single(
+        getApiHandler(),
+        maxPendingRequestsPerGroup: 4,
+      );
+      addTearDown(dispatcher.close);
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      addTearDown(() {
+        if (!release.isCompleted) release.complete();
+      });
+      var activeCompleted = false;
+      const requestTimeout = Duration(milliseconds: 50);
+      final active = dispatcher.runRequest<void>(
+        retainedBytes: 1,
+        timeout: requestTimeout,
+        operation: () => dispatcher.invokeGroup<void>(
+          groupFingerprint: groupConfig.fingerprint,
+          operation: (_) async {
+            entered.complete();
+            await release.future;
+            activeCompleted = true;
+          },
+        ),
+      );
+      await entered.future;
+
+      Future<Object> capture(Future<Object?> operation) async {
+        try {
+          await operation;
+          return StateError('operation completed');
+        } catch (error) {
+          return error;
+        }
+      }
+
+      final activeCaller = Future.any<Object>([
+        capture(active),
+        Future<Object>.delayed(
+          const Duration(milliseconds: 1),
+          () => TimeoutException('caller deadline exceeded'),
+        ),
+      ]);
+
+      var executed = 0;
+      final callers = <Future<Object>>[];
+      for (var i = 0; i < 40; i++) {
+        final operation = dispatcher.runRequest<int>(
+          retainedBytes: 1,
+          timeout: requestTimeout,
+          operation: () => dispatcher.invokeGroup<int>(
+            groupFingerprint: groupConfig.fingerprint,
+            operation: (_) => executed++,
+          ),
+        );
+        callers.add(
+          Future.any<Object>([
+            capture(operation),
+            Future<Object>.delayed(
+              const Duration(milliseconds: 1),
+              () => TimeoutException('caller deadline exceeded'),
+            ),
+          ]),
+        );
+      }
+      final results = await Future.wait(callers);
+
+      expect(await activeCaller, isA<TimeoutException>());
+      expect(results.whereType<IrohDispatchCapacityException>(), hasLength(37));
+      expect(results.whereType<TimeoutException>(), hasLength(3));
+      expect(dispatcher.pendingFor(groupConfig.fingerprint), 4);
+      expect(dispatcher.pendingRequestBytesFor(groupConfig.fingerprint), 4);
+      await Future<void>.delayed(requestTimeout);
+      release.complete();
+      await active;
+      await pumpEventQueue();
+
+      expect(activeCompleted, isTrue);
+      expect(executed, 0);
+      expect(dispatcher.pendingFor(groupConfig.fingerprint), 0);
+      expect(dispatcher.pendingRequestBytesFor(groupConfig.fingerprint), 0);
+    },
+  );
+
+  test('queued request admission accounts for retained bytes', () async {
+    final dispatcher = IrohDispatcher.single(
+      getApiHandler(),
+      maxPendingRequestsPerGroup: 10,
+      maxPendingRequestBytesPerGroup: 3,
+    );
+    addTearDown(dispatcher.close);
+    final entered = Completer<void>();
+    final release = Completer<void>();
+    addTearDown(() {
+      if (!release.isCompleted) release.complete();
+    });
+    final active = dispatcher.runRequest<void>(
+      retainedBytes: 2,
+      timeout: const Duration(seconds: 1),
+      operation: () => dispatcher.invokeGroup<void>(
+        groupFingerprint: groupConfig.fingerprint,
+        operation: (_) async {
+          entered.complete();
+          await release.future;
+        },
+      ),
+    );
+    await entered.future;
+    final queued = dispatcher.runRequest<void>(
+      retainedBytes: 1,
+      timeout: const Duration(seconds: 1),
+      operation: () => dispatcher.invokeGroup<void>(
+        groupFingerprint: groupConfig.fingerprint,
+        operation: (_) {},
+      ),
+    );
+
+    await expectLater(
+      dispatcher.runRequest<void>(
+        retainedBytes: 1,
+        timeout: const Duration(seconds: 1),
+        operation: () => dispatcher.invokeGroup<void>(
+          groupFingerprint: groupConfig.fingerprint,
+          operation: (_) {},
+        ),
+      ),
+      throwsA(isA<IrohDispatchCapacityException>()),
+    );
+    expect(dispatcher.pendingRequestBytesFor(groupConfig.fingerprint), 3);
+
+    release.complete();
+    await Future.wait([active, queued]);
+    expect(dispatcher.pendingRequestBytesFor(groupConfig.fingerprint), 0);
+  });
+
   test('connection context enforces phase and group binding', () async {
     final secondGroup = GroupConfig(
       id: 'SecondGroup',
