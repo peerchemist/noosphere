@@ -7,6 +7,7 @@ import 'package:noosphere_protocol/wire.dart'
     hide PublicFeedPage, PublicFeedEntry;
 
 import '../server/api_handler.dart';
+import '../server/state/client_session.dart';
 import 'connection_context.dart';
 
 final class UnknownIrohGroupException implements Exception {
@@ -38,6 +39,7 @@ final class IrohDispatcher {
     } catch (_) {
       for (final lane in _lanes.values) {
         lane.maintenance?.cancel();
+        lane.handler.detachSessionLostHandler();
       }
       rethrow;
     }
@@ -67,7 +69,11 @@ final class IrohDispatcher {
         )) {
       throw ArgumentError('duplicate public feed ID');
     }
-    final lane = _lanes[key] = _GroupLane(handler);
+    final lane = _GroupLane(handler);
+    handler.attachSessionLostHandler(
+      (session) => _endLostSession(lane, session),
+    );
+    _lanes[key] = lane;
     lane.maintenance = Timer.periodic(const Duration(seconds: 1), (_) {
       // Busy protocol calls already expire state through _prepare. Avoid
       // accumulating maintenance jobs behind slow host persistence.
@@ -79,11 +85,31 @@ final class IrohDispatcher {
         ) {
           // Handler fails closed on an uncertain durable write. Reads will
           // refuse to publish that state; the host must restart the handler.
-          onError?.call(error, stackTrace);
+          _reportError(error, stackTrace);
         }),
       );
     });
   }
+
+  Future<void> _endLostSession(_GroupLane lane, ClientSession session) {
+    Future<void> endSession() async {
+      if (!identical(
+        lane.handler.sessionForTransport(session.sessionID),
+        session,
+      )) {
+        return;
+      }
+      await lane.handler.endSessionForTransport(session);
+    }
+
+    final ending = lane.queue.isCurrent
+        ? endSession()
+        : lane.queue.run(endSession);
+    return ending.catchError(_reportError);
+  }
+
+  void _reportError(Object error, StackTrace stackTrace) =>
+      onError?.call(error, stackTrace);
 
   Future<void> removeHandler(List<int> groupFingerprint) async {
     if (_closed) throw StateError('dispatcher is closed');
@@ -91,6 +117,7 @@ final class IrohDispatcher {
     if (lane != null) {
       lane.maintenance?.cancel();
       await lane.queue.close();
+      lane.handler.detachSessionLostHandler();
     }
   }
 
@@ -334,6 +361,9 @@ final class IrohDispatcher {
       lane.maintenance?.cancel();
     }
     await Future.wait(_lanes.values.map((lane) => lane.queue.close()));
+    for (final lane in _lanes.values) {
+      lane.handler.detachSessionLostHandler();
+    }
   }
 }
 
@@ -378,13 +408,16 @@ final class _SerialQueue {
   int _pending = 0;
 
   int get pending => _pending;
+  bool get isCurrent {
+    final currentZone = Zone.current[_activeQueueZoneKey];
+    return currentZone is _QueueZoneState &&
+        identical(currentZone.queue, this) &&
+        currentZone.active;
+  }
 
   Future<T> run<T>(FutureOr<T> Function() operation) {
     if (!_accepting) return Future.error(StateError('serial queue is closed'));
-    final currentZone = Zone.current[_activeQueueZoneKey];
-    if (currentZone is _QueueZoneState &&
-        identical(currentZone.queue, this) &&
-        currentZone.active) {
+    if (isCurrent) {
       return Future.error(StateError('reentrant dispatch would deadlock'));
     }
 

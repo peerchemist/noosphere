@@ -102,6 +102,24 @@ class ServerApiHandler implements ApiRequestInterface {
   @visibleForTesting
   ServerState get debugState => _state;
 
+  Future<void> Function(ClientSession session)? _sessionLostHandler;
+
+  @internal
+  void attachSessionLostHandler(
+    Future<void> Function(ClientSession session) handler,
+  ) {
+    if (_sessionLostHandler != null) {
+      throw StateError('server handler already has a session owner');
+    }
+    _sessionLostHandler = handler;
+  }
+
+  @internal
+  void detachSessionLostHandler() => _sessionLostHandler = null;
+
+  Future<void> _handleLostSession(ClientSession session) =>
+      _sessionLostHandler?.call(session) ?? _endSession(session);
+
   ClientSession? sessionForTransport(SessionID id) => _state.clientSessions[id];
 
   Future<void> endSessionForTransport(ClientSession session) =>

@@ -8,6 +8,7 @@ import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_server/noosphere_server.dart';
 import 'package:noosphere_server/src/iroh/connection_context.dart';
 import 'package:noosphere_server/src/iroh/dispatcher.dart';
+import 'package:noosphere_server/testing.dart';
 import 'package:test/test.dart';
 
 import 'data.dart';
@@ -199,4 +200,129 @@ void main() {
       throwsA(isA<ConnectionGroupMismatchException>()),
     );
   });
+
+  test(
+    'lost session cleanup uses the group lane and reports provider failures',
+    () async {
+      final persistence = _FailingPersistence();
+      final config = ServerConfig(
+        group: groupConfig,
+        minDkgRequestTTL: const Duration(milliseconds: 1),
+      );
+      final handler = ServerApiHandler(
+        config: config,
+        persistence: persistence,
+      );
+      await handler.ready;
+      final errors = <(Object, StackTrace)>[];
+      final reported = Completer<void>();
+      final dispatcher = IrohDispatcher.single(
+        handler,
+        onError: (error, stackTrace) {
+          errors.add((error, stackTrace));
+          if (!reported.isCompleted) reported.complete();
+        },
+      );
+      addTearDown(dispatcher.close);
+
+      Future<LoginCompleteResponse> login(int participant) =>
+          dispatcher.invokeGroup(
+            groupFingerprint: groupConfig.fingerprint,
+            operation: (handler) async {
+              final challenge = await handler.login(
+                groupFingerprint: groupConfig.fingerprint,
+                participantId: ids[participant],
+              );
+              return handler.respondToChallenge(
+                signObject(challenge.challenge, participant),
+              );
+            },
+          );
+
+      final first = await login(0);
+      final second = await login(1);
+      final firstEvents = first.events.listen((_) {});
+      final secondEvents = second.events.listen((_) {});
+      addTearDown(firstEvents.cancel);
+      addTearDown(secondEvents.cancel);
+      await dispatcher.invokeGroup(
+        groupFingerprint: groupConfig.fingerprint,
+        operation: (handler) => handler.requestNewDkg(
+          sid: first.id,
+          signedDetails: signObject(
+            getDkgDetails(expiry: Expiry(const Duration(milliseconds: 10))),
+          ),
+          commitment: getDkgPart1(0).public,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      persistence.fail = true;
+
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      addTearDown(() {
+        if (!release.isCompleted) release.complete();
+      });
+      final blocked = dispatcher.invokeGroup<void>(
+        groupFingerprint: groupConfig.fingerprint,
+        operation: (_) async {
+          entered.complete();
+          await release.future;
+        },
+      );
+      await entered.future;
+      final cancellation = firstEvents.cancel();
+      await pumpEventQueue();
+
+      expect(dispatcher.pendingFor(groupConfig.fingerprint), 2);
+      expect(handler.sessionForTransport(first.id), isNotNull);
+      expect(errors, isEmpty);
+
+      release.complete();
+      await blocked;
+      await cancellation;
+      await reported.future.timeout(const Duration(seconds: 1));
+      expect(errors.single.$1, isA<StateError>());
+      expect(
+        errors.single.$1.toString(),
+        contains('simulated storage failure'),
+      );
+      expect(errors.single.$2.toString(), isNotEmpty);
+      expect(handler.sessionForTransport(first.id), isNotNull);
+
+      await dispatcher.invokeGroup(
+        groupFingerprint: groupConfig.fingerprint,
+        operation: (handler) async {
+          await handler.endSessionForTransport(
+            handler.sessionForTransport(second.id)!,
+          );
+        },
+      );
+      expect(handler.sessionForTransport(second.id), isNull);
+      expect(errors, hasLength(1));
+
+      await dispatcher.invokeGroup(
+        groupFingerprint: groupConfig.fingerprint,
+        operation: (handler) async {
+          await handler.endSessionForTransport(
+            handler.sessionForTransport(first.id)!,
+          );
+        },
+      );
+    },
+  );
+}
+
+final class _FailingPersistence implements ServerPersistence {
+  final delegate = InMemoryServerPersistence();
+  bool fail = false;
+
+  @override
+  Future<ServerStateSnapshot?> load(String groupId) => delegate.load(groupId);
+
+  @override
+  Future<void> write(String groupId, ServerStateSnapshot state) {
+    if (fail) throw StateError('simulated storage failure');
+    return delegate.write(groupId, state);
+  }
 }

@@ -92,11 +92,9 @@ extension _ServerSessions on ServerApiHandler {
           participantId: pid,
           sessionID: sessionId,
           expiry: expiry,
-          // When the session stream is lost, remove the session and process the
-          // logout immediately
-          onLostStream: () {
-            unawaited(_endSession(session));
-          },
+          // Let the owning transport serialize stream-loss cleanup with its
+          // other group mutations.
+          onLostStream: () => _handleLostSession(session),
         );
 
     // If using keepalive, send periodic events

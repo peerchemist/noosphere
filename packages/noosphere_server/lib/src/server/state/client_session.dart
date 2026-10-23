@@ -9,7 +9,7 @@ class ClientSession implements Expirable {
     required this.participantId,
     required this.sessionID,
     required this.expiry,
-    required void Function() onLostStream,
+    required FutureOr<void> Function() onLostStream,
   }) {
     void flushEvents() {
       for (final event in eventBuffer.flushBuffer()) {
