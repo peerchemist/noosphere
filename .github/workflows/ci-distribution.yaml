@@ -1,0 +1,114 @@
+name: CI distribution validation
+
+on:
+  workflow_call:
+    inputs:
+      flutter_version:
+        description: Flutter SDK version used by the workspace
+        required: true
+        type: string
+    outputs:
+      consumer_result:
+        description: Release-consumer matrix result
+        value: ${{ jobs.results.outputs.consumer }}
+      demo_result:
+        description: Demo analysis, test, and build result
+        value: ${{ jobs.results.outputs.demo }}
+
+permissions:
+  contents: read
+
+jobs:
+  release_consumer:
+    name: Release consumer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          channel: stable
+          cache: true
+      - name: Install Linux desktop prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+      - name: Validate Linux source consumer
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p .ci-logs
+          xvfb-run -a ./tool/validate_release_consumer.sh 2>&1 \
+            | tee .ci-logs/release-consumer-linux.log
+      - name: Validate macOS source consumer
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p .ci-logs
+          ./tool/validate_release_consumer.sh 2>&1 \
+            | tee .ci-logs/release-consumer-macos.log
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-consumer-${{ runner.os }}-failure-logs
+          path: .ci-logs
+          if-no-files-found: ignore
+          retention-days: 7
+
+  demo:
+    name: Demo analysis, lifecycle, and release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          channel: stable
+          cache: true
+      - name: Install Linux desktop prerequisites
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+      - name: Analyze demo
+        working-directory: apps/demo
+        run: flutter analyze
+      - name: Test demo lifecycle
+        working-directory: apps/demo
+        run: |
+          mkdir -p ../../.ci-logs
+          xvfb-run -a flutter test integration_test/example_session_test.dart \
+            -d linux --reporter expanded 2>&1 \
+            | tee ../../.ci-logs/demo-lifecycle.log
+      - name: Build demo release
+        working-directory: apps/demo
+        run: flutter build linux --release
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: demo-failure-logs
+          path: .ci-logs
+          if-no-files-found: ignore
+          retention-days: 7
+
+  results:
+    name: Collect release results
+    if: always()
+    needs: [release_consumer, demo]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      consumer: ${{ steps.collect.outputs.consumer }}
+      demo: ${{ steps.collect.outputs.demo }}
+    steps:
+      - id: collect
+        name: Collect results
+        run: |
+          echo 'consumer=${{ needs.release_consumer.result }}' >> "$GITHUB_OUTPUT"
+          echo 'demo=${{ needs.demo.result }}' >> "$GITHUB_OUTPUT"

@@ -67,12 +67,9 @@ void main() {
     expect(first.stdout, second.stdout);
   });
 
-  test(
-    'two Dart processes exchange framed CBOR messages directly',
-    () async {
-      await _testTwoProcesses('direct');
-    },
-  );
+  test('two Dart processes exchange framed CBOR messages directly', () async {
+    await _testTwoProcesses('direct');
+  });
 
   test(
     'two Dart processes exchange framed CBOR messages through a relay',

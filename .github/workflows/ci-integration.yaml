@@ -1,0 +1,112 @@
+name: CI native integration
+
+on:
+  workflow_call:
+    inputs:
+      flutter_version:
+        description: Flutter SDK version used by the workspace
+        required: true
+        type: string
+    outputs:
+      integration_result:
+        description: Native integration matrix result
+        value: ${{ jobs.results.outputs.integration }}
+
+permissions:
+  contents: read
+
+jobs:
+  native_integration:
+    name: Native integration (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: transport
+            relaunch: false
+            tests: |
+              integration_test/worker_setup_runtime_test.dart
+              integration_test/native_transport_test.dart
+              integration_test/coordinator_rotation_test.dart
+          - shard: signing
+            relaunch: false
+            tests: |
+              integration_test/roast_2_of_2_test.dart
+              integration_test/message_signing_2_of_2_test.dart
+              integration_test/room_roast_2_of_3_test.dart
+              integration_test/worker_roast_test.dart
+          - shard: resilience
+            relaunch: false
+            tests: |
+              integration_test/worker_dkg_dropout_test.dart
+              integration_test/worker_signature_cancellation_test.dart
+              integration_test/worker_lifecycle_test.dart
+              integration_test/worker_failure_recovery_test.dart
+          - shard: persistence-and-process
+            relaunch: true
+            tests: |
+              integration_test/worker_room_persistence_test.dart
+              integration_test/worker_pending_key_test.dart
+              integration_test/worker_unexpected_exit_test.dart
+              integration_test/worker_forced_shutdown_test.dart
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          channel: stable
+          cache: true
+      - name: Install Linux desktop prerequisites
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+      - name: Analyze integration host
+        if: matrix.shard == 'transport'
+        working-directory: apps/integration_host
+        run: flutter analyze
+      - name: Run ${{ matrix.shard }} tests
+        working-directory: apps/integration_host
+        env:
+          TEST_FILES: ${{ matrix.tests }}
+          RUN_RELAUNCH: ${{ matrix.relaunch }}
+        run: |
+          mkdir -p ../../.ci-logs
+          while IFS= read -r test_file; do
+            if [[ -n "$test_file" ]]; then
+              xvfb-run -a flutter test "$test_file" -d linux \
+                --reporter expanded 2>&1 \
+                | tee -a ../../.ci-logs/native-${{ matrix.shard }}.log
+            fi
+          done <<< "$TEST_FILES"
+          if [[ "$RUN_RELAUNCH" == true ]]; then
+            for phase in prepare recover; do
+              xvfb-run -a flutter test \
+                integration_test/worker_process_relaunch_test.dart -d linux \
+                --dart-define=NOOSPHERE_RELAUNCH_PHASE="$phase" \
+                --reporter expanded 2>&1 \
+                | tee -a ../../.ci-logs/native-${{ matrix.shard }}.log
+            done
+          fi
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-${{ matrix.shard }}-failure-logs
+          path: .ci-logs
+          if-no-files-found: ignore
+          retention-days: 7
+
+  results:
+    name: Collect integration result
+    if: always()
+    needs: native_integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      integration: ${{ steps.collect.outputs.integration }}
+    steps:
+      - id: collect
+        name: Collect result
+        run: echo 'integration=${{ needs.native_integration.result }}' >> "$GITHUB_OUTPUT"

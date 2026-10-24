@@ -1,0 +1,182 @@
+name: CI quality and libraries
+
+on:
+  workflow_call:
+    inputs:
+      flutter_version:
+        description: Flutter SDK version used by the workspace
+        required: true
+        type: string
+    outputs:
+      formatting_result:
+        description: Formatting and dependency-integrity result
+        value: ${{ jobs.results.outputs.formatting }}
+      protocol_result:
+        description: Protocol analysis and test result
+        value: ${{ jobs.results.outputs.protocol }}
+      core_result:
+        description: Client/server matrix result
+        value: ${{ jobs.results.outputs.core }}
+      flutter_result:
+        description: Flutter facade matrix result
+        value: ${{ jobs.results.outputs.flutter }}
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Formatting and dependency integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          channel: stable
+          cache: true
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+      - name: Check formatting
+        run: git ls-files -z '*.dart' | xargs -0 dart format --output=none --set-exit-if-changed
+      - name: Check lockfile consistency
+        run: git diff --exit-code -- pubspec.lock
+      - name: Check removed Protobuf dependencies stay removed
+        run: |
+          if rg -n 'package:(protobuf|fixnum)|noosphere\.pb' \
+            packages apps --glob '*.dart' --glob 'pubspec.yaml'; then
+            echo 'Active Protobuf or fixnum references remain.' >&2
+            exit 1
+          fi
+
+  protocol:
+    name: Protocol analysis, tests, and CBOR vectors
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          channel: stable
+          cache: true
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+      - name: Analyze protocol
+        working-directory: packages/noosphere_protocol
+        run: dart analyze
+      - name: Test protocol and deterministic CBOR vectors
+        working-directory: packages/noosphere_protocol
+        run: |
+          mkdir -p ../../.ci-logs
+          dart test --reporter expanded 2>&1 | tee ../../.ci-logs/protocol-tests.log
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: protocol-failure-logs
+          path: .ci-logs
+          if-no-files-found: ignore
+          retention-days: 7
+
+  core:
+    name: ${{ matrix.package }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        package: [noosphere_client, noosphere_server]
+    env:
+      IROHDART_CACHE_DIR: ${{ github.workspace }}/.ci-cache/iroh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          channel: stable
+          cache: true
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+      - name: Restore Iroh native library
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .ci-cache/iroh
+          key: ${{ runner.os }}-${{ runner.arch }}-iroh-${{ hashFiles('pubspec.lock') }}
+      - name: Install and verify Iroh native library
+        working-directory: packages/${{ matrix.package }}
+        run: dart run iroh_quic:setup
+      - name: Analyze ${{ matrix.package }}
+        working-directory: packages/${{ matrix.package }}
+        run: dart analyze
+      - name: Test ${{ matrix.package }}
+        working-directory: packages/${{ matrix.package }}
+        run: |
+          mkdir -p ../../.ci-logs
+          dart test --concurrency=1 --reporter expanded 2>&1 \
+            | tee ../../.ci-logs/${{ matrix.package }}-${{ runner.os }}.log
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.package }}-${{ runner.os }}-failure-logs
+          path: .ci-logs
+          if-no-files-found: ignore
+          retention-days: 7
+
+  flutter:
+    name: Flutter facade (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          channel: stable
+          cache: true
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+      - name: Analyze Flutter facade
+        working-directory: packages/noosphere_flutter
+        run: flutter analyze
+      - name: Test Flutter facade
+        working-directory: packages/noosphere_flutter
+        run: |
+          mkdir -p ../../.ci-logs
+          flutter test test --reporter expanded 2>&1 \
+            | tee ../../.ci-logs/flutter-${{ runner.os }}.log
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: flutter-${{ runner.os }}-failure-logs
+          path: .ci-logs
+          if-no-files-found: ignore
+          retention-days: 7
+
+  results:
+    name: Collect quality results
+    if: always()
+    needs: [quality, protocol, core, flutter]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      formatting: ${{ steps.collect.outputs.formatting }}
+      protocol: ${{ steps.collect.outputs.protocol }}
+      core: ${{ steps.collect.outputs.core }}
+      flutter: ${{ steps.collect.outputs.flutter }}
+    steps:
+      - id: collect
+        name: Collect results
+        run: |
+          echo 'formatting=${{ needs.quality.result }}' >> "$GITHUB_OUTPUT"
+          echo 'protocol=${{ needs.protocol.result }}' >> "$GITHUB_OUTPUT"
+          echo 'core=${{ needs.core.result }}' >> "$GITHUB_OUTPUT"
+          echo 'flutter=${{ needs.flutter.result }}' >> "$GITHUB_OUTPUT"

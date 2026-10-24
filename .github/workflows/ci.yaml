@@ -3,83 +3,62 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    tags: ['**']
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  linux:
-    name: Verify complete Linux workspace
+  quality:
+    name: Quality and library tests
+    uses: ./.github/workflows/ci-quality.yaml
+    with:
+      flutter_version: 3.47.0
+
+  integration:
+    name: Native integration
+    uses: ./.github/workflows/ci-integration.yaml
+    with:
+      flutter_version: 3.47.0
+
+  distribution:
+    name: Distribution validation
+    uses: ./.github/workflows/ci-distribution.yaml
+    with:
+      flutter_version: 3.47.0
+
+  summary:
+    name: CI summary
+    if: always()
+    needs: [quality, integration, distribution]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: noosphere
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 3.47.0
-          channel: stable
-          cache: true
-      - name: Install Linux desktop prerequisites
-        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb
-      - name: Resolve workspace dependencies
-        working-directory: noosphere
-        run: flutter pub get
-      - name: Verify protocol tests
-        working-directory: noosphere/packages/noosphere_protocol
+      - name: Write job summary
         run: |
-          dart analyze
-          dart test
-      - name: Analyze and unit test Flutter facade
-        working-directory: noosphere/packages/noosphere_flutter
+          {
+            echo '## Noosphere CI'
+            echo '| Suite | Result |'
+            echo '| --- | --- |'
+            echo '| Formatting and dependencies | ${{ needs.quality.outputs.formatting_result }} |'
+            echo '| Protocol and CBOR vectors | ${{ needs.quality.outputs.protocol_result }} |'
+            echo '| Client and server core | ${{ needs.quality.outputs.core_result }} |'
+            echo '| Flutter facade | ${{ needs.quality.outputs.flutter_result }} |'
+            echo '| Native integration shards | ${{ needs.integration.outputs.integration_result }} |'
+            echo '| Source consumers | ${{ needs.distribution.outputs.consumer_result }} |'
+            echo '| Demo | ${{ needs.distribution.outputs.demo_result }} |'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Require every suite to pass
         run: |
-          flutter analyze
-          flutter test test
-      - name: Run native Linux integration tests
-        working-directory: noosphere/apps/integration_host
-        run: |
-          flutter analyze
-          xvfb-run -a flutter test integration_test/worker_setup_runtime_test.dart -d linux
-          xvfb-run -a flutter test integration_test/native_transport_test.dart -d linux
-          xvfb-run -a flutter test integration_test/roast_2_of_2_test.dart -d linux
-          xvfb-run -a flutter test integration_test/message_signing_2_of_2_test.dart -d linux
-          xvfb-run -a flutter test integration_test/room_roast_2_of_3_test.dart -d linux
-          xvfb-run -a flutter test integration_test/coordinator_rotation_test.dart -d linux
-          xvfb-run -a flutter test integration_test/worker_roast_test.dart -d linux
-          xvfb-run -a flutter test integration_test/worker_dkg_dropout_test.dart -d linux
-          xvfb-run -a flutter test integration_test/worker_signature_cancellation_test.dart -d linux
-          xvfb-run -a flutter test integration_test/worker_lifecycle_test.dart -d linux
-          xvfb-run -a flutter test integration_test/worker_failure_recovery_test.dart -d linux
-          xvfb-run -a flutter test integration_test/worker_room_persistence_test.dart -d linux
-          xvfb-run -a flutter test integration_test/worker_pending_key_test.dart -d linux
-          xvfb-run -a flutter test integration_test/worker_unexpected_exit_test.dart -d linux
-          xvfb-run -a flutter test integration_test/worker_forced_shutdown_test.dart -d linux
-          xvfb-run -a flutter test integration_test/worker_process_relaunch_test.dart -d linux --dart-define=NOOSPHERE_RELAUNCH_PHASE=prepare
-          xvfb-run -a flutter test integration_test/worker_process_relaunch_test.dart -d linux --dart-define=NOOSPHERE_RELAUNCH_PHASE=recover
-      - name: Validate external source consumer
-        working-directory: noosphere
-        run: xvfb-run -a ./tool/validate_release_consumer.sh
-      - name: Analyze and build example
-        working-directory: noosphere/apps/demo
-        run: |
-          flutter analyze
-          xvfb-run -a flutter test integration_test/example_session_test.dart -d linux
-          flutter build linux --release
-      - name: Verify client core
-        working-directory: noosphere/packages/noosphere_client
-        run: |
-          dart analyze
-          dart run iroh_quic:setup
-          dart test --concurrency=1
-        env:
-          IROHDART_CACHE_DIR: ${{ runner.temp }}/iroh-cache
-          IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.1.0/x86_64-unknown-linux-gnu/libirohdart_ffi.so
-      - name: Verify server core
-        working-directory: noosphere/packages/noosphere_server
-        run: |
-          dart analyze
-          dart test --concurrency=1
-        env:
-          IROHDART_CACHE_DIR: ${{ runner.temp }}/iroh-cache
-          IROH_NATIVE_LIBRARY: ${{ runner.temp }}/iroh-cache/iroh_quic/v1.1.0/x86_64-unknown-linux-gnu/libirohdart_ffi.so
+          test '${{ needs.quality.outputs.formatting_result }}' = success
+          test '${{ needs.quality.outputs.protocol_result }}' = success
+          test '${{ needs.quality.outputs.core_result }}' = success
+          test '${{ needs.quality.outputs.flutter_result }}' = success
+          test '${{ needs.integration.outputs.integration_result }}' = success
+          test '${{ needs.distribution.outputs.consumer_result }}' = success
+          test '${{ needs.distribution.outputs.demo_result }}' = success

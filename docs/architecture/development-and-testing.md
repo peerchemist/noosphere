@@ -68,12 +68,21 @@ cd ../demo
 flutter test integration_test/example_session_test.dart -d linux
 ```
 
-CI verifies the complete Linux workspace in one job: the shared protocol,
-client, server, Flutter facade, native end-to-end flows, release consumer,
-and example application. Native integration tests run directly through Flutter
-on Linux. Protocol changes should test codecs plus complete
-request/event/snapshot paths. Documentation-only changes need link and source-claim
-validation, not native rebuilds.
+CI reports formatting and dependency integrity, protocol and deterministic-CBOR
+vectors, client/server core tests, the Flutter facade, native end-to-end flows,
+source consumers, and the example application as separate checks. Client,
+server, Flutter, and consumer checks run on Linux and macOS. The full native
+integration suite is split into independent Linux shards, with each test still
+running in its own Flutter process. Failed test jobs retain their logs for seven
+days, and the final workflow summary reports every suite's result. The
+`ci.yaml` entry point delegates these checks to reusable quality, integration,
+and distribution workflow files in `.github/workflows`.
+
+Pull requests and tag pushes run the complete workflow; maintainers can also
+start it manually. Concurrency cancellation stops superseded runs on the same
+ref. Protocol changes should test codecs plus complete request/event/snapshot
+paths. Documentation-only changes need link and source-claim validation, not
+native rebuilds.
 
 `./tool/validate_release_consumer.sh` stages the runtime packages outside the
 workspace, creates a fresh Flutter consumer, analyzes it and starts/closes an
