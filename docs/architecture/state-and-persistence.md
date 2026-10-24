@@ -62,7 +62,8 @@ An uncertain cancellation write blocks signing until storage is reloaded.
 ## Coordinator and room storage
 
 `ServerPersistence` atomically loads/writes an opaque `ServerStateSnapshot` by
-group ID. The snapshot grammar is version 4 and restores active DKG
+group ID. The snapshot grammar is version 1 with the required `cbor` format
+marker and restores active DKG
 commitments, the frozen transcript, recipient-encrypted round-two mailboxes,
 completion acknowledgements and DKG terminal records. Any input that does not
 form a current snapshot is reported as malformed. Signing attempts remain
@@ -119,7 +120,8 @@ Only the protocol v1 grammar is defined. DKG events have mandatory ceremony
 IDs, authenticated DKG fetch/mutation APIs require a ceremony ID, ACK requests
 require ceremony and transcript context, Frost-key storage uses the current
 versioned encoding, context-bound encrypted shares, and coordinator persistence
-uses snapshot version 4. Other bytes have no defined meaning and fail ordinary
+uses snapshot version 1 with the `cbor` format marker. Other bytes have no
+defined meaning and fail ordinary
 parsing or validation.
 
 `RoomPersistence` atomically stores room records. Invite consumption and

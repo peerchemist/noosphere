@@ -6,7 +6,6 @@ import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_protocol/api/types/signed.dart';
 import 'package:noosphere_protocol/wire.dart' as protocol;
 import 'package:noosphere_protocol/room.dart';
-import 'package:protobuf/protobuf.dart';
 
 import '../client/client.dart';
 import '../client/room_enrollment.dart';
@@ -132,9 +131,9 @@ final class IrohRoomEnrollmentApi implements RoomEnrollmentApi {
     return RoomSnapshot.fromBytes(Uint8List.fromList(response.snapshot));
   }
 
-  Future<T> _rpc<T extends GeneratedMessage>(
+  Future<T> _rpc<T extends protocol.WireMessage>(
     protocol.EnrollmentOperation operation,
-    GeneratedMessage request,
+    protocol.WireMessage request,
     T Function(List<int>) decodeResponse,
   ) async {
     if (_closed) throw StateError('enrollment client is closed');
@@ -205,7 +204,7 @@ final class IrohRoomEnrollmentApi implements RoomEnrollmentApi {
 
 Never _throwProtocolError(protocol.ProtocolError error) =>
     throw RoomEnrollmentProtocolException(
-      error.hasRoomFailureCode() ? error.roomFailureCode : 0xffff,
+      error.roomFailureCode ?? 0xffff,
       error.message,
       error: error,
     );

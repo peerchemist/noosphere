@@ -1,0 +1,121 @@
+; Noosphere deterministic-CBOR wire schema, version 1.
+; Map keys retain the former wire field numbers where practical.
+; Every byte/text string is limited to 16777216 encoded bytes, every array and
+; map to 4096 entries, and nesting to 16 containers before typed validation.
+; Exact cryptographic/domain lengths are enforced by their existing parsers.
+; Array order is significant. Sets are encoded in the stable order defined by
+; the corresponding domain encoding before their bytes reach this schema.
+
+uint32 = 0..4294967295
+uint63 = 0..9223372036854775807
+int64 = -9223372036854775808..9223372036854775807
+bytes = { 1: bstr }
+
+login-request = {
+  1: bstr, ; group fingerprint
+  2: bstr, ; participant identifier
+  3: uint32 ; domain protocol version
+}
+signed-auth-challenge = { 1: bstr, 2: bstr }
+dkg-request = { 1: bstr, 2: bstr, 3: bstr }
+dkg-reference = { 1: bstr, 2: tstr, 3: bstr }
+dkg-commitment = { 1: bstr, 2: tstr, 3: bstr, 4: bstr }
+dkg-secret = { 1: bstr, 2: bstr }
+dkg-round-2 = { 1: bstr, 2: tstr, 3: bstr, 4: [* dkg-secret], 5: bstr }
+dkg-acks = { 1: bstr, 2: [* bstr] }
+dkg-ack-request = { 1: bstr, 2: [* bstr] }
+signatures-request = { 1: bstr, 2: [* bstr], 3: bstr, 4: [* bstr] }
+signatures-rejection = { 1: bstr, 2: bstr }
+cancel-signatures-request = { 1: bstr, 2: bstr }
+cancel-result = 0..4
+cancel-signatures-response = { 1: cancel-result, 2: bstr }
+signatures-replies = { 1: bstr, 2: bstr, 3: [* bstr] }
+encrypted-secret = { 1: bstr, 2: bstr }
+secret-share = { 1: bstr, 2: bstr, 3: [* encrypted-secret] }
+constructed-key = { 1: bstr, 2: bstr }
+
+participant-status-event = { 1: bstr, 2: bool }
+dkg-event-commitment = { 1: bstr, 2: bstr }
+new-dkg-event = { 1: bstr, 2: bstr, 3: [* dkg-event-commitment] }
+dkg-commitment-event = { 1: tstr, 2: bstr, 3: bstr, 4: bstr }
+dkg-reject-event = { 1: tstr, 2: bstr, 3: bstr }
+dkg-round-2-share-event = { 1: tstr, 2: bstr, 3: bstr, 4: bstr, 5: bstr }
+dkg-ack-event = { 1: [* bstr] }
+dkg-ack-request-event = { 1: [* bstr] }
+signatures-progress-stage = 0..3
+signatures-progress = { 1: uint32, 2: [* bstr], 3: signatures-progress-stage }
+signatures-request-event = { 1: bstr, 2: bstr, 3: signatures-progress }
+signature-round-start = { 1: uint32, 2: bstr }
+signature-new-rounds-event = { 1: bstr, 2: [* signature-round-start] }
+signatures-complete-event = { 1: bstr, 2: [* bstr] }
+signatures-failure-event = { 1: bstr }
+keepalive-event = {}
+secret-share-event = { 1: bstr, 2: bstr, 3: bstr }
+constructed-key-event = { 1: bstr, 2: bstr }
+signatures-progress-event = { 1: bstr, 2: signatures-progress }
+signatures-cancelled-event = { 1: bstr, 2: bstr }
+
+event-message =
+  { 1: 1, 2: participant-status-event } /
+  { 1: 2, 2: new-dkg-event } /
+  { 1: 3, 2: dkg-commitment-event } /
+  { 1: 4, 2: dkg-reject-event } /
+  { 1: 5, 2: dkg-round-2-share-event } /
+  { 1: 6, 2: dkg-ack-event } /
+  { 1: 7, 2: dkg-ack-request-event } /
+  { 1: 8, 2: signatures-request-event } /
+  { 1: 9, 2: signature-new-rounds-event } /
+  { 1: 10, 2: signatures-complete-event } /
+  { 1: 11, 2: signatures-failure-event } /
+  { 1: 12, 2: keepalive-event } /
+  { 1: 13, 2: secret-share-event } /
+  { 1: 14, 2: constructed-key-event } /
+  { 1: 15, 2: signatures-progress-event } /
+  { 1: 16, 2: signatures-cancelled-event }
+
+protocol-error-code = 0..10
+protocol-error = {
+  1: protocol-error-code,
+  2: tstr,
+  3: bool,
+  ? 4: uint32 ; room failure code; absence differs from zero
+}
+empty-success = {}
+login-response = { 1: bstr }
+extend-session-response = { 1: bstr }
+request-dkg-acks-response = { 1: [* bstr] }
+signature-reply-response =
+  { 1: 1, 2: {} } /
+  { 1: 2, 2: { 1: bstr } } /
+  { 1: 3, 2: { 1: bstr } }
+share-secret-share-response = { 1: [* constructed-key-event] }
+
+begin-enrollment-request = { 1: bstr, 2: bstr }
+begin-enrollment-response = { 1: bstr }
+redeem-room-invite-request = { 1: bstr, 2: bstr }
+redeem-room-invite-response = { 1: bstr }
+start-session = {}
+session-started = { 1: bstr, 2: bstr }
+
+get-public-feed-request = { 1: bstr .size 32, 2: uint63, 3: 1..100 }
+public-feed-entry = {
+  1: uint63,
+  2: bstr .size 32,
+  3: 0..1, ; dkg, signing
+  4: 0..6, ; requested, progress, completed, rejected, cancelled, expired, failed
+  5: int64, ; UTC milliseconds since Unix epoch
+  ? 6: int64
+}
+public-feed-page = {
+  1: 1,
+  2: bstr .size 32,
+  3: [* public-feed-entry],
+  4: uint63,
+  5: uint63,
+  6: uint63,
+  7: bool,
+  8: bool,
+  9: int64,
+  10: uint63
+}
+signed-public-feed-page = { 1: bstr, 2: bstr .size 64 }

@@ -6,7 +6,6 @@ import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_protocol/api/types/signed.dart';
 import 'package:noosphere_protocol/wire.dart' as protocol;
 import 'package:noosphere_protocol/room.dart';
-import 'package:protobuf/protobuf.dart';
 
 import '../room/manager.dart';
 import 'stream_policy.dart';
@@ -86,7 +85,7 @@ final class IrohEnrollmentConnectionHandler {
     }
   }
 
-  Future<GeneratedMessage> _dispatch(
+  Future<protocol.WireMessage> _dispatch(
     protocol.EnrollmentOperation operation,
     List<int> bytes,
   ) async {
@@ -117,7 +116,7 @@ final class IrohEnrollmentConnectionHandler {
   Future<void> _write(
     SendStream send,
     int status,
-    GeneratedMessage message,
+    protocol.WireMessage message,
   ) async {
     final body = message.writeToBuffer();
     if (body.length > maxMessageLength) {

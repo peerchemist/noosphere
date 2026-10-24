@@ -8,7 +8,7 @@ import 'package:test/test.dart';
 void main() {
   setUpAll(loadFrosty);
 
-  test('all domain event variants round-trip through typed protobuf', () {
+  test('all domain event variants round-trip through typed CBOR', () {
     final firstKey = cl.ECPrivateKey(Uint8List(32)..last = 1);
     final secondKey = cl.ECPrivateKey(Uint8List(32)..last = 2);
     final firstId = Identifier.fromUint16(1);
@@ -134,27 +134,22 @@ void main() {
       SignaturesProgressEvent(reqId: requestId, progress: progress),
     ];
 
-    final variants = <wire.EventMessage_Event>{};
+    final variants = <Type>{};
     for (final original in events) {
-      final protobuf = wire.encodeEvent(original);
-      variants.add(protobuf.whichEvent());
-      final parsed = wire.EventMessage.fromBuffer(protobuf.writeToBuffer());
+      final encoded = wire.encodeEvent(original);
+      variants.add(encoded.event.runtimeType);
+      final parsed = wire.EventMessage.fromBuffer(encoded.writeToBuffer());
       final decoded = wire.decodeEvent(parsed);
       expect(decoded.runtimeType, original.runtimeType);
       expect(decoded.toBytes(), original.toBytes());
     }
 
-    expect(
-      variants,
-      wire.EventMessage_Event.values
-          .where((variant) => variant != wire.EventMessage_Event.notSet)
-          .toSet(),
-    );
+    expect(variants, hasLength(events.length));
   });
 
-  test('rejects an event without a protobuf variant', () {
+  test('rejects an event missing its discriminator and payload', () {
     expect(
-      () => wire.decodeEvent(wire.EventMessage()),
+      () => wire.EventMessage.fromBuffer([0xa0]),
       throwsA(isA<FormatException>()),
     );
   });
@@ -170,21 +165,17 @@ void main() {
           stage: stage,
         ),
       );
-      final protobuf = wire.encodeEvent(original);
-      final parsed = wire.EventMessage.fromBuffer(protobuf.writeToBuffer());
-      expect(parsed.signaturesProgress.progress.hasStage(), isTrue);
+      final encoded = wire.encodeEvent(original);
+      final parsed = wire.EventMessage.fromBuffer(encoded.writeToBuffer());
       final decoded = wire.decodeEvent(parsed) as SignaturesProgressEvent;
       expect(decoded.progress.stage, stage);
     }
   });
 
   test('rejects signatures progress without an explicit stage', () {
-    final event = wire.EventMessage(
-      signaturesProgress: wire.SignaturesProgressEvent(
-        requestId: List<int>.filled(16, 0),
-        progress: wire.SignaturesProgress(threshold: 1),
-      ),
+    expect(
+      () => wire.SignaturesProgress.fromCbor({1: 1, 2: <Object?>[]}),
+      throwsA(isA<FormatException>()),
     );
-    expect(() => wire.decodeEvent(event), throwsA(isA<FormatException>()));
   });
 }

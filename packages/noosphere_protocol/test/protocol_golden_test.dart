@@ -77,10 +77,10 @@ void main() {
     expect(decoded.sigHash, details.sigHash);
   });
 
-  test('login protobuf and operation-prefixed stream retain fixed wire bytes', () async {
-    // Two short opaque byte fields are sufficient to test protobuf layout;
+  test('login CBOR and operation-prefixed stream retain fixed wire bytes', () async {
+    // Two short opaque byte fields are sufficient to test CBOR layout;
     // they are deliberately not valid authentication credentials.
-    const loginHex = '0a02aabb120201021801';
+    const loginHex = 'a30142aabb024201020301';
     final login = wire.LoginRequest(
       groupFingerprint: [0xaa, 0xbb],
       participantId: [1, 2],
@@ -104,12 +104,11 @@ void main() {
     );
   });
 
-  test('typed participant event retains fixed protobuf wire bytes', () {
-    // EventMessage oneof field 1 contains ParticipantStatusEvent. Its field 1 is an
-    // opaque participant ID and field 2 is the login boolean.
-    const eventHex = '0a060a02aabb1001';
+  test('typed participant event retains fixed CBOR wire bytes', () {
+    // The outer map contains discriminator 1 and its typed payload.
+    const eventHex = 'a2010102a20142aabb02f5';
     final event = wire.EventMessage(
-      participantStatus: wire.ParticipantStatusEvent(
+      event: wire.ParticipantStatusEvent(
         participantId: [0xaa, 0xbb],
         loggedIn: true,
       ),
@@ -117,8 +116,8 @@ void main() {
     expect(cl.bytesToHex(event.writeToBuffer()), eventHex);
 
     final decoded = wire.EventMessage.fromBuffer(cl.hexToBytes(eventHex));
-    expect(decoded.whichEvent(), wire.EventMessage_Event.participantStatus);
-    expect(decoded.participantStatus.participantId, [0xaa, 0xbb]);
-    expect(decoded.participantStatus.loggedIn, isTrue);
+    final payload = decoded.event as wire.ParticipantStatusEvent;
+    expect(payload.participantId, [0xaa, 0xbb]);
+    expect(payload.loggedIn, isTrue);
   });
 }

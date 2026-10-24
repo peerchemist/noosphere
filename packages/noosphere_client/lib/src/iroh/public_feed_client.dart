@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:fixnum/fixnum.dart';
 import 'package:collection/collection.dart';
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_protocol/public_feed.dart';
@@ -139,7 +138,7 @@ final class PublicFeedClient._(
     if (_closed) throw StateError('public feed client is closed');
     final request = wire.GetPublicFeedRequest(
       feedId: feedId.toBytes(),
-      afterCursor: Int64(afterCursor),
+      afterCursor: afterCursor,
       limit: limit,
     );
     final (send, receive) = await _connection.openBi().timeout(

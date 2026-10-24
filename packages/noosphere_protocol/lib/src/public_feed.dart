@@ -3,10 +3,9 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
-import 'package:fixnum/fixnum.dart';
 import 'package:noosphere_protocol/message_limits.dart';
 
-import 'generated/noosphere.pb.dart' as wire;
+import 'wire/messages.dart' as wire;
 
 const publicFeedSchemaVersion = 1;
 const publicFeedMaxPageEntries = 100;
@@ -89,29 +88,36 @@ final class PublicFeedPage({
   Uint8List toBytes() => wire.PublicFeedPage(
     schemaVersion: schemaVersion,
     feedId: feedId.toBytes(),
-    entries: entries.map(
-      (e) => wire.PublicFeedEntry(
-        cursor: Int64(e.cursor),
-        eventId: e.eventId.toBytes(),
-        category: e.category.name,
-        state: e.state.name,
-        observedAtMs: e.observedAt.millisecondsSinceEpoch == 0
-            ? null
-            : Int64(e.observedAt.millisecondsSinceEpoch),
-        expiresAtMs: e.expiresAt == null
-            ? null
-            : Int64(e.expiresAt!.millisecondsSinceEpoch),
-      ),
-    ),
-    oldestAvailableCursor: Int64(oldestAvailableCursor),
-    latestCursor: latestCursor == 0 ? null : Int64(latestCursor),
-    nextCursor: nextCursor == 0 ? null : Int64(nextCursor),
-    hasMore: hasMore ? true : null,
-    historyGap: historyGap ? true : null,
-    generatedAtMs: generatedAt.millisecondsSinceEpoch == 0
-        ? null
-        : Int64(generatedAt.millisecondsSinceEpoch),
-    afterCursor: afterCursor == 0 ? null : Int64(afterCursor),
+    entries: entries
+        .map(
+          (e) => wire.PublicFeedEntry(
+            cursor: e.cursor,
+            eventId: e.eventId.toBytes(),
+            category: switch (e.category) {
+              PublicFeedCategory.dkg => 0,
+              PublicFeedCategory.signing => 1,
+            },
+            state: switch (e.state) {
+              PublicFeedLifecycle.requested => 0,
+              PublicFeedLifecycle.progress => 1,
+              PublicFeedLifecycle.completed => 2,
+              PublicFeedLifecycle.rejected => 3,
+              PublicFeedLifecycle.cancelled => 4,
+              PublicFeedLifecycle.expired => 5,
+              PublicFeedLifecycle.failed => 6,
+            },
+            observedAtMs: e.observedAt.millisecondsSinceEpoch,
+            expiresAtMs: e.expiresAt?.millisecondsSinceEpoch,
+          ),
+        )
+        .toList(),
+    oldestAvailableCursor: oldestAvailableCursor,
+    latestCursor: latestCursor,
+    nextCursor: nextCursor,
+    hasMore: hasMore,
+    historyGap: historyGap,
+    generatedAtMs: generatedAt.millisecondsSinceEpoch,
+    afterCursor: afterCursor,
   ).writeToBuffer();
 
   factory PublicFeedPage.fromBytes(List<int> bytes) {
@@ -119,15 +125,14 @@ final class PublicFeedPage({
       throw const FormatException('Public feed page too large');
     }
     final p = wire.PublicFeedPage.fromBuffer(bytes);
-    int cursor(Int64 v) {
-      if (v < Int64.ZERO || v > Int64(publicFeedMaxCursor + 1)) {
+    int cursor(int v) {
+      if (v < 0 || v > publicFeedMaxCursor + 1) {
         throw const FormatException('Invalid public feed cursor');
       }
-      return v.toInt();
+      return v;
     }
 
-    DateTime time(Int64 v) =>
-        DateTime.fromMillisecondsSinceEpoch(v.toInt(), isUtc: true);
+    DateTime time(int v) => DateTime.fromMillisecondsSinceEpoch(v, isUtc: true);
     final page = PublicFeedPage(
       schemaVersion: p.schemaVersion,
       feedId: PublicFeedId.fromBytes(p.feedId),
@@ -135,10 +140,23 @@ final class PublicFeedPage({
         (e) => PublicFeedEntry(
           cursor: cursor(e.cursor),
           eventId: PublicFeedId.fromBytes(e.eventId),
-          category: PublicFeedCategory.values.byName(e.category),
-          state: PublicFeedLifecycle.values.byName(e.state),
+          category: switch (e.category) {
+            0 => PublicFeedCategory.dkg,
+            1 => PublicFeedCategory.signing,
+            _ => throw const FormatException('Invalid public feed category'),
+          },
+          state: switch (e.state) {
+            0 => PublicFeedLifecycle.requested,
+            1 => PublicFeedLifecycle.progress,
+            2 => PublicFeedLifecycle.completed,
+            3 => PublicFeedLifecycle.rejected,
+            4 => PublicFeedLifecycle.cancelled,
+            5 => PublicFeedLifecycle.expired,
+            6 => PublicFeedLifecycle.failed,
+            _ => throw const FormatException('Invalid public feed lifecycle'),
+          },
           observedAt: time(e.observedAtMs),
-          expiresAt: e.hasExpiresAtMs() ? time(e.expiresAtMs) : null,
+          expiresAt: e.expiresAtMs == null ? null : time(e.expiresAtMs!),
         ),
       ),
       oldestAvailableCursor: cursor(p.oldestAvailableCursor),
@@ -185,6 +203,6 @@ final class PublicFeedPage({
 /// Both live clients and offline verifiers must sign/verify these exact bytes.
 Uint8List publicFeedCheckpointBytes(List<int> canonicalPage) =>
     Uint8List.fromList([
-      ...utf8.encode('noosphere/public-feed/checkpoint/v1\u0000'),
+      ...utf8.encode('noosphere/public-feed/checkpoint/cbor/v1\u0000'),
       ...canonicalPage,
     ]);

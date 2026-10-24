@@ -8,7 +8,8 @@ const _maxServerStateBytes = 64 * 1024 * 1024;
 /// The payload is intentionally opaque to hosts: noosphere owns its schema and
 /// validation, while the host owns atomic and durable storage of the record.
 final class ServerStateSnapshot {
-  static const currentVersion = 4;
+  static const currentVersion = 1;
+  static const currentFormat = 'cbor';
 
   final Uint8List _bytes;
 
@@ -22,6 +23,7 @@ final class ServerStateSnapshot {
     final decoded = jsonDecode(utf8.decode(copy));
     if (decoded is! Map<String, dynamic> ||
         decoded['version'] != currentVersion ||
+        decoded['format'] != currentFormat ||
         decoded['dkg'] is! List ||
         (decoded['dkg'] as List).any(
           (record) => record is! Map || record['status'] != 'resumable',

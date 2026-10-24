@@ -1,9 +1,9 @@
 /// Configuration shared by Noosphere's Iroh transport adapters.
 library;
 
-const String noosphereIrohAlpn = 'noosphere/roast/1';
-const String noosphereEnrollmentAlpn = 'noosphere/roast-enrollment/1';
-const String noospherePublicFeedAlpn = 'noosphere/public-feed/1';
+const String noosphereIrohAlpn = 'noosphere/roast-cbor/1';
+const String noosphereEnrollmentAlpn = 'noosphere/roast-enrollment-cbor/1';
+const String noospherePublicFeedAlpn = 'noosphere/public-feed-cbor/1';
 
 enum IrohRelayPolicy { defaultNetwork, disabled, staging, custom }
 

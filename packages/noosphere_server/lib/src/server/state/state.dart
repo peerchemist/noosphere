@@ -271,6 +271,7 @@ class ServerState {
         utf8.encode(
           jsonEncode({
             'version': ServerStateSnapshot.currentVersion,
+            'format': ServerStateSnapshot.currentFormat,
             'dkg': dkg,
             'signing': signing,
             'completed': completed,

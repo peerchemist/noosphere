@@ -81,7 +81,7 @@ base or frozen-room handler. Iroh remains active for every remote participant.
 
 ## Protocol and migration
 
-The shared domain types, protocol schema, generated message classes and framing
+The shared domain types, CDDL schema, typed wire messages and framing
 live in the sibling `noosphere_protocol` package. The server has no production
 dependency on `noosphere_client`; that package is used only by end-to-end tests
 and examples. The 3.0.0 server and 4.0.0 client remove gRPC completely. Migrate
@@ -89,6 +89,6 @@ by replacing
 `GrpcClientApi`/`GrpcConfig` with `IrohClientApi`/`IrohConfig`, pinning the
 server endpoint ID and persistently loading or deterministically deriving the
 same server identity key. Canonical domain
-bytes are carried inside protobuf messages; the transport and session semantics
+bytes are carried inside CBOR byte strings; the transport and session semantics
 are breaking changes. Enrollment and ROAST use separate versioned ALPNs,
-operation-prefixed QUIC streams, concrete protobuf bodies, and FIN boundaries.
+operation-prefixed QUIC streams, concrete CBOR bodies, and FIN boundaries.

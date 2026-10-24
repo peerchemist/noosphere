@@ -63,8 +63,7 @@ final class PublicFeedConnectionHandler({
           .timeout(config.rpcTimeout);
       requestReceived = true;
       final request = GetPublicFeedRequest.fromBuffer(body);
-      // uint64 values outside Dart's positive signed range become negative.
-      final cursor = request.afterCursor.toInt();
+      final cursor = request.afterCursor;
       if (cursor < 0 || cursor > publicFeedMaxCursor) {
         throw const FormatException('Invalid cursor');
       }

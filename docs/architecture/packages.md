@@ -7,7 +7,7 @@ to the shared protocol package:
 
 | Package | Responsibility |
 | --- | --- |
-| [`noosphere_protocol`](../../packages/noosphere_protocol) | Domain types, configuration, codecs, protobuf, framing, rooms and transition models |
+| [`noosphere_protocol`](../../packages/noosphere_protocol) | Domain types, configuration, typed CBOR codecs, framing, rooms and transition models |
 | [`noosphere_client`](../../packages/noosphere_client) | Participant state machine, storage contract, Iroh client and reconnects |
 | [`noosphere_server`](../../packages/noosphere_server) | Storage-agnostic coordinator state machine, Iroh server and persistence contracts |
 | [`noosphere_flutter`](../../packages/noosphere_flutter) | Isolate worker, initialization and Flutter lifecycle |
@@ -27,7 +27,7 @@ import the role packages directly.
 | Import | Purpose |
 | --- | --- |
 | `package:noosphere_protocol/domain.dart` | Requests, responses, events and signing models |
-| `package:noosphere_protocol/wire.dart` | Protobuf, operation IDs, framing and event conversion |
+| `package:noosphere_protocol/wire.dart` | Typed CBOR, operation IDs, framing and event conversion |
 | `package:noosphere_protocol/config.dart` | `GroupConfig` |
 | `package:noosphere_protocol/iroh.dart` | ALPN and relay-policy values |
 | `package:noosphere_protocol/room.dart` | Room state, participant-bound enrollment invites and clickable invite links |
@@ -36,7 +36,7 @@ import the role packages directly.
 | `package:noosphere_client/iroh_transport.dart` | Iroh client and reconnecting runtime |
 | `package:noosphere_server/noosphere_server.dart` | Coordinator, rooms and persistence contracts |
 
-Domain and generated protobuf classes can share names but are not
+Domain and typed CBOR wire classes can share names but are not
 interchangeable. Memory-only persistence is exposed through each package's
 `testing.dart`, keeping production storage choices explicit.
 
@@ -46,8 +46,8 @@ interchangeable. Memory-only persistence is exposed through each package's
   Libraries live in `packages/`; runnable Flutter applications live in `apps/`.
 - Shared implementation lives under `noosphere_protocol/lib/src/domain/`, `src/wire/`,
   `src/common/`, `src/config/`, `src/room/` and `src/group_transition/`.
-  Generated protobuf remains under `src/generated/`. Public entry-point
-  libraries export these implementations. Original paths within the package,
+  Typed CBOR messages remain under `src/wire/`. Public entry-point libraries
+  export these implementations. Original paths within the package,
   such as `api/events.dart`, remain forwarding exports; shared-package imports
   now use the `package:noosphere_protocol/` namespace.
 - Client `part` files divide session, DKG, signing, recovery sharing and event
@@ -62,8 +62,8 @@ interchangeable. Memory-only persistence is exposed through each package's
 - Each application owns its `linux/` and `macos/` runners. Demo UI tests live
   with the demo; library integration tests live with the integration host.
   `.dart_tool/` and `build/` are generated.
-- `tool/` contains workspace release and consumer checks, while protocol
-  generation remains in `packages/noosphere_protocol/tool/`.
+- `tool/` contains workspace release and consumer checks. The CDDL schema and
+  typed codecs require no generation step.
 
 Noosphere orchestrates pinned Iroh, Coinlib and Frosty dependencies. It does
 not implement QUIC or elliptic-curve arithmetic. See [Iroh transport](iroh-transport.md)

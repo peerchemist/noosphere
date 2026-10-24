@@ -2,8 +2,9 @@
 
 Noosphere coordinates authenticated participants through distributed key
 generation and threshold-signing sessions. This document is the home of the
-transport-independent protocol semantics. The protobuf schema defines the wire
-messages, but not by itself their valid ordering or state transitions.
+transport-independent protocol semantics. The deterministic-CBOR CDDL schema
+defines the wire messages, but not by itself their valid ordering or state
+transitions.
 
 The current reference implementation supports participant and coordinator
 roles. A process may run either role or both. Iroh/QUIC is the reference
@@ -12,7 +13,7 @@ transport, not part of the protocol semantics.
 The [architecture guide](../../../docs/architecture/README.md) describes authentication,
 sessions, DKG, signing, expiry, reconnect, replay and error handling in the
 current implementation. Enrollment and ROAST use operation-prefixed QUIC
-streams with concrete protobuf request/response bodies on separate versioned
+streams with concrete CBOR request/response bodies on separate versioned
 Iroh ALPNs. FIN delimits single-message bodies; only persistent multi-message
 streams use QUIC-varint lengths. Canonical domain encodings define signed
 payloads inside those messages.

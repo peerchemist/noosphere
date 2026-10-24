@@ -19,7 +19,7 @@ after release so slow receivers do not block domain state. Direct callers that
 bypass the dispatcher must serialize handler calls themselves.
 
 `LocalCoordinatorApi` uses this same lane for a co-located participant while
-bypassing protobuf and QUIC. It retains ordinary login, session and event
+bypassing CBOR and QUIC. It retains ordinary login, session and event
 semantics, so local and remote participants observe the same state ordering.
 
 ## Sessions

@@ -53,7 +53,6 @@ Representative commands:
 ```sh
 flutter pub get
 cd packages/noosphere_protocol
-./tool/generate_protocol.sh --check
 dart analyze
 dart test
 

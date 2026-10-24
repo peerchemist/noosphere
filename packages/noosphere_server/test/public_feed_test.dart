@@ -410,25 +410,44 @@ void main() {
         checkpoint.toBytes(),
       );
       final page = wire.PublicFeedPage.fromBuffer(envelope.page);
-      switch (field) {
-        case 'entry':
-          page.entries.single.state = 'completed';
-        case 'feed':
-          page.feedId = PublicFeedId.generate().toBytes();
-        case 'oldest':
-          page.oldestAvailableCursor += 1;
-        case 'latest':
-          page.latestCursor += 1;
-        case 'generation':
-          page.generatedAtMs += 1;
-        case 'version':
-          page.schemaVersion++;
-        case 'signature':
-          envelope.signature = List<int>.from(envelope.signature)..[0] ^= 1;
-      }
-      envelope.page = page.writeToBuffer();
+      final entry = page.entries.single;
+      final tamperedPage = wire.PublicFeedPage(
+        schemaVersion: page.schemaVersion + (field == 'version' ? 1 : 0),
+        feedId: field == 'feed'
+            ? PublicFeedId.generate().toBytes()
+            : page.feedId,
+        entries: field == 'entry'
+            ? [
+                wire.PublicFeedEntry(
+                  cursor: entry.cursor,
+                  eventId: entry.eventId,
+                  category: entry.category,
+                  state: entry.state == 0 ? 2 : 0,
+                  observedAtMs: entry.observedAtMs,
+                  expiresAtMs: entry.expiresAtMs,
+                ),
+              ]
+            : page.entries,
+        oldestAvailableCursor:
+            page.oldestAvailableCursor + (field == 'oldest' ? 1 : 0),
+        latestCursor: page.latestCursor + (field == 'latest' ? 1 : 0),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+        historyGap: page.historyGap,
+        generatedAtMs: page.generatedAtMs + (field == 'generation' ? 1 : 0),
+        afterCursor: page.afterCursor,
+      );
+      final tamperedEnvelope = wire.SignedPublicFeedPage(
+        page: tamperedPage.writeToBuffer(),
+        signature: field == 'signature'
+            ? (List<int>.from(envelope.signature)..[0] ^= 1)
+            : envelope.signature,
+      );
       expect(
-        () => PublicFeedCheckpoint.verify(envelope.writeToBuffer(), server.id),
+        () => PublicFeedCheckpoint.verify(
+          tamperedEnvelope.writeToBuffer(),
+          server.id,
+        ),
         throwsA(isA<Exception>()),
         reason: field,
       );
@@ -863,31 +882,17 @@ void main() {
           .toBytes();
       final envelope = wire.SignedPublicFeedPage.fromBuffer(bytes);
       final page = wire.PublicFeedPage.fromBuffer(envelope.page);
-      final json = page.toProto3Json() as Map<String, dynamic>;
+      final fields = page.cborFields;
       expect(
-        json.keys.toSet().difference({
-          'schemaVersion',
-          'feedId',
-          'entries',
-          'oldestAvailableCursor',
-          'latestCursor',
-          'nextCursor',
-          'hasMore',
-          'historyGap',
-          'generatedAtMs',
-          'afterCursor',
-        }),
+        fields.keys.toSet().difference({1, 2, 3, 4, 5, 6, 7, 8, 9, 10}),
         isEmpty,
       );
       for (final entry in page.entries) {
-        expect((entry.toProto3Json() as Map).keys.toSet(), {
-          'cursor',
-          'eventId',
-          'category',
-          'state',
-          'observedAtMs',
-          'expiresAtMs',
-        });
+        expect(entry.cborFields.keys.toSet(), containsAll({1, 2, 3, 4, 5}));
+        expect(
+          entry.cborFields.keys.toSet().difference({1, 2, 3, 4, 5, 6}),
+          isEmpty,
+        );
       }
       for (final forbidden in <List<int>>[
         utf8.encode('PRIVATE_DKG_NAME'),
@@ -908,48 +913,42 @@ void main() {
     },
   );
 
-  test(
-    'snapshots without a feed allow explicit opt-in without ID rotation',
-    () async {
-      final persistence = InMemoryServerPersistence();
-      final config = _config(null);
-      final empty = ServerStateSnapshot.fromBytes(
-        Uint8List.fromList(
-          utf8.encode(
-            '{"version":${ServerStateSnapshot.currentVersion},"dkg":[],"signing":[],"completed":[],"shares":[],"cancelled":[],"terminalSigning":[],"terminalDkg":[]}',
-          ),
+  test('snapshots without a feed allow explicit opt-in without ID rotation', () async {
+    final persistence = InMemoryServerPersistence();
+    final config = _config(null);
+    final empty = ServerStateSnapshot.fromBytes(
+      Uint8List.fromList(
+        utf8.encode(
+          '{"version":${ServerStateSnapshot.currentVersion},"format":"${ServerStateSnapshot.currentFormat}","dkg":[],"signing":[],"completed":[],"shares":[],"cancelled":[],"terminalSigning":[],"terminalDkg":[]}',
         ),
-      );
-      await persistence.write(config.group.id, empty);
-      final old = ServerApiHandler(config: config, persistence: persistence);
-      await old.ready;
-      expect(old.debugState.persistent.publicFeed, isNull);
-      final id = PublicFeedId.generate();
-      expect(await old.getPublicFeed(id, 0, 100), isNull);
-      final enabled = ServerApiHandler(
-        config: _config(PublicFeedConfig(feedId: id)),
-        persistence: persistence,
-      );
-      await enabled.ready;
-      expect((await enabled.getPublicFeed(id, 0, 100))!.entries, isEmpty);
-      expect(
-        (jsonDecode(utf8.decode(enabled.state.toBytes()))
-            as Map)['publicFeed']['feedId'],
-        id.hex,
-      );
-      final disabled = ServerApiHandler(
-        config: config,
-        persistence: persistence,
-      );
-      await disabled.ready;
-      expect(await disabled.getPublicFeed(id, 0, 100), isNull);
-      final rotated = ServerApiHandler(
-        config: _config(PublicFeedConfig(feedId: PublicFeedId.generate())),
-        persistence: persistence,
-      );
-      await expectLater(rotated.ready, throwsStateError);
-    },
-  );
+      ),
+    );
+    await persistence.write(config.group.id, empty);
+    final old = ServerApiHandler(config: config, persistence: persistence);
+    await old.ready;
+    expect(old.debugState.persistent.publicFeed, isNull);
+    final id = PublicFeedId.generate();
+    expect(await old.getPublicFeed(id, 0, 100), isNull);
+    final enabled = ServerApiHandler(
+      config: _config(PublicFeedConfig(feedId: id)),
+      persistence: persistence,
+    );
+    await enabled.ready;
+    expect((await enabled.getPublicFeed(id, 0, 100))!.entries, isEmpty);
+    expect(
+      (jsonDecode(utf8.decode(enabled.state.toBytes()))
+          as Map)['publicFeed']['feedId'],
+      id.hex,
+    );
+    final disabled = ServerApiHandler(config: config, persistence: persistence);
+    await disabled.ready;
+    expect(await disabled.getPublicFeed(id, 0, 100), isNull);
+    final rotated = ServerApiHandler(
+      config: _config(PublicFeedConfig(feedId: PublicFeedId.generate())),
+      persistence: persistence,
+    );
+    await expectLater(rotated.ready, throwsStateError);
+  });
 
   for (final failure in [
     const FormatException('Server state snapshot is too large.'),

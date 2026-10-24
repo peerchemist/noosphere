@@ -45,7 +45,7 @@ enum EnrollmentOperation {
   }
 }
 
-/// Response discriminators sent before a response protobuf.
+/// Response discriminators sent before a response CBOR message.
 abstract final class RpcResponseStatus {
   static const int success = 0;
   static const int error = 1;

@@ -106,7 +106,7 @@ hide ordinary proposals or message text from the coordinator. DKG and recovery
 shares additionally use recipient-specific encryption.
 
 Iroh is the reference transport. Domain models, canonical signed encodings and
-protocol state transitions remain separate from protobuf and QUIC framing.
+protocol state transitions remain separate from deterministic CBOR and QUIC framing.
 See [transport details](docs/architecture/iroh-transport.md).
 
 ## Stateless library, application-owned persistence
@@ -181,7 +181,7 @@ This repository is a Dart workspace with a Flutter facade:
 
 | Package | Purpose |
 | --- | --- |
-| [noosphere_protocol](packages/noosphere_protocol) | Shared domain types, signed encodings, protobuf, configuration and room models. |
+| [noosphere_protocol](packages/noosphere_protocol) | Shared domain types, signed encodings, deterministic CBOR, configuration and room models. |
 | [noosphere_client](packages/noosphere_client) | Participant state machine, storage contracts and Iroh client. |
 | [noosphere_server](packages/noosphere_server) | Storage-agnostic coordinator state machine, persistence contracts and Iroh server. |
 | [noosphere_flutter](packages/noosphere_flutter) | `NoosphereWorker` facade that runs protocol work and cryptography in an isolate. |

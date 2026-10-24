@@ -10,7 +10,7 @@ send an RPC and notify the host.
 ```text
 coordinator state transition
   -> domain Event
-  -> protobuf EventMessage
+  -> deterministic-CBOR EventMessage
   -> length-prefixed Iroh session record
   -> decoded Event
   -> client validation/state transition
@@ -63,8 +63,9 @@ selectively route events.
 
 ## Wire representation
 
-`EventMessage` contains exactly one typed protobuf `oneof` variant. Signed
-domain objects remain canonical nested bytes; ordinary fields use protobuf.
+`EventMessage` contains an explicit integer discriminator and exactly one typed
+CBOR payload. Signed domain objects remain canonical nested byte strings;
+ordinary fields use CBOR.
 The message is prefixed by a QUIC-varint length on the persistent session
 stream because QUIC reads do not preserve application write boundaries.
 
@@ -95,7 +96,7 @@ context-free ACKs are not part of protocol v1.
 
 The server converts domain events with `encodeEvent`; the client incrementally
 decodes records with `decodeEvent` and applies protocol-specific validation.
-Successful protobuf parsing proves structure only, not authorization.
+Successful CBOR parsing proves structure only, not authorization.
 
 ## Client and worker projections
 
@@ -133,7 +134,7 @@ does not automatically serialize asynchronous application writes.
 
 ## Adding an event
 
-A core event change requires a domain variant, protobuf `oneof` field, shared
+A core event change requires a domain variant, CBOR discriminator, shared
 converter, coordinator emission/routing, client validation/state effects and
 any public projection. Decide persistence and reconnect semantics explicitly,
 then test domain/wire round trips, routing, invalid input and restoration.

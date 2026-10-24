@@ -43,7 +43,7 @@ all mutations. Pending invites reserve capacity. Invite consumption and
 participant insertion are persisted atomically; an ambiguous write blocks more
 mutations until reload.
 
-Enrollment uses `noosphere/roast-enrollment/1` with two RPCs:
+Enrollment uses `noosphere/roast-enrollment-cbor/1` with two RPCs:
 
 1. `BeginEnrollment` validates the invite and returns a fresh, short-lived
    transcript challenge.

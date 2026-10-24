@@ -35,7 +35,7 @@ void main() {
         nativeLibraryPath: nativeLibrary,
       );
 
-  group('enrollment over direct protobuf streams', () {
+  group('enrollment over direct CBOR streams', () {
     late IrohServer server;
     late RoomManager rooms;
     late RoomInvite invite;
@@ -132,7 +132,7 @@ void main() {
       );
     });
 
-    test('maps operation ID directly to the response protobuf', () async {
+    test('maps operation ID directly to the response CBOR', () async {
       final (status, body) = await exchange(
         requestBytes(
           protocol.EnrollmentOperation.beginEnrollment,

@@ -119,12 +119,37 @@ void main() {
       ),
       throwsFormatException,
     );
+    for (final legacyHeader in [
+      {'version': 1},
+      {'version': 2, 'format': ServerStateSnapshot.currentFormat},
+    ]) {
+      expect(
+        () => ServerStateSnapshot.fromBytes(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode({
+                ...legacyHeader,
+                'dkg': <Object?>[],
+                'signing': <Object?>[],
+                'completed': <Object?>[],
+                'shares': <Object?>[],
+                'cancelled': <Object?>[],
+                'terminalSigning': <Object?>[],
+                'terminalDkg': <Object?>[],
+              }),
+            ),
+          ),
+        ),
+        throwsFormatException,
+      );
+    }
     expect(
       () => ServerStateSnapshot.fromBytes(
         Uint8List.fromList(
           utf8.encode(
             jsonEncode({
               'version': ServerStateSnapshot.currentVersion,
+              'format': ServerStateSnapshot.currentFormat,
               'dkg': [
                 {'status': 'gibberish'},
               ],

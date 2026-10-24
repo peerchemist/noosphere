@@ -23,7 +23,7 @@ void main() {
   });
 
   test('endpoint close releases a blocked stream read', () async {
-    const alpn = 'noosphere/roast/1';
+    const alpn = 'noosphere/roast-cbor/1';
     final server = await Endpoint.bind(
       alpns: [alpn.codeUnits],
       relayMode: RelayMode.disabled,
@@ -68,14 +68,14 @@ void main() {
   });
 
   test(
-    'two Dart processes exchange framed protobuf messages directly',
+    'two Dart processes exchange framed CBOR messages directly',
     () async {
       await _testTwoProcesses('direct');
     },
   );
 
   test(
-    'two Dart processes exchange framed protobuf messages through a relay',
+    'two Dart processes exchange framed CBOR messages through a relay',
     () async => _testTwoProcesses('relay'),
     skip: Platform.environment['IROH_SPIKE_RELAY'] == '1'
         ? false

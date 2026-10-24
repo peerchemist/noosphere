@@ -1,4 +1,4 @@
-/// Shared protobuf wire messages, codecs, framing, and protocol constants.
+/// Shared deterministic-CBOR wire messages, codecs, framing, and constants.
 library;
 
 export 'message_limits.dart' show defaultMaxMessageLength;
@@ -11,6 +11,6 @@ export 'src/wire/event_wire.dart'
 export 'iroh.dart'
     show noosphereEnrollmentAlpn, noosphereIrohAlpn, noospherePublicFeedAlpn;
 export 'src/wire/framing.dart';
-export 'src/generated/noosphere.pb.dart';
-export 'src/generated/noosphere.pbenum.dart';
+export 'src/wire/cbor_codec.dart' show WireMessage;
+export 'src/wire/messages.dart';
 export 'src/wire/operations.dart';

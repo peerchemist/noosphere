@@ -173,15 +173,14 @@ and `PublicKey.verify` expose standard Ed25519 application signatures, so no
 new signing key or key-binding protocol is introduced.
 
 The signature covers
-`UTF8("noosphere/public-feed/checkpoint/v1\0") || canonicalPublicFeedPageBytes`.
-The literal `\0` denotes one zero byte. Canonical v1 protobuf encodes known
-fields once in ascending tag order, preserves repeated entry order, omits
-default-valued nonoptional scalars, and preserves optional expiry presence.
-It contains no maps or unknown fields and uses minimal protobuf varints. It
-covers the schema version, feed ID, every entry byte, oldest/latest cursors,
+`UTF8("noosphere/public-feed/checkpoint/cbor/v1\0") || canonicalPublicFeedPageBytes`.
+The literal `\0` denotes one zero byte. Version 1 uses the restricted
+deterministic-CBOR profile in [CBOR and framing](cbor-and-framing.md), preserves
+entry order and expiry presence, and includes required zero and false fields.
+It covers the schema version, feed ID, every entry byte, oldest/latest cursors,
 pagination and requested cursor, and generation time. The client rejects a
-noncanonical or unsupported page after signature verification.
-The outer envelope must also be canonical and contain only its page and signature.
+non-deterministic or unsupported page after signature verification. The outer
+envelope must also be deterministic and contain only its page and signature.
 
 `fetchCheckpoint(...)` returns a verified `PublicFeedCheckpoint`; `toBytes()`
 preserves its signed envelope for caching/redistribution. Offline consumers
@@ -195,17 +194,18 @@ remain durable and protected by the host.
 
 ## Compatibility
 
-This change targets the code at `38f1f9`; the workspace's following commit only
-changes `.gitignore`. Public protobuf messages and error code `NOT_FOUND` are
-additive. The new `noosphere/public-feed/1` ALPN has one operation, ID 1,
-`getPublicFeed`; its IDs are independent of the existing signer ALPN. Existing
-authenticated wire messages, operation IDs, and login flow are unchanged.
-Both RPC directions use the existing QUIC-varint operation/status prefix and
-FIN-delimited protobuf framing. Disabled and unknown valid feed IDs have the
-same `NOT_FOUND` response and disclose no group information.
+The `noosphere/public-feed-cbor/1` ALPN has one operation, ID 1,
+`getPublicFeed`; its IDs are independent of the signer ALPN. Both RPC directions
+retain the QUIC-varint operation/status prefix and FIN-delimited framing.
+Legacy protobuf checkpoints have a different ALPN, page encoding and signing
+context and are intentionally not accepted. Disabled and unknown valid feed IDs
+have the same `NOT_FOUND` response and disclose no group information.
 
-Snapshot version 4 contains optional `publicFeed` data. A version 4 snapshot
-without it loads as disabled/empty unless configuration explicitly opts in.
+Snapshot version 1 requires the `cbor` format marker and contains optional
+`publicFeed` data encoded with CBOR page version 1. A current snapshot without
+it loads as disabled/empty unless configuration explicitly opts in. Legacy
+snapshots are rejected rather than silently interpreting persisted protobuf
+page bytes as CBOR; there is no migration path.
 Enabled `ServerConfig` serialization gains a trailing versioned extension,
 including the feed ID and retention policy, so it also crosses the existing
 Flutter worker configuration boundary. Disabled configuration retains its

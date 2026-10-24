@@ -24,7 +24,6 @@ import 'package:noosphere_protocol/api/types/signed.dart';
 import 'package:noosphere_protocol/api/types/signed_dkg_ack.dart';
 import 'package:noosphere_protocol/domain.dart' show noosphereProtocolVersion;
 import 'package:noosphere_protocol/wire.dart' as protocol;
-import 'package:protobuf/protobuf.dart';
 
 import 'config.dart';
 import 'endpoint.dart';
@@ -186,9 +185,9 @@ final class IrohClientApi implements ApiRequestInterface {
 
   Future<void> close() => logout();
 
-  Future<T> _rpc<T extends GeneratedMessage>(
+  Future<T> _rpc<T extends protocol.WireMessage>(
     protocol.RoastOperation operation,
-    GeneratedMessage request,
+    protocol.WireMessage request,
     T Function(List<int>) decodeResponse, {
     Duration? timeout,
   }) async {
@@ -262,7 +261,7 @@ final class IrohClientApi implements ApiRequestInterface {
     }
   }
 
-  Uint8List _requestBody(GeneratedMessage request) {
+  Uint8List _requestBody(protocol.WireMessage request) {
     final body = request.writeToBuffer();
     if (body.length > config.maxMessageLength) {
       throw protocol.FrameTooLargeException(
@@ -393,12 +392,14 @@ final class IrohClientApi implements ApiRequestInterface {
         name: name,
         ceremonyId: ceremonyId,
         commitmentSetSignature: commitmentSetSignature.data,
-        secrets: secrets.entries.map(
-          (entry) => protocol.DkgSecret(
-            id: entry.key.toBytes(),
-            secret: entry.value.toBytes(),
-          ),
-        ),
+        secrets: secrets.entries
+            .map(
+              (entry) => protocol.DkgSecret(
+                id: entry.key.toBytes(),
+                secret: entry.value.toBytes(),
+              ),
+            )
+            .toList(),
       ),
       protocol.SubmitDkgRound2Response.fromBuffer,
     );
@@ -433,7 +434,7 @@ final class IrohClientApi implements ApiRequestInterface {
       protocol.RoastOperation.sendDkgAcks,
       protocol.DkgAcks(
         sid: sid.toBytes(),
-        acks: acks.map((ack) => ack.toBytes()),
+        acks: acks.map((ack) => ack.toBytes()).toList(),
       ),
       protocol.SendDkgAcksResponse.fromBuffer,
     );
@@ -448,7 +449,7 @@ final class IrohClientApi implements ApiRequestInterface {
       protocol.RoastOperation.requestDkgAcks,
       protocol.DkgAckRequest(
         sid: sid.toBytes(),
-        requests: requests.map((request) => request.toBytes()),
+        requests: requests.map((request) => request.toBytes()).toList(),
       ),
       protocol.RequestDkgAcksResponse.fromBuffer,
     );
@@ -468,9 +469,11 @@ final class IrohClientApi implements ApiRequestInterface {
       protocol.RoastOperation.requestSignatures,
       protocol.SignaturesRequest(
         sid: sid.toBytes(),
-        keys: keys.map((key) => key.toBytes()),
+        keys: keys.map((key) => key.toBytes()).toList(),
         signedDetails: signedDetails.toBytes(),
-        commitments: commitments.map((commitment) => commitment.toBytes()),
+        commitments: commitments
+            .map((commitment) => commitment.toBytes())
+            .toList(),
       ),
       protocol.RequestSignaturesResponse.fromBuffer,
     );
@@ -512,9 +515,6 @@ final class IrohClientApi implements ApiRequestInterface {
       }
       rethrow;
     }
-    if (!response.hasResult()) {
-      throw const IrohProtocolException('cancellation response has no result');
-    }
     final result = switch (response.result) {
       protocol.CancelSignaturesRequestResult.CANCEL_SIGNATURES_CANCELLED =>
         CancelSignaturesRequestResult.cancelled,
@@ -532,7 +532,6 @@ final class IrohClientApi implements ApiRequestInterface {
         CancelSignaturesRequestResult.alreadyTerminal,
       protocol.CancelSignaturesRequestResult.CANCEL_SIGNATURES_NOT_FOUND =>
         CancelSignaturesRequestResult.notFound,
-      _ => throw const IrohProtocolException('unknown cancellation result'),
     };
     return CancelSignaturesRequestResponse(
       result,
@@ -553,23 +552,16 @@ final class IrohClientApi implements ApiRequestInterface {
       protocol.SignaturesReplies(
         sid: sid.toBytes(),
         reqId: reqId.toBytes(),
-        replies: replies.map((reply) => reply.toBytes()),
+        replies: replies.map((reply) => reply.toBytes()).toList(),
       ),
       protocol.SubmitSignatureRepliesResponse.fromBuffer,
     );
-    final outcome = response;
-    return switch (outcome.whichOutcome()) {
-      protocol.SubmitSignatureRepliesResponse_Outcome.noUpdate => null,
-      protocol.SubmitSignatureRepliesResponse_Outcome.newRound =>
-        SignatureNewRoundsResponse.fromBytes(
-          Uint8List.fromList(outcome.newRound.data),
-        ),
-      protocol.SubmitSignatureRepliesResponse_Outcome.completed =>
-        SignaturesCompleteResponse.fromBytes(
-          Uint8List.fromList(outcome.completed.data),
-        ),
-      protocol.SubmitSignatureRepliesResponse_Outcome.notSet =>
-        throw const IrohProtocolException('signature response has no outcome'),
+    return switch (response.outcome) {
+      protocol.NoSignatureUpdate() => null,
+      protocol.NewSignatureRound(:final data) =>
+        SignatureNewRoundsResponse.fromBytes(Uint8List.fromList(data)),
+      protocol.CompletedSignatures(:final data) =>
+        SignaturesCompleteResponse.fromBytes(Uint8List.fromList(data)),
     };
   }
 
@@ -584,12 +576,14 @@ final class IrohClientApi implements ApiRequestInterface {
       protocol.SecretShare(
         sid: sid.toBytes(),
         groupKey: groupKey.data,
-        secrets: encryptedSecrets.entries.map(
-          (entry) => protocol.EncryptedSecret(
-            id: entry.key.toBytes(),
-            share: entry.value.ciphertext.toBytes(),
-          ),
-        ),
+        secrets: encryptedSecrets.entries
+            .map(
+              (entry) => protocol.EncryptedSecret(
+                id: entry.key.toBytes(),
+                share: entry.value.ciphertext.toBytes(),
+              ),
+            )
+            .toList(),
       ),
       protocol.ShareSecretShareResponse.fromBuffer,
     );

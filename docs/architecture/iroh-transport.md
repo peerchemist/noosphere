@@ -8,7 +8,7 @@ authentication, RPC framing, sessions and event routing.
 
 This chapter describes remote transport. A signer attached to a matching
 co-located coordinator can use `LocalCoordinatorApi`, which preserves the
-domain protocol while bypassing protobuf and QUIC.
+domain protocol while bypassing CBOR and QUIC.
 
 ## Identity and authentication
 
@@ -48,9 +48,9 @@ The server selects a route by ALPN:
 
 | ALPN | Route |
 | --- | --- |
-| `noosphere/roast/1` | Authenticated participant RPCs and sessions |
-| `noosphere/roast-enrollment/1` | Invite enrollment |
-| `noosphere/public-feed/1` | Unauthenticated public-feed polling |
+| `noosphere/roast-cbor/1` | Authenticated participant RPCs and sessions |
+| `noosphere/roast-enrollment-cbor/1` | Invite enrollment |
+| `noosphere/public-feed-cbor/1` | Unauthenticated public-feed polling |
 
 Each RPC gets an independent bidirectional stream. A separate long-lived
 ROAST stream sends `SessionStarted` and length-prefixed events. Participant
@@ -73,7 +73,7 @@ continue serving; internal error details are not sent to the peer.
 
 | Setting | Core | Flutter |
 | --- | ---: | ---: |
-| Protobuf body | 1 MiB | 1 MiB |
+| CBOR body | 1 MiB | 1 MiB |
 | Client concurrent RPCs | 32 | 2 |
 | Server streams/connection | 32 | 4 |
 | Server connections | 128 | 128 |

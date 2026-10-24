@@ -1,6 +1,6 @@
 # Noosphere protocol
 
-Canonical ROAST domain types, group configuration, protobuf messages and
+Canonical ROAST domain types, group configuration, deterministic CBOR messages and
 transport-independent framing for the Noosphere protocol. Client, server and
 Flutter implementations consume this package directly; transport adapter
 implementations such as Iroh endpoints remain outside it.
@@ -12,7 +12,7 @@ packages.
 
 The public libraries separate the semantic and wire layers:
 
-- `wire.dart` contains generated protobuf messages, stable operation IDs,
+- `wire.dart` contains typed deterministic-CBOR messages, stable operation IDs,
   QUIC-varint helpers for persistent records, event conversion and wire
   constants. Single-message RPC bodies are delimited by QUIC FIN.
 - `domain.dart` contains ROAST requests, responses, events and shared types.
@@ -25,13 +25,9 @@ The public libraries separate the semantic and wire layers:
   it does not duplicate enrollment or wallet metadata. Applications enforce
   the full link size limit.
 
-The canonical schema is `proto/noosphere.proto`. Regenerate the checked-in
-Dart message classes with:
-
-```sh
-./tool/generate_protocol.sh
-./tool/generate_protocol.sh --check
-```
+The canonical wire schema is `spec/CBOR_WIRE.cddl`. The checked-in typed codecs
+implement its restricted RFC 8949 section 4.2 profile directly; no code
+generation step is required.
 
 Protocol behavior beyond the wire schema is documented in `spec/`.
 

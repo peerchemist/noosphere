@@ -2,9 +2,9 @@
 
 [Architecture overview](README.md)
 
-Noosphere separates canonical domain values, generated protobuf messages,
+Noosphere separates canonical domain values, typed CBOR wire messages,
 mutable runtime state, durable records and public worker DTOs. Domain values
-usually have explicit binary writers/readers; protobuf carries typed network
+usually have explicit binary writers/readers; CBOR carries typed network
 messages and embeds canonical bytes where signatures require them.
 
 ## Identities and groups

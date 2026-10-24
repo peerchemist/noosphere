@@ -23,7 +23,7 @@ flowchart TB
     Flutter["noosphere_flutter: isolate worker"]
     Client["noosphere_client: participant"]
     Server["noosphere_server: coordinator"]
-    Shared["noosphere_protocol: domain, protobuf, framing"]
+    Shared["noosphere_protocol: domain, CBOR, framing"]
     Iroh["Iroh: encrypted QUIC"]
     Crypto["Frosty + Coinlib"]
     App --> Flutter
@@ -39,7 +39,7 @@ flowchart TB
 A typical deployment runs Flutter participants against a coordinator embedded
 in an application wrapper. An application can embed either or both roles. When
 a signer targets a matching coordinator in the same process, `LocalCoordinatorApi`
-bypasses protobuf and QUIC but preserves login, sessions, events and the
+bypasses CBOR and QUIC but preserves login, sessions, events and the
 server's per-group ordering. Remote participants continue to use Iroh.
 
 `NoosphereWorker` keeps protocol objects and synchronous cryptography in one
@@ -94,18 +94,18 @@ Three serialization layers stay separate:
 
 | Layer | Representation |
 | --- | --- |
-| Network | Operation-prefixed protobuf RPC streams; length-prefixed persistent events |
+| Network | Operation-prefixed CBOR RPC streams; length-prefixed persistent events |
 | Signed domain values | Canonical binary encodings nested where signatures require them |
 | Flutter host/worker | Same-build Dart envelopes and public DTOs over isolate ports |
 
-Protobuf parsing establishes structure, not authorization. Iroh encrypts remote
+CBOR parsing establishes structure, not authorization. Iroh encrypts remote
 transport, not data from the coordinator endpoint. Recipient-specific DKG and
 recovery shares add their own encryption.
 
 ## Events, restart and extensions
 
 Typed domain `Event`s are protocol inputs: proposals, contributions, ROAST
-rounds, progress and results. They are converted to protobuf for remote Iroh
+rounds, progress and results. They are converted to typed CBOR for remote Iroh
 delivery, then validated by the participant state machine. `ClientEvent` and
 worker events are later local projections, not wire messages or durable logs.
 
@@ -132,7 +132,7 @@ ROAST, recovery and authorization remain coordinated protocol changes.
 | [Identities](mnemonic-and-identity.md) | BIP-39 branches and independent FROST shares |
 | [Data models](data-models.md) | Canonical values, ownership and durable/public records |
 | [Persistence](state-and-persistence.md) | Atomic signing preparation and crash recovery |
-| [Protobuf](protobuf-and-framing.md) | RPC and persistent-stream framing |
+| [CBOR](cbor-and-framing.md) | Deterministic encoding and QUIC framing |
 | [Iroh](iroh-transport.md) | Pinning, authentication, streams, limits and reconnect |
 | [Public feed](public-feed.md) | Redacted durable journal, signed polling and Sygnature integration |
 | [Client](client.md) | Participant login, DKG, signing and recovery |

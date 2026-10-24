@@ -3,7 +3,7 @@
 [Architecture overview](README.md)
 
 > **Status: proposed, not implemented.** The current protocol has a fixed
-> protobuf `EventMessage` oneof, sealed domain events and exhaustive handlers.
+> CBOR `EventMessage` discriminator, sealed domain events and exhaustive handlers.
 
 The proposal keeps DKG, ROAST, recovery and authorization in the coordinated
 core while adding one negotiated lane for optional application features.
@@ -21,7 +21,7 @@ ExtensionEvent
 
 The core would validate the envelope and dispatch it to a registered codec.
 The extension would decode and validate the payload. Adding a new extension
-would not add another core protobuf field.
+would not add another core CBOR variant.
 
 | Core event | Extension event |
 | --- | --- |
@@ -56,7 +56,7 @@ payloads are protocol errors. Group-critical extensions cannot silently skip
 unsupported members.
 
 An older client advertises none, allowing a newer coordinator to omit optional
-events. Protobuf unknown-field behavior is not capability negotiation.
+events. CBOR unknown fields are rejected and are not capability negotiation.
 
 ## Registry and routing
 

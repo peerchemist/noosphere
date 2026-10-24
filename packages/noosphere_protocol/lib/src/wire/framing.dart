@@ -51,7 +51,7 @@ Uint8List encodeQuicVarInt(int value) {
   return bytes;
 }
 
-/// Prefixes one message for a stream that carries multiple protobuf messages.
+/// Prefixes one message for a stream that carries multiple CBOR messages.
 Uint8List encodeLengthPrefixedMessage(
   List<int> message, {
   int maxMessageLength = defaultMaxMessageLength,

@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_protocol/wire.dart' as pb;
 
-const _alpn = 'noosphere/roast/1';
+const _alpn = 'noosphere/roast-cbor/1';
 const _maxFrameLength = pb.defaultMaxMessageLength;
 
 Future<void> main(List<String> args) async {

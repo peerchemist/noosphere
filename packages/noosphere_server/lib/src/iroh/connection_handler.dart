@@ -10,7 +10,6 @@ import 'package:noosphere_protocol/domain.dart'
         CancelSignaturesRequestResponse,
         CancelSignaturesRequestResult;
 import 'package:noosphere_protocol/wire.dart';
-import 'package:protobuf/protobuf.dart';
 
 import '../config/iroh.dart';
 import '../config/server.dart';
@@ -141,7 +140,7 @@ final class IrohConnectionHandler {
     RoastOperation operation,
     List<int> body,
   ) async {
-    final GeneratedMessage response;
+    final WireMessage response;
     try {
       response = switch (operation) {
         RoastOperation.login => await _login(LoginRequest.fromBuffer(body)),
@@ -228,7 +227,7 @@ final class IrohConnectionHandler {
       ),
     );
     _authenticationDeadline?.cancel();
-    return RespondToChallengeResponse(authenticated: EmptySuccess());
+    return RespondToChallengeResponse();
   }
 
   Future<ExtendSessionResponse> _extendSession(Bytes request) async {
@@ -264,7 +263,7 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RequestNewDkgResponse(success: EmptySuccess());
+    return RequestNewDkgResponse();
   }
 
   Future<RejectDkgResponse> _rejectDkg(DkgReference rpc) async {
@@ -281,7 +280,7 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RejectDkgResponse(success: EmptySuccess());
+    return RejectDkgResponse();
   }
 
   Future<SubmitDkgCommitmentResponse> _submitDkgCommitment(
@@ -303,7 +302,7 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return SubmitDkgCommitmentResponse(success: EmptySuccess());
+    return SubmitDkgCommitmentResponse();
   }
 
   Future<SubmitDkgRound2Response> _submitDkgRound2(DkgRound2 rpc) async {
@@ -337,7 +336,7 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return SubmitDkgRound2Response(success: EmptySuccess());
+    return SubmitDkgRound2Response();
   }
 
   Future<Bytes> _getDkg(DkgReference rpc) async {
@@ -372,7 +371,7 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return SendDkgAcksResponse(success: EmptySuccess());
+    return SendDkgAcksResponse();
   }
 
   Future<RequestDkgAcksResponse> _requestDkgAcks(DkgAckRequest rpc) async {
@@ -394,7 +393,7 @@ final class IrohConnectionHandler {
       },
     );
     return RequestDkgAcksResponse(
-      acks: dispatched.value.map((ack) => ack.toBytes()),
+      acks: dispatched.value.map((ack) => ack.toBytes()).toList(),
     );
   }
 
@@ -425,7 +424,7 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RequestSignaturesResponse(success: EmptySuccess());
+    return RequestSignaturesResponse();
   }
 
   Future<RejectSignaturesRequestResponse> _rejectSignaturesRequest(
@@ -443,7 +442,7 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return RejectSignaturesRequestResponse(success: EmptySuccess());
+    return RejectSignaturesRequestResponse();
   }
 
   Future<CancelSignaturesRequestResponse> _cancelSignaturesRequest(
@@ -475,7 +474,7 @@ final class IrohConnectionHandler {
         domain.CancelSignaturesRequestResult.notFound =>
           CancelSignaturesRequestResult.CANCEL_SIGNATURES_NOT_FOUND,
       },
-      expiresAt: response.expiresAt?.toBytes(),
+      expiresAt: response.expiresAt?.toBytes() ?? const [],
     );
   }
 
@@ -501,12 +500,12 @@ final class IrohConnectionHandler {
     );
     return switch (dispatched.value) {
       SignatureNewRoundsResponse response => SubmitSignatureRepliesResponse(
-        newRound: NewSignatureRound(data: response.toBytes()),
+        outcome: NewSignatureRound(data: response.toBytes()),
       ),
       SignaturesCompleteResponse response => SubmitSignatureRepliesResponse(
-        completed: CompletedSignatures(data: response.toBytes()),
+        outcome: CompletedSignatures(data: response.toBytes()),
       ),
-      null => SubmitSignatureRepliesResponse(noUpdate: NoSignatureUpdate()),
+      null => SubmitSignatureRepliesResponse(outcome: NoSignatureUpdate()),
     };
   }
 
@@ -534,7 +533,9 @@ final class IrohConnectionHandler {
       },
     );
     return ShareSecretShareResponse(
-      constructedKeyEvents: dispatched.value.map(encodeConstructedKeyEvent),
+      constructedKeyEvents: dispatched.value
+          .map(encodeConstructedKeyEvent)
+          .toList(),
     );
   }
 
@@ -556,7 +557,7 @@ final class IrohConnectionHandler {
         return IrohDispatchResult(null);
       },
     );
-    return AckKeyConstructedResponse(success: EmptySuccess());
+    return AckKeyConstructedResponse();
   }
 
   Uint8List _readyGroup() {
@@ -593,10 +594,7 @@ final class IrohConnectionHandler {
     }
   }
 
-  Future<void> _writeResponse(
-    SendStream send,
-    GeneratedMessage response,
-  ) async {
+  Future<void> _writeResponse(SendStream send, WireMessage response) async {
     final body = response.writeToBuffer();
     if (body.length > config.maxMessageLength) {
       throw FrameTooLargeException(
@@ -618,17 +616,15 @@ final class IrohConnectionHandler {
     await send.writeAll(body).timeout(config.rpcTimeout);
   }
 
-  Future<void> _writePersistentMessage(
-    SendStream send,
-    GeneratedMessage message,
-  ) => send
-      .writeAll(
-        encodeLengthPrefixedMessage(
-          message.writeToBuffer(),
-          maxMessageLength: config.maxMessageLength,
-        ),
-      )
-      .timeout(config.rpcTimeout);
+  Future<void> _writePersistentMessage(SendStream send, WireMessage message) =>
+      send
+          .writeAll(
+            encodeLengthPrefixedMessage(
+              message.writeToBuffer(),
+              maxMessageLength: config.maxMessageLength,
+            ),
+          )
+          .timeout(config.rpcTimeout);
 
   ProtocolError _protocolError(Object error) => ProtocolError(
     code: switch (error) {
