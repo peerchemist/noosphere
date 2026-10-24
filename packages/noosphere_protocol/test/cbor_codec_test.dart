@@ -68,6 +68,75 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('rejects arrays in byte-string fields, including nested fields', () {
+      final arrays = <String, List<int>>{
+        'empty': [0x80],
+        'valid byte': [0x81, 0x01],
+        'negative integer': [0x81, 0x20],
+        'integer above 255': [0x81, 0x19, 0x01, 0x00],
+      };
+      for (final MapEntry(:key, :value) in arrays.entries) {
+        expect(
+          () => Bytes.fromBuffer([0xa1, 0x01, ...value]),
+          throwsFormatException,
+          reason: key,
+        );
+        expect(
+          () => RequestDkgAcksResponse.fromBuffer([0xa1, 0x01, 0x81, ...value]),
+          throwsFormatException,
+          reason: 'byte-string array element: $key',
+        );
+        expect(
+          () => EventMessage.fromBuffer([
+            0xa2,
+            0x01,
+            0x01,
+            0x02,
+            0xa2,
+            0x01,
+            ...value,
+            0x02,
+            0xf5,
+          ]),
+          throwsFormatException,
+          reason: 'event payload: $key',
+        );
+      }
+    });
+
+    test('rejects byte strings in array fields', () {
+      for (final value in <List<int>>[
+        [0x40],
+        [0x41, 0x01],
+      ]) {
+        expect(
+          () => RequestDkgAcksResponse.fromBuffer([0xa1, 0x01, ...value]),
+          throwsFormatException,
+        );
+        expect(
+          () => ShareSecretShareResponse.fromBuffer([0xa1, 0x01, ...value]),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test('preserves valid byte strings and arrays exactly', () {
+      for (final value in <List<int>>[
+        [0x40],
+        [0x42, 0x00, 0xff],
+      ]) {
+        final bytes = [0xa1, 0x01, ...value];
+        expect(Bytes.fromBuffer(bytes).writeToBuffer(), bytes);
+      }
+      for (final value in <List<int>>[
+        [0x80],
+        [0x82, 0x40, 0x42, 0x00, 0xff],
+      ]) {
+        final bytes = [0xa1, 0x01, ...value];
+        expect(RequestDkgAcksResponse.fromBuffer(bytes).writeToBuffer(), bytes);
+      }
+    });
   });
 
   test('encoding is independent of map insertion order', () {

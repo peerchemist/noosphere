@@ -25,10 +25,10 @@ Map<int, Object?> decodeWireMap(
   Set<int> optionalFields = const {},
 }) {
   _DeterministicCborValidator(bytes).validate();
-  final value = cborDecode(bytes)
-      .toObject(parseDateTime: false, decodeBase64: false, parseUri: false);
+  // Retain CBOR types until each field is checked: toObject() represents both
+  // byte strings and arrays as Dart lists.
   return readWireMap(
-    value,
+    cborDecode(bytes),
     requiredFields: requiredFields,
     optionalFields: optionalFields,
   );
@@ -39,13 +39,13 @@ Map<int, Object?> readWireMap(
   required Set<int> requiredFields,
   Set<int> optionalFields = const {},
 }) {
-  if (value is! Map<Object?, Object?>) {
+  if (value is! CborMap) {
     throw const FormatException('CBOR message must be a map');
   }
   final allowed = {...requiredFields, ...optionalFields};
   final result = <int, Object?>{};
   for (final entry in value.entries) {
-    final key = entry.key;
+    final key = entry.key.toObject();
     if (key is! int || key < 0) {
       throw const FormatException(
         'CBOR field keys must be nonnegative integers',
@@ -67,16 +67,18 @@ Map<int, Object?> readWireMap(
 
 List<int> readBytes(Map<int, Object?> map, int key) {
   final value = map[key];
-  if (value is! List<Object?> || value.any((byte) => byte is! int)) {
+  if (value is! CborBytes) {
     throw FormatException('CBOR field $key must be a byte string');
   }
-  return List<int>.unmodifiable(value.cast<int>());
+  return List<int>.unmodifiable(value.bytes);
 }
 
 String readString(Map<int, Object?> map, int key) {
   final value = map[key];
-  if (value is! String) throw FormatException('CBOR field $key must be text');
-  return value;
+  if (value is! CborString) {
+    throw FormatException('CBOR field $key must be text');
+  }
+  return value.toString();
 }
 
 int readInt(
@@ -87,8 +89,8 @@ int readInt(
 }) {
   final value = map[key];
   final integer = switch (value) {
-    int() => value,
-    BigInt() when value.isValidInt => value.toInt(),
+    CborSmallInt() => value.value,
+    CborInt() when value.toBigInt().isValidInt => value.toInt(),
     _ => null,
   };
   if (integer == null || integer < minimum || integer > maximum) {
@@ -99,13 +101,15 @@ int readInt(
 
 bool readBool(Map<int, Object?> map, int key) {
   final value = map[key];
-  if (value is! bool) throw FormatException('CBOR field $key must be boolean');
-  return value;
+  if (value is! CborBool) {
+    throw FormatException('CBOR field $key must be boolean');
+  }
+  return value.value;
 }
 
 List<Object?> readList(Map<int, Object?> map, int key) {
   final value = map[key];
-  if (value is! List<Object?>) {
+  if (value is! CborList) {
     throw FormatException('CBOR field $key must be an array');
   }
   return value;
@@ -120,10 +124,10 @@ List<T> readListOf<T>(
 List<List<int>> readBytesList(Map<int, Object?> map, int key) =>
     List.unmodifiable(
       readList(map, key).map((value) {
-        if (value is! List<Object?> || value.any((byte) => byte is! int)) {
+        if (value is! CborBytes) {
           throw FormatException('CBOR field $key must contain byte strings');
         }
-        return List<int>.unmodifiable(value.cast<int>());
+        return List<int>.unmodifiable(value.bytes);
       }),
     );
 

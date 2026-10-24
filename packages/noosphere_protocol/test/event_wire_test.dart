@@ -174,7 +174,22 @@ void main() {
 
   test('rejects signatures progress without an explicit stage', () {
     expect(
-      () => wire.SignaturesProgress.fromCbor({1: 1, 2: <Object?>[]}),
+      // SignaturesProgressEvent with progress {1: 1, 2: []}, missing stage 3.
+      () => wire.EventMessage.fromBuffer([
+        0xa2,
+        0x01,
+        0x0f,
+        0x02,
+        0xa2,
+        0x01,
+        0x40,
+        0x02,
+        0xa2,
+        0x01,
+        0x01,
+        0x02,
+        0x80,
+      ]),
       throwsA(isA<FormatException>()),
     );
   });
