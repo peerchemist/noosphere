@@ -17,7 +17,7 @@ dependencies:
       ref: 5.1.0
   synchronized: ^3.1.0+1
   collection: ^1.17.1
-  iroh_quic: 1.1.0
+  iroh_quic: 1.2.0
   noosphere_protocol: ^0.4.0
   protobuf: ^4.0.0
   fixnum: ^1.1.1
