@@ -202,6 +202,7 @@ final class _NativeBackend implements NoosphereRuntimeBackend {
         : await RoomManager.open(
             coordinatorEndpointId: secretKey.publicKey.asBytes(),
             persistence: roomPersistence,
+            maxParticipants: options.serverConfig.maxDkgParticipants,
           );
     final server = await IrohServer.start(
       IrohConfig(

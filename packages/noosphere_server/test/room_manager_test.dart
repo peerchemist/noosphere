@@ -14,12 +14,15 @@ void main() {
 
   final endpointId = Uint8List.fromList(List.generate(32, (i) => i));
 
-  Future<(RoomManager, InMemoryRoomPersistence)> manager() async {
+  Future<(RoomManager, InMemoryRoomPersistence)> manager({
+    int maxParticipants = RoomManager.defaultMaxParticipants,
+  }) async {
     final persistence = InMemoryRoomPersistence();
     return (
       await RoomManager.open(
         coordinatorEndpointId: endpointId,
         persistence: persistence,
+        maxParticipants: maxParticipants,
       ),
       persistence,
     );
@@ -176,17 +179,17 @@ void main() {
       await expectLater(
         rooms.createRoom(
           roomId: 'oversized',
-          expectedParticipants: RoomManager.maxParticipants + 1,
+          expectedParticipants: RoomManager.defaultMaxParticipants + 1,
           threshold: 2,
         ),
         throwsRangeError,
       );
       await rooms.createRoom(
         roomId: 'maximum',
-        expectedParticipants: RoomManager.maxParticipants,
+        expectedParticipants: RoomManager.defaultMaxParticipants,
         threshold: 2,
       );
-      for (var i = 0; i < RoomManager.maxParticipants; i++) {
+      for (var i = 0; i < RoomManager.defaultMaxParticipants; i++) {
         final key = cl.ECPrivateKey.generate();
         final invite = await issue(rooms, 'maximum', key);
         await RoomEnrollmentClient(rooms).joinRoom(invite, (_) async => key);
@@ -195,10 +198,31 @@ void main() {
       final frozen = await rooms.freezeRoom('maximum');
 
       expect(frozen.lifecycle, RoomLifecycle.frozen);
-      expect(frozen.participants, hasLength(RoomManager.maxParticipants));
+      expect(
+        frozen.participants,
+        hasLength(RoomManager.defaultMaxParticipants),
+      );
       expect(ServerConfig(group: frozen.groupConfig!), isA<ServerConfig>());
     },
   );
+
+  test('uses a configured participant limit', () async {
+    final (rooms, _) = await manager(maxParticipants: 3);
+    await rooms.createRoom(
+      roomId: 'maximum',
+      expectedParticipants: 3,
+      threshold: 2,
+    );
+
+    await expectLater(
+      rooms.createRoom(
+        roomId: 'oversized',
+        expectedParticipants: 4,
+        threshold: 2,
+      ),
+      throwsRangeError,
+    );
+  });
 
   test(
     'legacy oversized roster is rejected before freeze is persisted',
@@ -208,12 +232,12 @@ void main() {
       final room = RoomSnapshot(
         roomId: 'legacy',
         lifecycle: RoomLifecycle.enrolling,
-        expectedParticipants: RoomManager.maxParticipants + 1,
+        expectedParticipants: RoomManager.defaultMaxParticipants + 1,
         threshold: 2,
         coordinatorEndpointId: endpointId,
         invites: const [],
         participants: [
-          for (var i = 0; i <= RoomManager.maxParticipants; i++)
+          for (var i = 0; i <= RoomManager.defaultMaxParticipants; i++)
             RoomParticipantSnapshot(
               publicKey: cl.ECCompressedPublicKey.fromPubkey(
                 cl.ECPrivateKey.generate().pubkey,

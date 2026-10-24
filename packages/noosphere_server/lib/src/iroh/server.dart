@@ -348,6 +348,7 @@ ServerConfig _configForGroup(
   PublicFeedConfig? publicFeed,
 ) => ServerConfig(
   group: group,
+  maxDkgParticipants: template.maxDkgParticipants,
   challengeTTL: template.challengeTTL,
   sessionTTL: template.sessionTTL,
   minDkgRequestTTL: template.minDkgRequestTTL,

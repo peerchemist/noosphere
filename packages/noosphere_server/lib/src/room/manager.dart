@@ -85,13 +85,14 @@ final class RoomEnrollmentRejected {
 
 /// Atomic state machine for pubkey-bound room enrollment.
 final class RoomManager implements RoomEnrollmentApi {
-  static const maxParticipants = ServerConfig.maxDkgParticipants;
+  static const defaultMaxParticipants = ServerConfig.defaultMaxDkgParticipants;
   static const maxPendingEnrollmentChallenges = 256;
 
   RoomManager._({
     required Uint8List coordinatorEndpointId,
     required this.persistence,
     required this.challengeTtl,
+    required this.maxParticipants,
   }) : _coordinatorEndpointId = _copy32(
          coordinatorEndpointId,
          'coordinatorEndpointId',
@@ -101,14 +102,17 @@ final class RoomManager implements RoomEnrollmentApi {
     required Uint8List coordinatorEndpointId,
     required RoomPersistence persistence,
     Duration challengeTtl = const Duration(seconds: 20),
+    int maxParticipants = defaultMaxParticipants,
   }) async {
     if (challengeTtl <= Duration.zero) {
       throw ArgumentError.value(challengeTtl, 'challengeTtl');
     }
+    RangeError.checkValueInInterval(maxParticipants, 2, 0xffff);
     final manager = RoomManager._(
       coordinatorEndpointId: coordinatorEndpointId,
       persistence: persistence,
       challengeTtl: challengeTtl,
+      maxParticipants: maxParticipants,
     );
     final records = await manager.persistence.loadAll();
     for (final entry in records.entries) {
@@ -131,6 +135,7 @@ final class RoomManager implements RoomEnrollmentApi {
       Uint8List.fromList(_coordinatorEndpointId);
   final RoomPersistence persistence;
   final Duration challengeTtl;
+  final int maxParticipants;
 
   final Map<String, RoomSnapshot> _rooms = {};
   final Map<String, _PendingChallenge> _challenges = {};

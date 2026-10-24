@@ -19,7 +19,7 @@ class ServerConfig with cl.Writable {
   static const defaultMinCompletedSignaturesTTL = Duration(days: 1);
   static const defaultAckCacheTTL = Duration(minutes: 1);
 
-  static const maxDkgParticipants = 64;
+  static const defaultMaxDkgParticipants = 64;
   static const maxActiveDkgs = 32;
   static const maxEncryptedDkgShareBytes = encryptedDkgShareMaxBytes;
   static const maxDkgStateBytes = 16 * 1024 * 1024;
@@ -36,6 +36,9 @@ class ServerConfig with cl.Writable {
   static const maxRecoveryRequestsPerMinute = 32;
 
   final GroupConfig group;
+
+  /// Maximum size accepted for both configured DKG groups and new rooms.
+  final int maxDkgParticipants;
   final Duration challengeTTL;
   final Duration sessionTTL;
   final Duration minDkgRequestTTL;
@@ -53,6 +56,7 @@ class ServerConfig with cl.Writable {
 
   ServerConfig({
     required this.group,
+    this.maxDkgParticipants = defaultMaxDkgParticipants,
     this.challengeTTL = defaultChallengeTTL,
     this.sessionTTL = defaultSessionTTL,
     this.minDkgRequestTTL = defaultMinDkgRequestTTL,
@@ -64,32 +68,47 @@ class ServerConfig with cl.Writable {
     this.keepAliveFreq,
     this.publicFeed,
   }) {
+    RangeError.checkValueInInterval(maxDkgParticipants, 2, 0xffff);
     if (group.participants.length > maxDkgParticipants) {
       throw ArgumentError('DKG groups are limited to $maxDkgParticipants');
     }
   }
 
   /// Convenience constructor to construct from serialised [bytes].
-  ServerConfig.fromBytes(Uint8List bytes)
-    : this.fromReader(cl.BytesReader(bytes));
+  factory ServerConfig.fromBytes(Uint8List bytes) =>
+      ServerConfig.fromReader(cl.BytesReader(bytes));
 
   /// Convenience constructor to construct from encoded [hex].
-  ServerConfig.fromHex(String hex) : this.fromBytes(cl.hexToBytes(hex));
+  factory ServerConfig.fromHex(String hex) =>
+      ServerConfig.fromBytes(cl.hexToBytes(hex));
 
-  ServerConfig.fromReader(cl.BytesReader reader)
-    : this(
-        group: GroupConfig.fromReader(reader),
-        challengeTTL: reader.readDuration(),
-        sessionTTL: reader.readDuration(),
-        minDkgRequestTTL: reader.readDuration(),
-        maxDkgRequestTTL: reader.readDuration(),
-        minSignaturesRequestTTL: reader.readDuration(),
-        maxSignaturesRequestTTL: reader.readDuration(),
-        minCompletedSignaturesTTL: reader.readDuration(),
-        ackCacheTTL: reader.readDuration(),
-        keepAliveFreq: reader.readBool() ? reader.readDuration() : null,
-        publicFeed: reader.atEnd ? null : _readPublicFeed(reader),
-      );
+  factory ServerConfig.fromReader(cl.BytesReader reader) {
+    final group = GroupConfig.fromReader(reader);
+    final challengeTTL = reader.readDuration();
+    final sessionTTL = reader.readDuration();
+    final minDkgRequestTTL = reader.readDuration();
+    final maxDkgRequestTTL = reader.readDuration();
+    final minSignaturesRequestTTL = reader.readDuration();
+    final maxSignaturesRequestTTL = reader.readDuration();
+    final minCompletedSignaturesTTL = reader.readDuration();
+    final ackCacheTTL = reader.readDuration();
+    final keepAliveFreq = reader.readBool() ? reader.readDuration() : null;
+    final extension = _readExtension(reader);
+    return ServerConfig(
+      group: group,
+      maxDkgParticipants: extension.maxDkgParticipants,
+      challengeTTL: challengeTTL,
+      sessionTTL: sessionTTL,
+      minDkgRequestTTL: minDkgRequestTTL,
+      maxDkgRequestTTL: maxDkgRequestTTL,
+      minSignaturesRequestTTL: minSignaturesRequestTTL,
+      maxSignaturesRequestTTL: maxSignaturesRequestTTL,
+      minCompletedSignaturesTTL: minCompletedSignaturesTTL,
+      ackCacheTTL: ackCacheTTL,
+      keepAliveFreq: keepAliveFreq,
+      publicFeed: extension.publicFeed,
+    );
+  }
 
   @override
   void write(cl.Writer writer) {
@@ -109,22 +128,50 @@ class ServerConfig with cl.Writable {
     if (useKeepalive) {
       writer.writeDuration(keepAliveFreq!);
     }
-    if (publicFeed case final feed?) {
-      writer.writeUInt8(1); // Optional server-config extension version.
-      writer.writeSlice(feed.feedId.toBytes());
-      writer.writeUInt32(feed.maxEntries);
-      writer.writeDuration(feed.maxAge);
+    if (maxDkgParticipants != defaultMaxDkgParticipants) {
+      writer.writeUInt8(2); // Optional server-config extension version.
+      writer.writeUInt16(maxDkgParticipants);
+      writer.writeBool(publicFeed != null);
+      if (publicFeed case final feed?) _writePublicFeed(writer, feed);
+    } else if (publicFeed case final feed?) {
+      writer.writeUInt8(1); // Legacy public-feed-only extension.
+      _writePublicFeed(writer, feed);
     }
   }
 }
 
-PublicFeedConfig _readPublicFeed(cl.BytesReader reader) {
-  if (reader.readUInt8() != 1) {
-    throw const FormatException('Unknown feed config version');
+({int maxDkgParticipants, PublicFeedConfig? publicFeed}) _readExtension(
+  cl.BytesReader reader,
+) {
+  if (reader.atEnd) {
+    return (
+      maxDkgParticipants: ServerConfig.defaultMaxDkgParticipants,
+      publicFeed: null,
+    );
   }
+  return switch (reader.readUInt8()) {
+    1 => (
+      maxDkgParticipants: ServerConfig.defaultMaxDkgParticipants,
+      publicFeed: _readPublicFeed(reader),
+    ),
+    2 => (
+      maxDkgParticipants: reader.readUInt16(),
+      publicFeed: reader.readBool() ? _readPublicFeed(reader) : null,
+    ),
+    _ => throw const FormatException('Unknown server config extension'),
+  };
+}
+
+PublicFeedConfig _readPublicFeed(cl.BytesReader reader) {
   return PublicFeedConfig(
     feedId: PublicFeedId.fromBytes(reader.readSlice(32)),
     maxEntries: reader.readUInt32(),
     maxAge: reader.readDuration(),
   );
+}
+
+void _writePublicFeed(cl.Writer writer, PublicFeedConfig feed) {
+  writer.writeSlice(feed.feedId.toBytes());
+  writer.writeUInt32(feed.maxEntries);
+  writer.writeDuration(feed.maxAge);
 }
