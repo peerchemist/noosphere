@@ -23,7 +23,7 @@ dependencies:
       ref: 5.1.0
   iroh_flutter: 1.2.0
   meta: ^1.18.0
-  noosphere_protocol: ^0.4.0
+  noosphere_protocol: ^0.5.0
   noosphere_client: '>=4.0.0 <5.0.0'
   noosphere_server: '>=3.0.0 <4.0.0'
   record_use: ^1.1.1
