@@ -66,20 +66,12 @@ Map<int, Object?> readWireMap(
 }
 
 List<int> readBytes(Map<int, Object?> map, int key) {
-  final value = map[key];
-  if (value is! CborBytes) {
-    throw FormatException('CBOR field $key must be a byte string');
-  }
+  final value = _readField<CborBytes>(map, key, 'a byte string');
   return List<int>.unmodifiable(value.bytes);
 }
 
-String readString(Map<int, Object?> map, int key) {
-  final value = map[key];
-  if (value is! CborString) {
-    throw FormatException('CBOR field $key must be text');
-  }
-  return value.toString();
-}
+String readString(Map<int, Object?> map, int key) =>
+    _readField<CborString>(map, key, 'text').toString();
 
 int readInt(
   Map<int, Object?> map,
@@ -99,21 +91,17 @@ int readInt(
   return integer;
 }
 
-bool readBool(Map<int, Object?> map, int key) {
-  final value = map[key];
-  if (value is! CborBool) {
-    throw FormatException('CBOR field $key must be boolean');
-  }
-  return value.value;
-}
+bool readBool(Map<int, Object?> map, int key) =>
+    _readField<CborBool>(map, key, 'boolean').value;
 
-List<Object?> readList(Map<int, Object?> map, int key) {
-  final value = map[key];
-  if (value is! CborList) {
-    throw FormatException('CBOR field $key must be an array');
-  }
-  return value;
-}
+List<Object?> readList(Map<int, Object?> map, int key) =>
+    _readField<CborList>(map, key, 'an array');
+
+T _readField<T>(Map<int, Object?> map, int key, String expected) =>
+    switch (map[key]) {
+      final T value => value,
+      _ => throw FormatException('CBOR field $key must be $expected'),
+    };
 
 List<T> readListOf<T>(
   Map<int, Object?> map,
@@ -165,11 +153,10 @@ final class _DeterministicCborValidator(final List<int> _bytes) {
     }
   }
 
-  _Slice _readItem(int depth) {
+  void _readItem(int depth) {
     if (depth > _maximumNestingDepth) {
       throw const FormatException('CBOR nesting limit exceeded');
     }
-    final start = _offset;
     final initial = _readByte();
     final major = initial >> 5;
     final additional = initial & 0x1f;
@@ -183,31 +170,32 @@ final class _DeterministicCborValidator(final List<int> _bytes) {
         break;
       case 2:
       case 3:
-        final length = _boundedLength(argument);
+        final length = _bounded(argument, _maximumValueLength, 'value length');
         _take(length);
       case 4:
-        final length = _boundedCollection(argument);
+        final length = _bounded(
+          argument,
+          _maximumCollectionLength,
+          'collection',
+        );
         for (var i = 0; i < length; i++) {
           _readItem(depth + 1);
         }
       case 5:
-        final length = _boundedCollection(argument);
-        _Slice? previous;
+        final length = _bounded(
+          argument,
+          _maximumCollectionLength,
+          'collection',
+        );
+        BigInt? previous;
         for (var i = 0; i < length; i++) {
-          final keyStart = _offset;
-          final keyInitial = _peekByte();
-          if (keyInitial >> 5 != 0) {
-            throw const FormatException(
-              'CBOR field keys must be unsigned integers',
-            );
-          }
-          final key = _readItem(depth + 1);
-          if (previous != null && _compareKeys(previous, key) >= 0) {
+          final key = _readMapKey(depth + 1);
+          if (previous != null && key <= previous) {
             throw const FormatException(
               'Duplicate or incorrectly ordered CBOR map key',
             );
           }
-          previous = _Slice(keyStart, key.end);
+          previous = key;
           _readItem(depth + 1);
         }
       case 6:
@@ -221,7 +209,21 @@ final class _DeterministicCborValidator(final List<int> _bytes) {
       default:
         throw const FormatException('Unsupported CBOR major type');
     }
-    return _Slice(start, _offset);
+  }
+
+  BigInt _readMapKey(int depth) {
+    if (depth > _maximumNestingDepth) {
+      throw const FormatException('CBOR nesting limit exceeded');
+    }
+    final initial = _readByte();
+    if (initial >> 5 != 0) {
+      throw const FormatException('CBOR field keys must be unsigned integers');
+    }
+    final additional = initial & 0x1f;
+    if (additional >= 28) {
+      throw const FormatException('Indefinite or reserved CBOR item');
+    }
+    return _readArgument(additional);
   }
 
   BigInt _readArgument(int additional) {
@@ -250,42 +252,16 @@ final class _DeterministicCborValidator(final List<int> _bytes) {
     return value;
   }
 
-  int _boundedLength(BigInt value) {
-    if (value > BigInt.from(_maximumValueLength)) {
-      throw const FormatException('CBOR value length limit exceeded');
+  int _bounded(BigInt value, int maximum, String kind) {
+    if (value > BigInt.from(maximum)) {
+      throw FormatException('CBOR $kind limit exceeded');
     }
     return value.toInt();
-  }
-
-  int _boundedCollection(BigInt value) {
-    if (value > BigInt.from(_maximumCollectionLength)) {
-      throw const FormatException('CBOR collection limit exceeded');
-    }
-    return value.toInt();
-  }
-
-  int _compareKeys(_Slice first, _Slice second) {
-    final firstLength = first.end - first.start;
-    final secondLength = second.end - second.start;
-    if (firstLength != secondLength) return firstLength.compareTo(secondLength);
-    for (var i = 0; i < firstLength; i++) {
-      final comparison = _bytes[first.start + i].compareTo(
-        _bytes[second.start + i],
-      );
-      if (comparison != 0) return comparison;
-    }
-    return 0;
-  }
-
-  int _peekByte() {
-    if (_offset >= _bytes.length) throw const FormatException('Truncated CBOR');
-    return _bytes[_offset];
   }
 
   int _readByte() {
-    final value = _peekByte();
-    _offset++;
-    return value;
+    if (_offset >= _bytes.length) throw const FormatException('Truncated CBOR');
+    return _bytes[_offset++];
   }
 
   void _take(int count) {
@@ -295,5 +271,3 @@ final class _DeterministicCborValidator(final List<int> _bytes) {
     _offset += count;
   }
 }
-
-final class _Slice(final int start, final int end);

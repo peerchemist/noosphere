@@ -1,3 +1,4 @@
+import 'package:noosphere_protocol/src/wire/cbor_codec.dart' show decodeWireMap;
 import 'package:noosphere_protocol/wire.dart';
 import 'package:test/test.dart';
 
@@ -25,6 +26,23 @@ void main() {
           reason: key,
         );
       }
+    });
+
+    test('orders integer keys canonically across encoding widths', () {
+      expect(
+        decodeWireMap(
+          [0xa2, 0x17, 0x40, 0x18, 0x18, 0x40],
+          requiredFields: {23, 24},
+        ).keys,
+        orderedEquals([23, 24]),
+      );
+      expect(
+        () => decodeWireMap(
+          [0xa2, 0x18, 0x18, 0x40, 0x17, 0x40],
+          requiredFields: {23, 24},
+        ),
+        throwsFormatException,
+      );
     });
 
     test('rejects missing, unknown and incorrectly typed fields', () {

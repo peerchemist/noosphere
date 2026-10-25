@@ -1,15 +1,14 @@
 part of '../signature_metadata.dart';
 
 /// Identifies and validates a wallet-style Noosphere message signature.
-class MessageSignatureMetadata extends SignatureMetadata {
+class MessageSignatureMetadata({required this.payload})
+    extends SignatureMetadata {
   @override
   final int type = 2;
 
   final SignedMessagePayload payload;
 
-  MessageSignatureMetadata({required this.payload});
-
-  MessageSignatureMetadata.fromReader(cl.BytesReader reader)
+  new fromReader(cl.BytesReader reader)
     : this(payload: SignedMessagePayload.fromReader(reader));
 
   @override
