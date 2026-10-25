@@ -225,7 +225,7 @@ packages:
     source: hosted
     version: "4.0.0"
   frosty:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
       path: "."
       ref: "5.1.0"

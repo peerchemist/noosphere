@@ -1,5 +1,6 @@
 name: noosphere_flutter
 description: Flutter isolate-worker facade for Noosphere ROAST signers and embedded coordinators.
+publish_to: none
 version: 0.4.0
 repository: https://github.com/peercoin/noosphere_roast_flutter
 
@@ -17,7 +18,10 @@ dependencies:
   coinlib: 6.0.1
   flutter:
     sdk: flutter
-  frosty: 5.0.1
+  frosty:
+    git:
+      url: https://github.com/peerchemist/frosty.git
+      ref: 5.1.0
   iroh_flutter: 1.2.0
   meta: ^1.18.0
   noosphere_protocol: ^0.5.0

@@ -1,5 +1,6 @@
 name: noosphere_protocol
 description: Shared domain and wire protocol definitions for Noosphere.
+publish_to: none
 version: 0.5.0
 repository: https://github.com/peercoin/noosphere_roast_flutter
 
@@ -12,7 +13,10 @@ dependencies:
   cbor: ^6.5.1
   coinlib: 6.0.1
   collection: ^1.17.1
-  frosty: 5.0.1
+  frosty:
+    git:
+      url: https://github.com/peerchemist/frosty.git
+      ref: 5.1.0
 
 dev_dependencies:
   lints: ^6.0.0
