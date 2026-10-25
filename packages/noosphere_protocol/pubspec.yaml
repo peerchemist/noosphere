@@ -12,10 +12,7 @@ dependencies:
   cbor: ^6.5.1
   coinlib: 6.0.1
   collection: ^1.17.1
-  frosty:
-    git:
-      url: https://github.com/peerchemist/frosty.git
-      ref: 5.1.0
+  frosty: 5.0.1
 
 dev_dependencies:
   lints: ^6.0.0

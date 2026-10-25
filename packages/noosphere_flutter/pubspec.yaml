@@ -17,10 +17,7 @@ dependencies:
   coinlib: 6.0.1
   flutter:
     sdk: flutter
-  frosty:
-    git:
-      url: https://github.com/peerchemist/frosty.git
-      ref: 5.1.0
+  frosty: 5.0.1
   iroh_flutter: 1.2.0
   meta: ^1.18.0
   noosphere_protocol: ^0.5.0
