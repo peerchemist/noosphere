@@ -1,7 +1,7 @@
 name: noosphere_flutter
 description: Flutter isolate-worker facade for Noosphere ROAST signers and embedded coordinators.
 publish_to: none
-version: 0.4.0
+version: 0.6.0
 repository: https://github.com/peercoin/noosphere_roast_flutter
 
 platforms:
@@ -24,9 +24,9 @@ dependencies:
       ref: 5.1.0
   iroh_flutter: 1.3.0
   meta: ^1.18.0
-  noosphere_protocol: ^0.5.0
-  noosphere_client: '>=4.0.0 <5.0.0'
-  noosphere_server: '>=3.0.0 <4.0.0'
+  noosphere_protocol: ^0.6.0
+  noosphere_client: ^0.6.0
+  noosphere_server: ^0.6.0
   record_use: ^1.1.1
 
 dev_dependencies:
