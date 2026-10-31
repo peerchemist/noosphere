@@ -468,35 +468,61 @@ void main() {
     );
   });
 
-  test('a used invitation stays consumed after restart', () async {
-    final (rooms, persistence) = await manager();
-    await rooms.createRoom(
-      roomId: 'room',
-      expectedParticipants: 2,
-      threshold: 1,
-    );
-    final key = cl.ECPrivateKey.generate();
-    final invite = await issue(rooms, 'room', key);
-    await RoomEnrollmentClient(rooms).joinRoom(invite, (_) async => key);
+  test(
+    'a completed enrollment can recover its response after restart',
+    () async {
+      final (rooms, persistence) = await manager();
+      await rooms.createRoom(
+        roomId: 'room',
+        expectedParticipants: 2,
+        threshold: 2,
+      );
+      final hostKey = cl.ECPrivateKey.generate();
+      final hostInvite = await issue(rooms, 'room', hostKey);
+      await RoomEnrollmentClient(rooms)
+          .joinRoom(hostInvite, (_) async => hostKey);
+      final memberKey = cl.ECPrivateKey.generate();
+      final memberInvite = await issue(rooms, 'room', memberKey);
+      await RoomEnrollmentClient(rooms)
+          .joinRoom(memberInvite, (_) async => memberKey);
+      await rooms.freezeRoom('room');
 
-    final restored = await RoomManager.open(
-      coordinatorEndpointId: endpointId,
-      persistence: persistence,
-    );
-    await expectLater(
-      restored.beginEnrollment(
-        invite: invite,
-        participantPublicKey: invite.expectedParticipantPublicKey,
-      ),
-      throwsA(
-        isA<RoomException>().having(
-          (error) => error.code,
-          'code',
-          RoomFailureCode.usedInvite,
+      final restored = await RoomManager.open(
+        coordinatorEndpointId: endpointId,
+        persistence: persistence,
+      );
+      final forgedInvite = RoomInvite(
+        roomId: memberInvite.roomId,
+        inviteId: memberInvite.inviteId,
+        token: Uint8List(32),
+        expectedParticipantPublicKey: memberInvite.expectedParticipantPublicKey,
+        coordinatorEndpointId: memberInvite.coordinatorEndpointId,
+        expiresAt: memberInvite.expiresAt,
+      );
+      await expectLater(
+        restored.beginEnrollment(
+          invite: forgedInvite,
+          participantPublicKey: memberInvite.expectedParticipantPublicKey,
         ),
-      ),
-    );
-  });
+        throwsA(
+          isA<RoomException>().having(
+            (error) => error.code,
+            'code',
+            RoomFailureCode.unknownInvite,
+          ),
+        ),
+      );
+      final recovered = await RoomEnrollmentClient(restored)
+          .joinRoom(memberInvite, (_) async => memberKey);
+
+      expect(recovered.lifecycle, RoomLifecycle.frozen);
+      expect(recovered.participants, hasLength(2));
+      expect(
+        recovered.invites.map((invite) => invite.status),
+        everyElement(RoomInviteStatus.used),
+      );
+    },
+  );
 
   test('unknown write outcome blocks every mutation until reload', () async {
     final persistence = _UncertainRoomPersistence();

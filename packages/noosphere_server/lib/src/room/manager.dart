@@ -286,9 +286,8 @@ final class RoomManager implements RoomEnrollmentApi {
       if (!cl.bytesEqual(invite.coordinatorEndpointId, coordinatorEndpointId)) {
         throw const RoomException(RoomFailureCode.coordinatorMismatch);
       }
-      final room = _requireEnrolling(_requireRoom(invite.roomId));
+      final room = _requireRoom(invite.roomId);
       final record = _findInvite(room, invite.inviteId);
-      _requirePendingInvite(record, time);
       if (!_constantTimeEqual(record.tokenHash, invite.tokenHash)) {
         throw _unknownInvite();
       }
@@ -296,11 +295,17 @@ final class RoomManager implements RoomEnrollmentApi {
           invite.expectedParticipantPublicKey != participantPublicKey) {
         throw const RoomException(RoomFailureCode.participantKeyMismatch);
       }
-      if (_hasParticipant(room, participantPublicKey)) {
-        throw const RoomException(RoomFailureCode.duplicateParticipant);
-      }
-      if (room.participants.length >= room.expectedParticipants) {
-        throw const RoomException(RoomFailureCode.roomFull);
+      final completed =
+          record.usedAt != null && _hasParticipant(room, participantPublicKey);
+      if (!completed) {
+        _requireEnrolling(room);
+        _requirePendingInvite(record, time);
+        if (_hasParticipant(room, participantPublicKey)) {
+          throw const RoomException(RoomFailureCode.duplicateParticipant);
+        }
+        if (room.participants.length >= room.expectedParticipants) {
+          throw const RoomException(RoomFailureCode.roomFull);
+        }
       }
       _removeChallengesForInvite(invite.roomId, invite.inviteId);
       if (_challenges.length >= maxPendingEnrollmentChallenges) {
@@ -351,10 +356,9 @@ final class RoomManager implements RoomEnrollmentApi {
       if (!_sameTranscript(pending.transcript, transcript)) {
         throw const RoomException(RoomFailureCode.malformedProof);
       }
-      final room = _requireEnrolling(_requireRoom(transcript.roomId));
+      final room = _requireRoom(transcript.roomId);
       final invite = _findInvite(room, transcript.inviteId);
       diagnosticKey = invite.expectedParticipantPublicKey;
-      _requirePendingInvite(invite, time);
       if (!_constantTimeEqual(invite.tokenHash, transcript.inviteTokenHash)) {
         throw _unknownInvite();
       }
@@ -371,6 +375,13 @@ final class RoomManager implements RoomEnrollmentApi {
       if (!proof.verify(invite.expectedParticipantPublicKey)) {
         throw const RoomException(RoomFailureCode.invalidSignature);
       }
+      if (invite.usedAt != null &&
+          _hasParticipant(room, invite.expectedParticipantPublicKey)) {
+        _removeChallengesForInvite(transcript.roomId, transcript.inviteId);
+        return _snapshot(room);
+      }
+      _requireEnrolling(room);
+      _requirePendingInvite(invite, time);
       if (_hasParticipant(room, invite.expectedParticipantPublicKey)) {
         throw const RoomException(RoomFailureCode.duplicateParticipant);
       }
