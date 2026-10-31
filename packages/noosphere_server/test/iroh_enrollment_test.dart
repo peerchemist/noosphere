@@ -38,14 +38,16 @@ void main() {
   group('enrollment over direct CBOR streams', () {
     late IrohServer server;
     late RoomManager rooms;
+    late _BlockingRoomPersistence roomPersistence;
     late RoomInvite invite;
     late IrohRoomEnrollmentApi api;
 
     setUp(() async {
       final identity = SecretKey.generate();
+      roomPersistence = _BlockingRoomPersistence();
       rooms = await RoomManager.open(
         coordinatorEndpointId: identity.publicKey.asBytes(),
-        persistence: InMemoryRoomPersistence(),
+        persistence: roomPersistence,
       );
       server = await IrohServer.start(
         IrohConfig(
@@ -130,6 +132,42 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('recovers when a committed redeem response is lost', () async {
+      final challenge = await api.beginEnrollment(
+        invite: invite,
+        participantPublicKey: invite.expectedParticipantPublicKey,
+      );
+      final proof = challenge.sign(getPrivkey(0));
+      roomPersistence.blockNextWrite();
+      addTearDown(roomPersistence.releaseBlockedWrite);
+
+      final lostResponse = expectLater(
+        api.redeemRoomInvite(proof),
+        throwsA(anything),
+      );
+      await roomPersistence.blockedWriteCommitted;
+      final closing = api.close();
+      roomPersistence.releaseBlockedWrite();
+      await closing;
+      await lostResponse;
+
+      expect((await rooms.getRoom('room')).participants, hasLength(1));
+      final retryApi = await IrohRoomEnrollmentApi.connect(
+        transport(server.endpoint),
+      );
+      addTearDown(retryApi.close);
+      final retryChallenge = await retryApi.beginEnrollment(
+        invite: invite,
+        participantPublicKey: invite.expectedParticipantPublicKey,
+      );
+      final recovered = await retryApi.redeemRoomInvite(
+        retryChallenge.sign(getPrivkey(0)),
+      );
+
+      expect(recovered.participants, hasLength(1));
+      expect(recovered.invites.single.status, RoomInviteStatus.used);
     });
 
     test('maps operation ID directly to the response CBOR', () async {
@@ -246,5 +284,38 @@ Stream<List<int>> _chunks(RecvStream receive) async* {
     final chunk = await receive.read(4096);
     if (chunk == null) return;
     if (chunk.isNotEmpty) yield chunk;
+  }
+}
+
+final class _BlockingRoomPersistence implements RoomPersistence {
+  final _delegate = InMemoryRoomPersistence();
+  Completer<void>? _writeCommitted;
+  Completer<void>? _releaseWrite;
+
+  void blockNextWrite() {
+    _writeCommitted = Completer<void>();
+    _releaseWrite = Completer<void>();
+  }
+
+  Future<void> get blockedWriteCommitted => _writeCommitted!.future;
+
+  void releaseBlockedWrite() {
+    final release = _releaseWrite;
+    if (release != null && !release.isCompleted) release.complete();
+  }
+
+  @override
+  Future<Map<String, Uint8List>> loadAll() => _delegate.loadAll();
+
+  @override
+  Future<void> write(String roomId, Uint8List state) async {
+    await _delegate.write(roomId, state);
+    final committed = _writeCommitted;
+    final release = _releaseWrite;
+    if (committed == null || release == null) return;
+    committed.complete();
+    await release.future;
+    _writeCommitted = null;
+    _releaseWrite = null;
   }
 }
