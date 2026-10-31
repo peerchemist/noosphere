@@ -1,7 +1,7 @@
 name: noosphere_protocol
 description: Shared domain and wire protocol definitions for Noosphere.
 publish_to: none
-version: 0.6.0
+version: 0.6.1
 repository: https://github.com/peercoin/noosphere_roast_flutter
 
 environment:
