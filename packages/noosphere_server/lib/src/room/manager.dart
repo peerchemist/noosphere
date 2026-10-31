@@ -296,7 +296,9 @@ final class RoomManager implements RoomEnrollmentApi {
         throw const RoomException(RoomFailureCode.participantKeyMismatch);
       }
       final completed =
-          record.usedAt != null && _hasParticipant(room, participantPublicKey);
+          room.lifecycle != RoomLifecycle.closed &&
+          record.usedAt != null &&
+          _hasParticipant(room, participantPublicKey);
       if (!completed) {
         _requireEnrolling(room);
         _requirePendingInvite(record, time);
@@ -375,7 +377,8 @@ final class RoomManager implements RoomEnrollmentApi {
       if (!proof.verify(invite.expectedParticipantPublicKey)) {
         throw const RoomException(RoomFailureCode.invalidSignature);
       }
-      if (invite.usedAt != null &&
+      if (room.lifecycle != RoomLifecycle.closed &&
+          invite.usedAt != null &&
           _hasParticipant(room, invite.expectedParticipantPublicKey)) {
         _removeChallengesForInvite(transcript.roomId, transcript.inviteId);
         return _snapshot(room);

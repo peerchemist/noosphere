@@ -521,6 +521,21 @@ void main() {
         recovered.invites.map((invite) => invite.status),
         everyElement(RoomInviteStatus.used),
       );
+
+      await restored.closeRoom('room');
+      await expectLater(
+        restored.beginEnrollment(
+          invite: memberInvite,
+          participantPublicKey: memberInvite.expectedParticipantPublicKey,
+        ),
+        throwsA(
+          isA<RoomException>().having(
+            (error) => error.code,
+            'code',
+            RoomFailureCode.roomNotEnrolling,
+          ),
+        ),
+      );
     },
   );
 
