@@ -249,10 +249,9 @@ extension _ServerSigning on ServerApiHandler {
       await throwMalicious(InvalidRequest.duplicateSigReply());
     }
 
-    // Record new rounds that are started for each participant
-    final Map<Identifier, List<SignatureRoundStart>> newRounds = {};
-
-    // Loop through provided replies and process for each signature
+    // Validate the entire batch before consuming commitments or adding shares.
+    // A later invalid reply must not leave an earlier round unannounced.
+    final derivedKeys = <int, HDAggregateKeyInfo>{};
     for (final reply in replies) {
       final sigI = reply.sigI;
 
@@ -260,7 +259,7 @@ extension _ServerSigning on ServerApiHandler {
         await throwMalicious(InvalidRequest.invalidSigIndex());
       }
 
-      var sigState = sigReq.sigs[sigI];
+      final sigState = sigReq.sigs[sigI];
 
       if (sigState is! SingleSignatureInProgressState) {
         // Ignore signatures that are done
@@ -273,14 +272,13 @@ extension _ServerSigning on ServerApiHandler {
       }
 
       final round = sigState.roundForId[pid];
-      final threshold = sigState.key.group.threshold;
 
       if (round == null) {
         if (reply.share != null) {
           await throwMalicious(InvalidRequest.unsolicitedShare());
         }
       } else {
-        // Process signature share
+        // Validate signature share
 
         final share = reply.share;
         if (share == null) {
@@ -305,18 +303,31 @@ extension _ServerSigning on ServerApiHandler {
         )) {
           await throwMalicious(InvalidRequest.invalidShare());
         }
+        derivedKeys[sigI] = derivedKey;
+      }
+    }
 
+    // Record new rounds that are started for each participant.
+    final Map<Identifier, List<SignatureRoundStart>> newRounds = {};
+    for (final reply in replies) {
+      final sigI = reply.sigI;
+      var sigState = sigReq.sigs[sigI];
+      if (sigState is! SingleSignatureInProgressState) continue;
+
+      final threshold = sigState.key.group.threshold;
+      final round = sigState.roundForId[pid];
+      if (round != null) {
         // Share is OK. Add share for round
-        round.shares.add((pid, share));
+        round.shares.add((pid, reply.share!));
 
         // If all shares have been received, aggregate and complete this
         // signature
         if (round.shares.length == threshold) {
           final signature = SignatureAggregation(
             commitments: round.commitments,
-            details: singleSigDetails.signDetails,
+            details: sigDetails.requiredSigs[sigI].signDetails,
             shares: round.shares,
-            info: derivedKey,
+            info: derivedKeys[sigI]!,
           ).signature;
 
           sigState = sigReq.sigs[sigI] = SingleSignatureFinishedState(

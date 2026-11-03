@@ -343,7 +343,10 @@ extension _ClientDkg on Client {
       Client._checkSigned(config, ack.signed, ack.signer);
       if (!cl.bytesEqual(ack.signed.obj.ceremonyId, key.ceremonyId) ||
           !cl.bytesEqual(ack.signed.obj.transcriptHash, key.transcriptHash)) {
-        throw ServerMisbehaviour.changedDkgTranscript();
+        // Possession ACKs can be forwarded after the coordinator has discarded
+        // the ceremony. A participant's unrelated signed claim is not evidence
+        // of coordinator misbehaviour and must not disconnect other signers.
+        return;
       }
 
       // Add/Update ACK for key

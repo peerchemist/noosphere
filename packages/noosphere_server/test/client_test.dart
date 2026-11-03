@@ -1464,6 +1464,61 @@ void main() {
       await expectAcks(tc1, expAcks);
     });
 
+    test('unrelated member ACKs cannot disconnect a key holder', () async {
+      final knownAck = getDkgAck(1, true);
+      final storage = storeWithKeyAndAcks(0, {getDkgAck(0, true), knownAck});
+      var disconnected = false;
+      final victim = await login(
+        0,
+        storage: storage,
+        onDisconnect: () => disconnected = true,
+      );
+      final sender = await ctx.login(1);
+      await victim.expectOnlyLoginEvents();
+
+      for (final changeCeremony in [true, false]) {
+        for (final accepted in [true, false]) {
+          await ctx.api.sendDkgAcks(
+            sid: sender.sid,
+            acks: {
+              getDkgAck(
+                1,
+                accepted,
+                ceremonyId: Uint8List(32)..last = changeCeremony ? 1 : 0,
+                transcriptHash: Uint8List(32)..last = changeCeremony ? 0 : 1,
+              ),
+              // A matching ACK in the same batch must still be processed.
+              getDkgAck(2, true),
+            },
+          );
+          await victim.evCollector.expectNoEventsOrError();
+          expect(disconnected, isFalse);
+          final acks = storage.keys.values.single.acks;
+          expect(
+            acks.singleWhere((ack) => ack.signer == ids[1]).toBytes(),
+            knownAck.toBytes(),
+          );
+          expect(
+            acks.singleWhere((ack) => ack.signer == ids[2]).signed.obj.accepted,
+            isTrue,
+          );
+        }
+      }
+
+      await ctx.api.sendDkgAcks(sid: sender.sid, acks: {getDkgAck(1, false)});
+      await victim.evCollector.expectNoEventsOrError();
+      expect(disconnected, isFalse);
+      expect(
+        storage.keys.values.single.acks
+            .singleWhere((ack) => ack.signer == ids[1])
+            .signed
+            .obj
+            .accepted,
+        isFalse,
+      );
+      sender.cancel();
+    });
+
     test("handles bad DkgAckEvent", () async {
       final ackWithId = getDkgAck(0, true);
       final ack1 = ackWithId.signed;

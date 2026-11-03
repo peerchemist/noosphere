@@ -1631,6 +1631,108 @@ void main() {
           ]);
         });
 
+        for (final invalidIndex in [true, false]) {
+          test('invalid batch tail cannot consume honest commitments '
+              '(${invalidIndex ? "index" : "unsolicited share"})', () async {
+            final honestPart1 = doPart1(1, 0);
+            await ctx.api.submitSignatureReplies(
+              sid: clients[1].sid,
+              reqId: sigsDetails.id,
+              replies: [getReply(1, 0, commitment: honestPart1.commitment)],
+            );
+            await ctx.clearEvents();
+
+            await expectInvalid(
+              () => ctx.api.submitSignatureReplies(
+                sid: clients[2].sid,
+                reqId: sigsDetails.id,
+                replies: [
+                  getReply(2, 0),
+                  SignatureReply(
+                    sigI: invalidIndex ? 4 : 1,
+                    nextCommitment: doPart1(2, 1).commitment,
+                    share: invalidIndex ? null : dummyPart2().share,
+                  ),
+                ],
+              ),
+            );
+
+            final state = reqState.sigs[0] as SingleSignatureInProgressState;
+            expect(reqState.malicious, contains(ids[2]));
+            expect(state.nextCommitments.keys.toSet(), {ids[0], ids[1]});
+            expect(state.roundForId, isEmpty);
+            await ctx.expectNoEventsOrError();
+
+            // The remaining honest signers can still start and finish a round.
+            final thirdPart1 = doPart1(3, 0);
+            final response = await ctx.api.submitSignatureReplies(
+              sid: clients[3].sid,
+              reqId: sigsDetails.id,
+              replies: [getReply(3, 0, commitment: thirdPart1.commitment)],
+            ) as SignatureNewRoundsResponse;
+            final commitments = response.rounds.single.commitments;
+            expect(commitments.map.keys.toSet(), {ids[0], ids[1], ids[3]});
+            for (final i in [0, 1]) {
+              final events = await clients[i].getEvents();
+              expect(events.whereType<SignatureNewRoundsEvent>(), hasLength(1));
+            }
+            for (final (i, part1) in [
+              (0, creatorPart1s[0]),
+              (1, honestPart1),
+              (3, thirdPart1),
+            ]) {
+              await ctx.api.submitSignatureReplies(
+                sid: clients[i].sid,
+                reqId: sigsDetails.id,
+                replies: [
+                  getReply(i, 0, nonce: part1.nonces, commitments: commitments),
+                ],
+              );
+            }
+            expect(reqState.sigs[0], isA<SingleSignatureFinishedState>());
+          });
+        }
+
+        test('invalid batch tail cannot add an earlier valid share', () async {
+          final part1 = doPart1(2, 0);
+          await ctx.api.submitSignatureReplies(
+            sid: clients[1].sid,
+            reqId: sigsDetails.id,
+            replies: [getReply(1, 0)],
+          );
+          final response = await ctx.api.submitSignatureReplies(
+            sid: clients[2].sid,
+            reqId: sigsDetails.id,
+            replies: [getReply(2, 0, commitment: part1.commitment)],
+          ) as SignatureNewRoundsResponse;
+          final state = reqState.sigs[0] as SingleSignatureInProgressState;
+          final round = state.roundForId[ids[2]]!;
+          await ctx.clearEvents();
+
+          await expectInvalid(
+            () => ctx.api.submitSignatureReplies(
+              sid: clients[2].sid,
+              reqId: sigsDetails.id,
+              replies: [
+                getReply(
+                  2,
+                  0,
+                  nonce: part1.nonces,
+                  commitments: response.rounds.single.commitments,
+                ),
+                SignatureReply(
+                  sigI: 4,
+                  nextCommitment: doPart1(2, 0).commitment,
+                ),
+              ],
+            ),
+          );
+          expect(round.shares, isEmpty);
+          expect(state.nextCommitments, isEmpty);
+          expect(reqState.malicious, contains(ids[2]));
+          await ctx.expectNoEventsOrError();
+        });
+
         test(
           "ignore non-existent id without exception",
           () => ctx.api.submitSignatureReplies(
