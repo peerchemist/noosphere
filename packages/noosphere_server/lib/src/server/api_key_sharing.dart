@@ -82,6 +82,11 @@ extension _ServerKeySharing on ServerApiHandler {
       throw InvalidRequest('Recovery resource capacity exceeded');
     }
     if (added.isNotEmpty) {
+      if (existing == null) {
+        _requireSnapshotCapacity(
+          SnapshotReservations.recoveryKey(_participantN),
+        );
+      }
       _admitRequestRate(
         _state.runtime.recoveryRequestTimes,
         pid,

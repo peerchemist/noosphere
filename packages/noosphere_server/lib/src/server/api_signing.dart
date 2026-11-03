@@ -68,6 +68,13 @@ extension _ServerSigning on ServerApiHandler {
     if (commitments.length != numSigs) {
       throw InvalidRequest.wrongCommitmentNum();
     }
+    if (commitments.any(
+      (commitment) =>
+          commitment.toBytes().length >
+          SnapshotReservations.signingCommitmentLimit,
+    )) {
+      throw InvalidRequest('Signing commitment is too large');
+    }
 
     // Require all keys for requested signatures and no more
     if (!SetEquality<cl.ECCompressedPublicKey>().equals(
@@ -112,6 +119,9 @@ extension _ServerSigning on ServerApiHandler {
             ServerConfig.maxRetainedSignaturesRequests) {
       throw InvalidRequest('Signing resource capacity exceeded');
     }
+    _requireSnapshotCapacity(
+      SnapshotReservations.signing(signedDetails, _participantN),
+    );
     _admitRequestRate(
       _state.runtime.signingRequestTimes,
       pid,
@@ -254,6 +264,11 @@ extension _ServerSigning on ServerApiHandler {
     final derivedKeys = <int, HDAggregateKeyInfo>{};
     for (final reply in replies) {
       final sigI = reply.sigI;
+
+      if (reply.nextCommitment.toBytes().length >
+          SnapshotReservations.signingCommitmentLimit) {
+        await throwMalicious(InvalidRequest('Signing commitment is too large'));
+      }
 
       if (sigI < 0 || sigI >= sigDetails.requiredSigs.length) {
         await throwMalicious(InvalidRequest.invalidSigIndex());

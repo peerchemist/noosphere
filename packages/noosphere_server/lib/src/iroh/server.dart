@@ -6,6 +6,7 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:iroh_quic/iroh_quic.dart';
 import 'package:noosphere_protocol/config.dart';
 import 'package:noosphere_protocol/iroh.dart';
+import 'package:noosphere_protocol/message_limits.dart';
 import 'package:noosphere_protocol/room.dart';
 
 import '../config/iroh.dart';
@@ -81,7 +82,19 @@ final class IrohServer {
     try {
       final api =
           handler ??
-          ServerApiHandler(config: config.server, persistence: persistence);
+          ServerApiHandler(
+            config: config.server,
+            persistence: persistence,
+            maxSessionSnapshotBytes: config.maxMessageLength.clamp(
+              1,
+              defaultMaxMessageLength,
+            ),
+          );
+      if (api.maxSessionSnapshotBytes > config.maxMessageLength) {
+        throw ArgumentError(
+          'Handler snapshot budget exceeds transport message limit',
+        );
+      }
       await api.ready;
       dispatcher = IrohDispatcher.single(
         api,
@@ -92,6 +105,10 @@ final class IrohServer {
         for (final room in await rooms.getRooms()) {
           if (room.lifecycle == RoomLifecycle.frozen) {
             final roomHandler = ServerApiHandler(
+              maxSessionSnapshotBytes: config.maxMessageLength.clamp(
+                1,
+                defaultMaxMessageLength,
+              ),
               config: _configForGroup(
                 config.server,
                 room.groupConfig!,
@@ -219,6 +236,10 @@ final class IrohServer {
     final fingerprint = room.groupFingerprint!;
     if (dispatcher.hasGroup(fingerprint)) return room;
     final handler = ServerApiHandler(
+      maxSessionSnapshotBytes: config.maxMessageLength.clamp(
+        1,
+        defaultMaxMessageLength,
+      ),
       config: _configForGroup(
         config.server,
         room.groupConfig!,

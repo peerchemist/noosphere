@@ -18,11 +18,71 @@ void main() {
     await Iroh.init(libraryPath: Platform.environment['IROH_NATIVE_LIBRARY']);
   });
 
-  IrohConfig config() => IrohConfig(
+  IrohConfig config({int maxMessageLength = 1024 * 1024}) => IrohConfig(
     server: serverConfig,
+    maxMessageLength: maxMessageLength,
     relay: IrohRelayConfig.disabled(),
     nativeLibraryPath: Platform.environment['IROH_NATIVE_LIBRARY'],
   );
+
+  test('smaller transport limits constrain snapshot admission', () async {
+    final server = await IrohServer.start(
+      config(maxMessageLength: 4096),
+      secretKey: SecretKey.generate(),
+      persistence: newServerPersistence(),
+    );
+    addTearDown(server.close);
+    final api = server.openLocalApi(groupConfig.fingerprint);
+    final challenge = await api.login(
+      groupFingerprint: groupConfig.fingerprint,
+      participantId: ids.first,
+    );
+    final session = await api.respondToChallenge(
+      signObject(challenge.challenge),
+    );
+    unawaited(session.events.drain<void>());
+    await expectLater(
+      api.requestNewDkg(
+        sid: session.id,
+        signedDetails: signObject(getDkgDetails(threshold: 10)),
+        commitment: DkgPart1(
+          identifier: ids.first,
+          threshold: 10,
+          n: 10,
+        ).public,
+      ),
+      throwsA(
+        isA<InvalidRequest>().having(
+          (error) => error.message,
+          'message',
+          'Session snapshot capacity exceeded',
+        ),
+      ),
+    );
+    await api.requestNewDkg(
+      sid: session.id,
+      signedDetails: signObject(getDkgDetails()),
+      commitment: getDkgPart1(0).public,
+    );
+  });
+
+  test('injected handler budget must fit the transport limit', () async {
+    final persistence = newServerPersistence();
+    final handler = ServerApiHandler(
+      config: serverConfig,
+      persistence: persistence,
+    );
+    addTearDown(handler.shutdown);
+    await expectLater(
+      IrohServer.start(
+        config(maxMessageLength: 4096),
+        secretKey: SecretKey.generate(),
+        persistence: persistence,
+        handler: handler,
+      ),
+      throwsArgumentError,
+    );
+  });
 
   test('host-supplied secret keeps the endpoint ID across restarts', () async {
     final secret = SecretKey.generate();

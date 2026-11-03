@@ -82,6 +82,13 @@ extension _ServerDkg on ServerApiHandler {
     if (_state.nameToDkg.containsKey(details.name)) {
       throw InvalidRequest.dkgRequestExists();
     }
+    if (commitment.toBytes().length >
+        SnapshotReservations.dkgCommitmentLimit(details.threshold)) {
+      throw InvalidRequest.dkgCapacityExceeded();
+    }
+    _requireSnapshotCapacity(
+      SnapshotReservations.dkg(signedDetails, _participantN),
+    );
     _checkDkgAdmission(session.participantId);
     if (!signedDetails.verify(_getParticipantPubkeyForSession(session))) {
       throw InvalidRequest.invalidDkgReqSig();
@@ -165,6 +172,10 @@ extension _ServerDkg on ServerApiHandler {
     // Identical retries are successful even after the ceremony advanced. A
     // conflicting retry can only be a changed local secret and must abort.
     final dkg = _getDkgForCeremony(name, ceremonyId);
+    if (commitment.toBytes().length >
+        SnapshotReservations.dkgCommitmentLimit(dkg.details.obj.threshold)) {
+      throw InvalidRequest.dkgCapacityExceeded();
+    }
     final existing = dkg.commitments.where((c) => c.$1 == pid).firstOrNull;
     if (existing != null) {
       if (cl.bytesEqual(existing.$2.toBytes(), commitment.toBytes())) return;

@@ -6,6 +6,7 @@ import 'package:coinlib/coinlib.dart' as cl;
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 import 'package:noosphere_protocol/domain.dart';
+import 'package:noosphere_protocol/message_limits.dart';
 import 'package:noosphere_protocol/public_feed.dart';
 import 'package:noosphere_server/src/config/server.dart';
 import 'package:noosphere_server/src/server/state/key_sharing.dart';
@@ -14,6 +15,7 @@ import 'persistence.dart';
 import 'state/client_session.dart';
 import 'state/dkg.dart';
 import 'state/signatures_coordination.dart';
+import 'state/snapshot_reservations.dart';
 import 'state/state.dart';
 
 part 'api_dkg.dart';
@@ -34,6 +36,11 @@ class ServerApiHandler implements ApiRequestInterface {
   static const currentProtocolVersion = noosphereProtocolVersion;
 
   final ServerConfig config;
+
+  /// Maximum SessionStarted body, including CBOR overhead. Clients must allow
+  /// at least this size. Iroh hosts use the smaller of their frame limit and
+  /// the protocol default; direct hosts may choose a smaller budget here.
+  final int maxSessionSnapshotBytes;
   final ServerState _state;
   late ServerStateSnapshot _publishedState = _state.snapshot();
   ServerStateSnapshot get state => _publishedState;
@@ -156,18 +163,31 @@ class ServerApiHandler implements ApiRequestInterface {
     required this.config,
     required this.persistence,
     ServerState? state,
-  }) : _state = state ?? ServerState();
+    this.maxSessionSnapshotBytes = defaultMaxMessageLength,
+  }) : _state = state ?? ServerState() {
+    RangeError.checkValueInInterval(
+      maxSessionSnapshotBytes,
+      SnapshotReservations.header(config.group.participants.length),
+      defaultMaxMessageLength,
+      'maxSessionSnapshotBytes',
+    );
+  }
 
   Future<void> _restore() async {
     final snapshot = await persistence.load(config.group.id);
     if (snapshot == null) {
       _state.configurePublicFeed(config.publicFeed);
+      _requireSnapshotCapacity();
       final initial = _state.snapshot();
       await persistence.write(config.group.id, initial);
       _publish(initial, _captureFeed());
       return;
     }
-    if (_state.restore(snapshot, config: config)) {
+    if (_state.restore(
+      snapshot,
+      config: config,
+      maxSessionSnapshotBytes: maxSessionSnapshotBytes,
+    )) {
       // Recovery status is durable before the handler accepts requests, so
       // delayed messages from pre-restart attempts cannot revive them.
       final recovered = _state.snapshot();
@@ -269,6 +289,7 @@ class ServerApiHandler implements ApiRequestInterface {
     try {
       // Live state has already changed. Capture failures must fail closed too,
       // even when no host write has begun.
+      _requireSnapshotCapacity();
       final next = _state.snapshot();
       final feed = _captureFeed();
       await preceding;
@@ -286,6 +307,13 @@ class ServerApiHandler implements ApiRequestInterface {
   }
 
   int get _participantN => config.group.participants.length;
+
+  void _requireSnapshotCapacity([int additionalBytes = 0]) {
+    if (_state.reservedSessionSnapshotBytes(_participantN) + additionalBytes >
+        maxSessionSnapshotBytes) {
+      throw InvalidRequest('Session snapshot capacity exceeded');
+    }
+  }
 
   void _admitRequestRate(
     Map<Identifier, List<DateTime>> times,

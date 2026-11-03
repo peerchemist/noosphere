@@ -33,6 +33,30 @@ Sessions and challenges are ephemeral. Optional keepalives are disabled by
 default. Logging out removes the session; reachability is not a DKG mutation or
 a durable rejection vote.
 
+The server reserves reconnect-message space before admitting new DKG, signing
+or recovery work. A DKG reserves space for every participant's commitment;
+signing reserves its proposal, progress and pending rounds; a recovery key
+reserves all other participants' encrypted shares for any one recipient.
+Commitment-size checks enforce these bounds as later contributions arrive.
+Completed signatures and cancellations keep their encoded-size reservation.
+Removing or expiring work releases its space; a recovery key's reservation is
+released once every recipient has acknowledged reconstruction.
+
+These reservations share one budget per group, including the online roster and
+the `SessionStarted` envelope. `IrohServer` uses the smaller of its configured
+message limit and the protocol default of 1 MiB, including for enrolled rooms.
+Direct hosts can set `ServerApiHandler.maxSessionSnapshotBytes`; clients must
+accept at least that message size. New work that would exceed the budget is
+rejected before mutation, even if its current contributions would fit. The
+individual count and storage limits below remain additional upper bounds;
+they cannot necessarily all be reached together.
+
+Reservations are derived from retained state, so restart preserves their
+effect without a separate persisted counter. Existing snapshots that exceed
+the budget fail startup validation; the server does not delete their data to
+make them fit. This keeps admitted work reconnectable within the configured
+budget while retaining bounded messages.
+
 ## DKG and ROAST
 
 For DKG, the server validates protocol version and group fingerprint on signed

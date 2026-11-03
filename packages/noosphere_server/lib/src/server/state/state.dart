@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:coinlib/coinlib.dart' as cl;
 import 'package:noosphere_protocol/common.dart';
 import 'package:noosphere_protocol/domain.dart';
+import 'package:noosphere_protocol/message_limits.dart';
 import 'package:noosphere_protocol/public_feed.dart';
 
 import '../../config/public_feed.dart';
@@ -14,6 +15,7 @@ import 'dkg.dart';
 import 'key_sharing.dart';
 import 'public_feed.dart';
 import 'signatures_coordination.dart';
+import 'snapshot_reservations.dart';
 
 class ChallengeDetails implements Expirable {
   final Identifier id;
@@ -127,6 +129,45 @@ class ServerState {
     0,
     (total, entry) => total + 33 + entry.value.payloadBytes(entry.key),
   );
+
+  /// Upper bound on any participant's reconnect message, including work that
+  /// has been admitted but has not yet supplied all of its contributions.
+  int reservedSessionSnapshotBytes(int participants) =>
+      SnapshotReservations.header(participants) +
+      nameToDkg.values.fold<int>(
+        0,
+        (sum, dkg) => sum + SnapshotReservations.dkg(dkg.details, participants),
+      ) +
+      sigRequests.values.fold<int>(
+        0,
+        (sum, request) =>
+            sum + SnapshotReservations.signing(request.details, participants),
+      ) +
+      completedSigs.values.fold<int>(
+        0,
+        (sum, completed) =>
+            sum +
+            9 +
+            CompletedSignaturesRequest(
+              details: completed.details,
+              signatures: completed.signatures,
+              creator: completed.creator,
+            ).toBytes().length,
+      ) +
+      persistent.cancelledSignatures.values.fold<int>(
+        0,
+        (sum, cancelled) => sum + 9 + cancelled.toBytes().length,
+      ) +
+      secretShares.values
+              .where(
+                (key) =>
+                    key.receiverShares.values
+                        .whereType<ParticipantDoneShareState>()
+                        .length <
+                    participants,
+              )
+              .length *
+          SnapshotReservations.recoveryKey(participants);
 
   /// Ends [session] exactly once and removes it only when it is still the
   /// current session for its participant.
@@ -307,7 +348,11 @@ class ServerState {
   /// Restores durable values. Returns true when expiry or restart recovery
   /// changed current-version state and it must be rewritten before requests are
   /// accepted.
-  bool restore(ServerStateSnapshot snapshot, {required ServerConfig config}) {
+  bool restore(
+    ServerStateSnapshot snapshot, {
+    required ServerConfig config,
+    int maxSessionSnapshotBytes = defaultMaxMessageLength,
+  }) {
     Uint8List bytes(Object? value) => base64Decode(value! as String);
     Identifier id(Object? value) => Identifier.fromBytes(bytes(value));
     void require(bool valid) {
@@ -416,6 +461,10 @@ class ServerState {
           participant,
           DkgPublicCommitment.fromBytes(bytes(commitment['commitment'])),
         ));
+        require(
+          commitments.last.$2.toBytes().length <=
+              SnapshotReservations.dkgCommitmentLimit(details.threshold),
+        );
       }
       final roundNumber = record['round'];
       require(
@@ -631,6 +680,10 @@ class ServerState {
       }
     }
     require(recoveryPayloadBytes <= ServerConfig.maxRecoveryStateBytes);
+    require(
+      reservedSessionSnapshotBytes(config.group.participants.length) <=
+          maxSessionSnapshotBytes,
+    );
     changed = (persistent.publicFeed?.expire() ?? false) || changed;
     return changed;
   }
