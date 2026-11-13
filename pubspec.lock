@@ -33,14 +33,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
-  bip39_mnemonic:
-    dependency: transitive
-    description:
-      name: bip39_mnemonic
-      sha256: "0fe4ac6c9f2e5b3fb65783371c806007acbcfb66590f4121f577adf5e4523f96"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.1.0"
   boolean_selector:
     dependency: transitive
     description:
@@ -101,10 +93,10 @@ packages:
     dependency: transitive
     description:
       name: coinlib
-      sha256: "199988876053f6177f168014ffd92fe4db6c1f48787afa57da4fcb4debd625ce"
+      sha256: "52594092b4595e92bfc44067cd001a201d5d03490bff44e4844ca52f718f1308"
       url: "https://pub.dev"
     source: hosted
-    version: "6.0.1"
+    version: "6.1.0"
   collection:
     dependency: transitive
     description:
@@ -347,6 +339,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.0"
+  listen:
+    dependency: transitive
+    description:
+      name: listen
+      sha256: "47501a08016a43fcad79252439d723f50f14f88fa7bfd8a177e0a417e5c9e1f2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
   logging:
     dependency: transitive
     description:
@@ -443,14 +443,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.2.0"
-  pointycastle:
-    dependency: transitive
-    description:
-      name: pointycastle
-      sha256: "92aa3841d083cc4b0f4709b5c74fd6409a3e6ba833ffc7dc6a8fee096366acf5"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.0.0"
   pool:
     dependency: transitive
     description:
@@ -596,26 +588,26 @@ packages:
     dependency: transitive
     description:
       name: test
-      sha256: ca578dc12bb8b2f40b67b7d3bd2fac4f31c01a6ff7130a14e2597b919934507f
+      sha256: de5d145b0afff7921e5e788a880f52d7e5f3ae24068a202f6fd3b58e4ba26323
       url: "https://pub.dev"
     source: hosted
-    version: "1.31.1"
+    version: "1.32.0"
   test_api:
     dependency: transitive
     description:
       name: test_api
-      sha256: "2a122cbe059f8b610d3a5415f42e255b6c17b1f21eee1d960f31080237fb4f11"
+      sha256: "0a10344e901e5b2e63819567951cb6a06673ed6b84f40462188ff5a0c41f371f"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.12"
+    version: "0.7.14"
   test_core:
     dependency: transitive
     description:
       name: test_core
-      sha256: d2e98ec12998368dc59ddd47ab709f2cd55acd6b66dc7db764455a44082f4bc5
+      sha256: "80f3fb49087454e07e7e07c67578cfdd156c8c3a5227d8b3f47c7b2d019c2e93"
       url: "https://pub.dev"
     source: hosted
-    version: "0.6.18"
+    version: "0.6.20"
   toml:
     dependency: transitive
     description:
@@ -632,22 +624,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
-  unorm_dart:
-    dependency: transitive
-    description:
-      name: unorm_dart
-      sha256: b4f4d2aff27d65a5fc37f400d4c09e55d7535359315acbe3b895a9add4de3a23
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.3"
   vector_math:
     dependency: transitive
     description:
       name: vector_math
-      sha256: "1d774bbdf6b72a0b12122fc1560c9c2d2a67db5a4a4cc2bd8a5c990ab20e3188"
+      sha256: fa49e1674cb84acb900141714e6c6e1f9ae099827c24d141430ff6819db4e1bc
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.0"
+    version: "2.4.4"
   vm_service:
     dependency: transitive
     description:

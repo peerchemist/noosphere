@@ -15,7 +15,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  coinlib: 6.0.1
+  coinlib: 6.1.0
   flutter:
     sdk: flutter
   frosty:

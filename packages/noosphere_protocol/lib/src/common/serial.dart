@@ -28,14 +28,14 @@ int _varIntSize(BigInt value) => value < BigInt.from(0xfd)
     ? 5
     : 9;
 
-// coinlib 6.0.1 overestimates the encodings of 0xffff and 0xffffffff.
+// coinlib 6.1.0 overestimates the encodings of 0xffff and 0xffffffff.
 final class _NoosphereMeasureWriter extends cl.MeasureWriter {
   @override
   void writeVarInt(BigInt value) => size += _varIntSize(value);
 }
 
 /// Owns the exact input slice and rejects non-canonical or unbounded lengths.
-/// coinlib 6.0.1's reader otherwise uses the entire backing buffer of a view.
+/// coinlib 6.1.0's reader otherwise uses the entire backing buffer of a view.
 class NoosphereBytesReader extends cl.BytesReader {
   NoosphereBytesReader(Uint8List bytes) : super(Uint8List.fromList(bytes));
 

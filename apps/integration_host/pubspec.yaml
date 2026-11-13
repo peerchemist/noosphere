@@ -14,7 +14,7 @@ dependencies:
   noosphere_flutter: ^0.6.2
 
 dev_dependencies:
-  coinlib: 6.0.1
+  coinlib: 6.1.0
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter

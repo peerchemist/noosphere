@@ -9,8 +9,8 @@ environment:
 resolution: workspace
 
 dependencies:
-  bip39_mnemonic: 4.1.0
-  coinlib: 6.0.1
+  coinlib: 6.1.0
+  crypto: 3.0.7
   flutter:
     sdk: flutter
   noosphere_flutter: ^0.6.2

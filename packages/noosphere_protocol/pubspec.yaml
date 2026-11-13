@@ -11,7 +11,7 @@ resolution: workspace
 
 dependencies:
   cbor: ^6.5.1
-  coinlib: 6.0.1
+  coinlib: 6.1.0
   collection: ^1.17.1
   frosty:
     git:
