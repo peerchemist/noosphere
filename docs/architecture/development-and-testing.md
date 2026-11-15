@@ -33,7 +33,7 @@ Coordinator deployments are application wrappers around `IrohServer`. The
 wrapper supplies identity keys, typed configuration and persistence providers;
 Noosphere does not ship a filesystem-backed executable or deployment image.
 
-The workspace targets Dart `^3.13.0`, Flutter `>=3.47.0`, Linux and macOS. The
+The workspace targets Dart `^3.13.0`, Flutter `>=3.50.0`, Linux and macOS. The
 current repository does not support Android, iOS, Windows or web. The example
 uses worker APIs with in-memory providers and is not a durable wallet.
 

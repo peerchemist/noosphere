@@ -4,7 +4,7 @@ publish_to: none
 
 environment:
   sdk: ^3.13.0
-  flutter: '>=3.47.0'
+  flutter: '>=3.50.0'
 
 resolution: workspace
 
@@ -21,6 +21,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   iroh_flutter: 1.4.0
+  material_ui: ^1.1.0
   noosphere_protocol: ^0.6.5
   noosphere_client: ^0.6.5
   noosphere_server: ^0.6.5
