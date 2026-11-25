@@ -8,13 +8,16 @@ class RingBuffer<T> {
     RangeError.checkNotNegative(maxSize, "maxSize");
   }
 
-  void add(T element) {
+  T? add(T element) {
+    T? discarded;
     if (buffer.length < maxSize) {
       buffer.add(element);
     } else {
+      discarded = buffer[next];
       buffer[next] = element;
     }
     next = (next + 1) % maxSize;
+    return discarded;
   }
 
   List<T> flushBuffer() {

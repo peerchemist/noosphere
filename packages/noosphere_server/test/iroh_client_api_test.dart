@@ -54,6 +54,14 @@ void main() {
     );
     addTearDown(api.close);
 
+    final correlationId = OnetimeNumber();
+    Future<bool> getSnapshot(SessionID sid) =>
+        api.getSigningSnapshot(sid: sid, correlationId: correlationId);
+    await expectLater(
+      getSnapshot(SessionID()),
+      throwsA(isA<IrohProtocolException>()),
+    );
+
     final challenge = await api.login(
       groupFingerprint: groupConfig.fingerprint,
       participantId: ids.first,
@@ -63,7 +71,12 @@ void main() {
     );
     final received = Completer<Event>();
     final extended = Completer<Expiry>();
+    final snapshot = Completer<SigningSnapshotEvent>();
     final subscription = login.events.listen((event) async {
+      if (event is SigningSnapshotEvent) {
+        snapshot.complete(event);
+        return;
+      }
       if (!received.isCompleted) received.complete(event);
       try {
         final expiry = await api.extendSession(login.id);
@@ -85,6 +98,16 @@ void main() {
       isFalse,
     );
     expect(handler.debugState.clientSessions[login.id], isNotNull);
+
+    await expectLater(
+      getSnapshot(SessionID()),
+      throwsA(isA<IrohProtocolException>()),
+    );
+    expect(await getSnapshot(login.id), isTrue);
+    final signing = await snapshot.future.timeout(const Duration(seconds: 2));
+    expect(signing.correlationId, correlationId);
+    expect(signing.requests, isEmpty);
+    expect(signing.cancellations, isEmpty);
 
     await api.logout();
     await waitFor(() => handler.debugState.clientSessions[login.id] == null);
@@ -433,6 +456,16 @@ void main() {
             protocol.encodeQuicVarInt(protocol.RpcResponseStatus.success),
           );
           await send.writeAll(response);
+        } else if (i == 0) {
+          await send.writeAll(
+            protocol.encodeQuicVarInt(protocol.RpcResponseStatus.error),
+          );
+          await send.writeAll(
+            protocol.ProtocolError(
+              code: protocol.ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST,
+              message: 'unknown ROAST operation ID 18',
+            ).writeToBuffer(),
+          );
         } else {
           await send.writeAll(protocol.encodeQuicVarInt(63));
         }
@@ -455,7 +488,14 @@ void main() {
     );
     addTearDown(api.close);
 
-    for (var i = 0; i < invalidResponses; i++) {
+    expect(
+      await api.getSigningSnapshot(
+        sid: SessionID(),
+        correlationId: OnetimeNumber(),
+      ),
+      isFalse,
+    );
+    for (var i = 1; i < invalidResponses; i++) {
       await expectLater(
         api.extendSession(SessionID()),
         throwsA(isA<IrohProtocolException>()),

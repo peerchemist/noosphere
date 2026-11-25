@@ -53,6 +53,13 @@ void main() {
             protocol.CancelSignaturesRequest(),
             protocol.CancelSignaturesRequest.fromBuffer,
           ),
+          (
+            protocol.GetSigningSnapshotRequest(
+              sessionId: List.filled(16, 1),
+              correlationId: List.filled(16, 2),
+            ),
+            protocol.GetSigningSnapshotRequest.fromBuffer,
+          ),
           (protocol.SignaturesReplies(), protocol.SignaturesReplies.fromBuffer),
           (protocol.SecretShare(), protocol.SecretShare.fromBuffer),
           (protocol.ConstructedKey(), protocol.ConstructedKey.fromBuffer),
@@ -98,6 +105,10 @@ void main() {
           (
             protocol.RequestSignaturesResponse(),
             protocol.RequestSignaturesResponse.fromBuffer,
+          ),
+          (
+            protocol.GetSigningSnapshotResponse(),
+            protocol.GetSigningSnapshotResponse.fromBuffer,
           ),
           (
             protocol.RejectSignaturesRequestResponse(),

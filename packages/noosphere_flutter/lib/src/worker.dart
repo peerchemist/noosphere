@@ -276,6 +276,12 @@ final class NoosphereWorker {
     return result! as NoosphereWorkerSnapshot;
   }
 
+  /// Reconciles pending signing requests and publishes a refreshed worker
+  /// snapshot. Returns false if the coordinator lacks support.
+  Future<bool> syncSigningRequests(String setupId) async =>
+      (await _invoke(WorkerOperation.syncSigningRequests, setupId: setupId))!
+          as bool;
+
   Future<void> requestDkg(String setupId, NewDkgDetails proposal) => _invoke(
     WorkerOperation.requestDkg,
     setupId: setupId,

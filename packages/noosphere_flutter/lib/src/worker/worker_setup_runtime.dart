@@ -198,6 +198,21 @@ final class WorkerSetupRuntime {
   Future<Object?> requestSignatures(SignaturesRequestDetails details) =>
       _withClient((client) => client.requestSignatures(details));
 
+  Future<bool> syncSigningRequests() async {
+    final client = _client;
+    if (client == null || _clientNode?.client?.isConnected != true) {
+      throw StateError('Signer is not connected.');
+    }
+    final applied = await client.syncSigningRequests();
+    if (!identical(client, _client) ||
+        !identical(client, _clientNode?.client?.current) ||
+        _clientNode?.client?.isConnected != true) {
+      throw StateError('Signer session changed during signing sync.');
+    }
+    if (applied) _emitSnapshot();
+    return applied;
+  }
+
   Future<int> cancelSignaturesRequest(SignaturesRequestId id) =>
       _synchronized(() async {
         final client = _client;

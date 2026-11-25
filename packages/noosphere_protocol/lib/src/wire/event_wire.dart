@@ -12,6 +12,9 @@ import 'package:noosphere_protocol/src/wire/messages.dart' as wire;
 /// Converts a domain event to its typed CBOR representation.
 wire.EventMessage encodeEvent(domain.Event event) => wire.EventMessage(
   event: switch (event) {
+    domain.SigningSnapshotEvent() => wire.SigningSnapshotEvent(
+      snapshot: event.toBytes(),
+    ),
     domain.SignaturesCancelledEvent() => wire.SignaturesCancelledEvent(
       requestId: event.requestId.toBytes(),
       expiresAt: event.expiresAt.toBytes(),
@@ -95,6 +98,9 @@ wire.EventMessage encodeEvent(domain.Event event) => wire.EventMessage(
 
 /// Converts a typed CBOR event to its domain representation.
 domain.Event decodeEvent(wire.EventMessage message) => switch (message.event) {
+  wire.SigningSnapshotEvent event => domain.SigningSnapshotEvent.fromBytes(
+    _bytes(event.snapshot),
+  ),
   wire.SignaturesCancelledEvent event => domain.SignaturesCancelledEvent(
     requestId: domain.SignaturesRequestId.fromBytes(_bytes(event.requestId)),
     expiresAt: domain.Expiry.fromBytes(_bytes(event.expiresAt)),

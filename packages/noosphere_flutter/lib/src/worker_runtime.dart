@@ -135,6 +135,8 @@ final class _WorkerRuntime {
           if (!_setup(setupId).hasRoles) _setups.remove(setupId);
         case WorkerOperation.snapshot:
           result = _setup(setupId!).snapshot();
+        case WorkerOperation.syncSigningRequests:
+          result = await _setup(setupId!).syncSigningRequests();
         case WorkerOperation.switchCoordinator:
           result = await _setup(setupId!)
               .switchCoordinator(decodeEndpointAddress(payload.map('address')));

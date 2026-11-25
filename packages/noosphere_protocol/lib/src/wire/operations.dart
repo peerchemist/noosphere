@@ -16,7 +16,8 @@ enum RoastOperation {
   ackKeyConstructed(14),
   startSession(15),
   cancelSignaturesRequest(16),
-  getDkg(17);
+  getDkg(17),
+  getSigningSnapshot(18);
 
   const RoastOperation(this.id);
   final int id;

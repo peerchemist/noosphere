@@ -31,11 +31,34 @@ class ClientSession implements Expirable {
   late final StreamController<Event> eventController;
   final eventBuffer = RingBuffer<Event>(100);
   bool _ended = false;
+  SigningSnapshotEvent? _pendingSigningSnapshot;
+
+  // The in-process API has no transport write to wait for.
+  Stream<Event> get events => eventController.stream.map((event) {
+    finishEvent(event);
+    return event;
+  });
+
+  void enqueueSigningSnapshot(SigningSnapshotEvent Function() capture) {
+    if (_ended || eventController.isClosed) throw InvalidRequest.noSession();
+    if (_pendingSigningSnapshot != null) {
+      throw InvalidRequest('A signing snapshot is already queued');
+    }
+    final snapshot = capture();
+    _pendingSigningSnapshot = snapshot;
+    sendEvent(snapshot);
+  }
+
+  void finishEvent(Event? event) {
+    if (identical(event, _pendingSigningSnapshot)) {
+      _pendingSigningSnapshot = null;
+    }
+  }
 
   void sendEvent(Event event) {
     if (_ended || eventController.isClosed) return;
     if (eventController.isPaused) {
-      eventBuffer.add(event);
+      finishEvent(eventBuffer.add(event));
     } else {
       eventController.add(event);
     }

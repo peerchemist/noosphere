@@ -277,22 +277,14 @@ extension _ClientEvents on Client {
             );
           });
 
+        case SigningSnapshotEvent():
+          await _applySigningSnapshot(ev);
+
         case SignaturesProgressEvent():
           await _runSigsReqSyncIfExists(ev.reqId, (sigsState) async {
             Client._checkSignaturesProgress(config, ev.progress);
-            final validThresholds = sigsState.details.requiredSigs
-                .map(
-                  (signature) =>
-                      _keys[signature.groupKey]!.keyInfo.group.threshold,
-                )
-                .toSet();
-            if (!validThresholds.contains(ev.progress.threshold)) {
-              throw ServerMisbehaviour('Invalid signatures progress threshold');
-            }
-            sigsState.progress = ev.progress;
-            _sendEvent(
-              SignaturesProgressClientEvent(_sigsStateToObj(sigsState)),
-            );
+            _checkSigningThreshold(sigsState.details, ev.progress);
+            _publishSigningProgress(sigsState, ev.progress);
           });
 
         case SignaturesFailureEvent():

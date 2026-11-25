@@ -32,6 +32,7 @@ void main() {
     );
 
     expect(handler.debugState.clientSessions.values, hasLength(1));
+    expect(await client.syncSigningRequests(), isTrue);
     await client.logout();
     await api.close();
     expect(handler.debugState.clientSessions.values, isEmpty);

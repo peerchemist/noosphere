@@ -1,6 +1,149 @@
 part of 'client.dart';
 
+final class _SigningSync {
+  final id = OnetimeNumber();
+  final applied = Completer<bool>();
+  late final Future<bool> result;
+
+  void fail(Object error) {
+    if (!applied.isCompleted) applied.completeError(error);
+  }
+}
+
 extension _ClientSigning on Client {
+  Future<bool> _syncSigningRequests(Duration timeout) {
+    if (_disconnecting || _state.expiry.isExpired) {
+      return Future.error(StateError('Client is disconnected'));
+    }
+    if (_signingSnapshotUnsupported) return Future.value(false);
+    if (_signingSync case final pending?) return pending.result;
+    if (timeout <= Duration.zero) {
+      return Future.error(ArgumentError.value(timeout, 'timeout'));
+    }
+    final sync = _SigningSync();
+    _signingSync = sync;
+    return sync.result = Future.any<bool>([
+      sync.applied.future,
+      Future.sync(
+        () => api.getSigningSnapshot(
+          sid: _state.sessionID,
+          correlationId: sync.id,
+        ),
+      ).then<bool>((supported) {
+        if (supported) return sync.applied.future;
+        _signingSnapshotUnsupported = true;
+        return false;
+      }),
+    ]).timeout(timeout).whenComplete(() => _signingSync = null);
+  }
+
+  Future<void> _applySigningSnapshot(SigningSnapshotEvent snapshot) =>
+      _sigReqLock.synchronized(() async {
+        final sync = _signingSync;
+        if (sync == null ||
+            sync.id != snapshot.correlationId ||
+            sync.applied.isCompleted ||
+            _disconnecting ||
+            _state.expiry.isExpired) {
+          return;
+        }
+
+        _store.requireReady();
+        for (final tombstone in snapshot.cancellations) {
+          if (!tombstone.expiry.isExpired) {
+            await _handleCancellation(tombstone);
+          }
+        }
+        if (!identical(sync, _signingSync) ||
+            _disconnecting ||
+            _state.expiry.isExpired) {
+          return;
+        }
+
+        final seen = <SignaturesRequestId>{};
+        for (final request in snapshot.requests) {
+          final details = request.details.obj;
+          final id = details.id;
+          if (details.expiry.isExpired ||
+              _store.cancelledRequests.containsKey(id)) {
+            continue;
+          }
+          final existing = _state.sigRequests[id];
+          if (_terminalSigningRequests.containsKey(id)) continue;
+          if (!seen.add(id)) throw ServerMisbehaviour.duplicateSigsReq();
+          Client._checkDetailsEvent(config, request);
+          final progress = request.progress;
+          Client._checkSignaturesProgress(config, progress);
+          if (progress.stage != SignaturesProgressStage.collecting &&
+              progress.stage != SignaturesProgressStage.signing) {
+            throw ServerMisbehaviour('Terminal progress in pending snapshot');
+          }
+
+          if (existing != null &&
+              (existing.creator != request.creator ||
+                  !cl.bytesEqual(
+                    existing.details.toBytes(),
+                    details.toBytes(),
+                  ))) {
+            throw ServerMisbehaviour('Signing snapshot changed a proposal');
+          }
+          if (!_hasSigningKeys(details)) continue;
+          _checkSigningThreshold(details, progress);
+          if (existing == null) {
+            // An ambiguous local RPC still requires the ordinary recovery path.
+            if (_store.preparedSigOperations.containsKey(id)) continue;
+            final state = _addPendingSigningRequest(
+              details,
+              request.creator,
+              progress,
+            );
+            _sendEvent(SignaturesRequestClientEvent(_sigsStateToObj(state)));
+          } else if (existing.progress.stage != progress.stage ||
+              existing.progress.threshold != progress.threshold ||
+              !const SetEquality<Identifier>().equals(
+                existing.progress.contributingParticipants,
+                progress.contributingParticipants,
+              )) {
+            _publishSigningProgress(existing, progress);
+          }
+        }
+        if (!sync.applied.isCompleted) sync.applied.complete(true);
+      });
+
+  bool _hasSigningKeys(SignaturesRequestDetails details) =>
+      details.requiredSigs.every((sig) => _keys.containsKey(sig.groupKey));
+
+  void _publishSigningProgress(
+    ClientSigsState request,
+    SignaturesProgress progress,
+  ) {
+    request.progress = progress;
+    _sendEvent(SignaturesProgressClientEvent(_sigsStateToObj(request)));
+  }
+
+  void _checkSigningThreshold(
+    SignaturesRequestDetails details,
+    SignaturesProgress progress,
+  ) {
+    if (!details.requiredSigs.any(
+      (sig) =>
+          _keys[sig.groupKey]!.keyInfo.group.threshold == progress.threshold,
+    )) {
+      throw ServerMisbehaviour('Invalid signatures progress threshold');
+    }
+  }
+
+  ClientSigsState _addPendingSigningRequest(
+    SignaturesRequestDetails details,
+    Identifier creator,
+    SignaturesProgress progress,
+  ) => _state.sigRequests[details.id] = ClientSigsState(
+    details: details,
+    creator: creator,
+    expiry: details.expiry.clampUpperTTL(config.maxSignaturesTTL),
+    progress: progress,
+  );
+
   // Caller holds the signing lane, shared with request/reply/round processing.
   Future<void> _handleCancellation(CancelledSignaturesRequest tombstone) async {
     _store.requireReady();
@@ -33,7 +176,7 @@ extension _ClientSigning on Client {
     Client._checkSignaturesProgress(config, progress);
 
     // Reject if we do not own any one of the keys
-    if (details.requiredSigs.any((sig) => !_keys.keys.contains(sig.groupKey))) {
+    if (!_hasSigningKeys(details)) {
       await _store.addRejectedSigsRequest(
         details.id,
         details.expiry.clampUpperTTL(config.maxSignaturesTTL),
@@ -45,21 +188,8 @@ extension _ClientSigning on Client {
       return null;
     }
 
-    final expectedThresholds = details.requiredSigs
-        .map((signature) => _keys[signature.groupKey]!.keyInfo.group.threshold)
-        .toSet();
-    if (!expectedThresholds.contains(progress.threshold)) {
-      throw ServerMisbehaviour('Invalid signatures progress threshold');
-    }
-
-    // Add to state
-    final sigsState = _state.sigRequests[details.id] = ClientSigsState(
-      details: details,
-      creator: creator,
-      // Clamp TTL to max
-      expiry: details.expiry.clampUpperTTL(config.maxSignaturesTTL),
-      progress: progress,
-    );
+    _checkSigningThreshold(details, progress);
+    final sigsState = _addPendingSigningRequest(details, creator, progress);
 
     // Re-deliver a durable rejection after reconnecting. The storage decision
     // remains authoritative if the previous RPC reply was lost.
@@ -344,6 +474,7 @@ extension _ClientSigning on Client {
 
     // Remove signatures request state
     _state.sigRequests.remove(details.id);
+    _terminalSigningRequests[details.id] = FinalExpirable(details.expiry);
 
     // Provide completed signatures as client event
     _sendEvent(

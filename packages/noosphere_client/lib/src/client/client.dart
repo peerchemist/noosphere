@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:coinlib/coinlib.dart' as cl;
+import 'package:collection/collection.dart';
+import 'package:noosphere_protocol/common/expirable_map.dart';
 import 'package:noosphere_protocol/domain.dart';
 import 'package:noosphere_client/src/client/cached_storage.dart';
 import 'package:noosphere_client/src/client/dkg_in_progress.dart';
@@ -128,6 +130,12 @@ class Client {
   bool _disconnecting = false;
 
   final _sigReqLock = Object();
+  // A completion RPC or a locally clamped expiry can take effect before
+  // a snapshot that still contains the request is applied.
+  final _terminalSigningRequests =
+      ExpirableMap<SignaturesRequestId, FinalExpirable>();
+  _SigningSync? _signingSync;
+  bool _signingSnapshotUnsupported = false;
   final _dkgReqLock = Object();
   final _dkgAckLock = Object();
   // Used as persistent locks for each key, even when the key object changes
@@ -269,8 +277,13 @@ class Client {
     ),
   );
 
-  void _onSigsReqExpiry(ClientSigsState sigsState) =>
-      _sendEvent(SignaturesExpiryClientEvent(_sigsStateToObj(sigsState)));
+  void _onSigsReqExpiry(ClientSigsState sigsState) {
+    final details = sigsState.details;
+    if (!details.expiry.isExpired) {
+      _terminalSigningRequests[details.id] = FinalExpirable(details.expiry);
+    }
+    _sendEvent(SignaturesExpiryClientEvent(_sigsStateToObj(sigsState)));
+  }
 
   void _disconnect() {
     if (_disconnecting) return;
@@ -285,6 +298,7 @@ class Client {
   void _sendEvent(ClientEvent ev) => _eventController.add(ev);
   void _sendError(Object err) {
     if (_eventController.isClosed) return;
+    _signingSync?.fail(err);
     _eventController.addError(err);
     _disconnect();
   }
@@ -355,6 +369,13 @@ class Client {
   /// Request signatures from the group
   Future<void> requestSignatures(SignaturesRequestDetails details) =>
       _requestSignatures(details);
+
+  /// Reconciles pending signing requests in this session. Returns false if
+  /// the coordinator does not support the operation. Concurrent calls share
+  /// the first call's deadline.
+  Future<bool> syncSigningRequests({
+    Duration timeout = const Duration(seconds: 30),
+  }) => _syncSigningRequests(timeout);
 
   Future<void> rejectSignaturesRequest(SignaturesRequestId reqId) =>
       _runSigsReqSyncIfExists(reqId, _rejectSigsReq);
@@ -428,6 +449,7 @@ class Client {
     // Ensure session is expired and that no more events shall be processed
     _state.sessionExtension?.cancel();
     _state.expiry = Expiry(Duration(days: -1));
+    _signingSync?.fail(StateError('Client is disconnected'));
     // Finish existing events
     await _eventFuture;
     // Cancel stream with server

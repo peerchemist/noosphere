@@ -8,6 +8,7 @@ import 'package:meta/meta.dart';
 import 'package:noosphere_protocol/domain.dart';
 import 'package:noosphere_protocol/message_limits.dart';
 import 'package:noosphere_protocol/public_feed.dart';
+import 'package:noosphere_protocol/wire.dart' show encodeEvent;
 import 'package:noosphere_server/src/config/server.dart';
 import 'package:noosphere_server/src/server/state/key_sharing.dart';
 
@@ -425,6 +426,27 @@ class ServerApiHandler implements ApiRequestInterface {
 
   @override
   Future<Expiry> extendSession(SessionID sid) => _extendSession(sid);
+
+  @override
+  Future<bool> getSigningSnapshot({
+    required SessionID sid,
+    required OnetimeNumber correlationId,
+  }) async {
+    await _prepare();
+    getSession(sid).enqueueSigningSnapshot(() {
+      final snapshot = SigningSnapshotEvent(
+        correlationId: correlationId,
+        requests: _pendingSigningRequests(),
+        cancellations: _state.persistent.cancelledSignatures.values.toList(),
+      );
+      if (encodeEvent(snapshot).writeToBuffer().length >
+          maxSessionSnapshotBytes) {
+        throw InvalidRequest('Signing snapshot capacity exceeded');
+      }
+      return snapshot;
+    });
+    return true;
+  }
 
   @override
   Future<void> requestNewDkg({

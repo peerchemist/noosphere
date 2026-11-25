@@ -426,6 +426,32 @@ final class IrohClientApi implements ApiRequestInterface {
   }
 
   @override
+  Future<bool> getSigningSnapshot({
+    required SessionID sid,
+    required OnetimeNumber correlationId,
+  }) async {
+    const operation = protocol.RoastOperation.getSigningSnapshot;
+    try {
+      await _rpc(
+        operation,
+        protocol.GetSigningSnapshotRequest(
+          sessionId: sid.toBytes(),
+          correlationId: correlationId.toBytes(),
+        ),
+        protocol.GetSigningSnapshotResponse.fromBuffer,
+      );
+      return true;
+    } on IrohProtocolException catch (error) {
+      if (error.error?.code ==
+              protocol.ProtocolErrorCode.PROTOCOL_ERROR_INVALID_REQUEST &&
+          error.message == 'unknown ROAST operation ID ${operation.id}') {
+        return false;
+      }
+      rethrow;
+    }
+  }
+
+  @override
   Future<void> sendDkgAcks({
     required SessionID sid,
     required Set<SignedDkgAck> acks,

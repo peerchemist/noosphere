@@ -163,6 +163,9 @@ final class IrohConnectionHandler {
           DkgRound2.fromBuffer(body),
         ),
         RoastOperation.getDkg => await _getDkg(DkgReference.fromBuffer(body)),
+        RoastOperation.getSigningSnapshot => await _getSigningSnapshot(
+          GetSigningSnapshotRequest.fromBuffer(body),
+        ),
         RoastOperation.sendDkgAcks => await _sendDkgAcks(
           DkgAcks.fromBuffer(body),
         ),
@@ -354,6 +357,27 @@ final class IrohConnectionHandler {
     );
     final snapshot = dispatched.value;
     return Bytes(data: snapshot?.toBytes() ?? const []);
+  }
+
+  Future<GetSigningSnapshotResponse> _getSigningSnapshot(
+    GetSigningSnapshotRequest rpc,
+  ) async {
+    if (context.phase != IrohConnectionPhase.ready) {
+      throw InvalidRequest.noSession();
+    }
+    await dispatcher.invokeReady(
+      groupFingerprint: _readyGroup(),
+      connection: context,
+      operation: (handler, _) async => IrohDispatchResult(
+        await handler.getSigningSnapshot(
+          sid: _sessionId(rpc.sessionId),
+          correlationId: OnetimeNumber.fromBytes(
+            Uint8List.fromList(rpc.correlationId),
+          ),
+        ),
+      ),
+    );
+    return GetSigningSnapshotResponse();
   }
 
   Future<SendDkgAcksResponse> _sendDkgAcks(DkgAcks rpc) async {
@@ -585,12 +609,13 @@ final class IrohConnectionHandler {
     final started = await dispatcher
         .startSession(groupFingerprint: group, connection: context)
         .timeout(config.authTimeout);
-    final events = await dispatcher
+    final session = await dispatcher
         .ready(groupFingerprint: group, connection: context)
         .timeout(config.authTimeout);
     await _writePersistentMessage(send, started);
-    await for (final event in events) {
-      await _writePersistentMessage(send, event);
+    await for (final event in session.eventController.stream) {
+      await _writePersistentMessage(send, encodeEvent(event));
+      session.finishEvent(event);
     }
   }
 

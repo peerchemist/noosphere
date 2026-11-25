@@ -111,7 +111,7 @@ extension _ServerSessions on ServerApiHandler {
       expiry: expiry,
       startTime: startTime,
       onlineParticipants: online,
-      events: session.eventController.stream,
+      events: session.events,
       cancelledRequests: _state.persistent.cancelledSignatures.values.toList(),
 
       newDkgs: _state.nameToDkg.values
@@ -124,15 +124,7 @@ extension _ServerSessions on ServerApiHandler {
           )
           .toList(),
 
-      sigRequests: _state.sigRequests.values
-          .map(
-            (sig) => SignaturesRequestEvent(
-              details: sig.details,
-              creator: sig.creator,
-              progress: sig.progress,
-            ),
-          )
-          .toList(),
+      sigRequests: _pendingSigningRequests(),
 
       // Find rounds that the user is part of and hasn't provided a share yet
       sigRounds: _state.sigRequests.values
@@ -171,6 +163,15 @@ extension _ServerSessions on ServerApiHandler {
       ],
     );
   }
+
+  List<SignaturesRequestEvent> _pendingSigningRequests() => [
+    for (final request in _state.sigRequests.values)
+      SignaturesRequestEvent(
+        details: request.details,
+        creator: request.creator,
+        progress: request.progress,
+      ),
+  ];
 
   Future<Expiry> _extendSession(SessionID sid) async {
     await _prepare();

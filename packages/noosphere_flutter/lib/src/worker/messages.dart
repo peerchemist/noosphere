@@ -19,6 +19,7 @@ enum WorkerOperation {
   acceptSignatures,
   rejectSignatures,
   cancelSignaturesRequest,
+  syncSigningRequests,
   close,
   testStopServing,
   testPending,

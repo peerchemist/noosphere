@@ -432,6 +432,22 @@ abstract class _EmptyResponse extends WireMessage {
   Map<int, Object?> get cborFields => const {};
 }
 
+final class GetSigningSnapshotRequest({
+  required final List<int> sessionId,
+  required final List<int> correlationId,
+}) extends WireMessage {
+  factory GetSigningSnapshotRequest.fromBuffer(List<int> bytes) {
+    final map = decodeWireMap(bytes, requiredFields: {1, 2});
+    return GetSigningSnapshotRequest(
+      sessionId: readBytes(map, 1),
+      correlationId: readBytes(map, 2),
+    );
+  }
+
+  @override
+  Map<int, Object?> get cborFields => {1: sessionId, 2: correlationId};
+}
+
 T _decodeEmpty<T extends WireMessage>(List<int> bytes, T Function() create) {
   decodeWireMap(bytes, requiredFields: const {});
   return create();
@@ -470,6 +486,11 @@ final class SendDkgAcksResponse() extends _EmptyResponse {
 final class RequestSignaturesResponse() extends _EmptyResponse {
   factory RequestSignaturesResponse.fromBuffer(List<int> bytes) =>
       _decodeEmpty(bytes, RequestSignaturesResponse.new);
+}
+
+final class GetSigningSnapshotResponse() extends _EmptyResponse {
+  factory GetSigningSnapshotResponse.fromBuffer(List<int> bytes) =>
+      _decodeEmpty(bytes, GetSigningSnapshotResponse.new);
 }
 
 final class RejectSignaturesRequestResponse() extends _EmptyResponse {
@@ -1030,13 +1051,24 @@ final class SignaturesProgressEvent({
   Map<int, Object?> get cborFields => {1: requestId, 2: progress};
 }
 
+final class SigningSnapshotEvent({required final List<int> snapshot})
+    extends EventPayload {
+  factory SigningSnapshotEvent.fromCbor(Object? value) {
+    final map = readWireMap(value, requiredFields: {1});
+    return SigningSnapshotEvent(snapshot: readBytes(map, 1));
+  }
+
+  @override
+  Map<int, Object?> get cborFields => {1: snapshot};
+}
+
 final class EventMessage({required this.event}) extends WireMessage {
   final EventPayload event;
 
   factory EventMessage.fromBuffer(List<int> bytes) {
     final map = decodeWireMap(bytes, requiredFields: {1, 2});
     final payload = map[2];
-    final event = switch (readInt(map, 1, minimum: 1, maximum: 16)) {
+    final event = switch (readInt(map, 1, minimum: 1, maximum: 17)) {
       1 => ParticipantStatusEvent.fromCbor(payload),
       2 => NewDkgEvent.fromCbor(payload),
       3 => DkgCommitmentEvent.fromCbor(payload),
@@ -1053,6 +1085,7 @@ final class EventMessage({required this.event}) extends WireMessage {
       14 => ConstructedKeyEvent.fromCbor(payload),
       15 => SignaturesProgressEvent.fromCbor(payload),
       16 => SignaturesCancelledEvent.fromCbor(payload),
+      17 => SigningSnapshotEvent.fromCbor(payload),
       _ => throw StateError('unreachable'),
     };
     return EventMessage(event: event);
@@ -1077,6 +1110,7 @@ final class EventMessage({required this.event}) extends WireMessage {
       ConstructedKeyEvent() => 14,
       SignaturesProgressEvent() => 15,
       SignaturesCancelledEvent() => 16,
+      SigningSnapshotEvent() => 17,
     },
     2: event,
   };

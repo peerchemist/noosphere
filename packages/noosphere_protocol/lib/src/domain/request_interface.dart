@@ -83,6 +83,13 @@ class InvalidRequest implements Exception {
 }
 
 abstract interface class ApiRequestInterface {
+  /// Enqueues a [SigningSnapshotEvent] on the authenticated session stream.
+  /// Returns false if the coordinator does not support signing snapshots.
+  Future<bool> getSigningSnapshot({
+    required SessionID sid,
+    required OnetimeNumber correlationId,
+  });
+
   /// Cancels an active request as its authenticated creator. Transport errors
   /// have an unknown outcome; retry or reconcile the next session snapshot.
   Future<CancelSignaturesRequestResponse> cancelSignaturesRequest({

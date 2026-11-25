@@ -277,7 +277,7 @@ final class IrohDispatcher {
   }
 
   /// Completes snapshot initialization and exposes queued/live session events.
-  Future<Stream<EventMessage>> ready({
+  Future<ClientSession> ready({
     required List<int> groupFingerprint,
     required ConnectionContext connection,
   }) async {
@@ -294,9 +294,7 @@ final class IrohDispatcher {
         }
         final session = handler.getSession(sessionId);
         connection.markReady();
-        return IrohDispatchResult(
-          session.eventController.stream.map(encodeEvent),
-        );
+        return IrohDispatchResult(session);
       },
     );
     return result.value;

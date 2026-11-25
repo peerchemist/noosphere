@@ -7,11 +7,13 @@ import 'package:noosphere_protocol/src/common/errors.dart';
 import 'package:noosphere_protocol/src/common/serial.dart';
 
 import 'request_interface.dart';
+import 'types/cancelled_signatures_request.dart';
 import 'types/dkg_ack_request.dart';
 import 'types/dkg_encrypted_secret.dart';
 import 'types/encrypted_key_share.dart';
 import 'types/expiry.dart';
 import 'types/new_dkg_details.dart';
+import 'types/onetime_numbers.dart';
 import 'types/signature_round_start.dart';
 import 'types/signatures_progress.dart';
 import 'types/signatures_request_details.dart';
@@ -283,6 +285,37 @@ class SignaturesRequestEvent extends Event implements DetailsEvent {
     details.write(writer);
     writer.writeIdentifier(creator);
     progress.write(writer);
+  }
+}
+
+/// A point-in-time view of pending proposals and cancellation tombstones,
+/// sent only to the session that requested it.
+final class SigningSnapshotEvent({
+  required final OnetimeNumber correlationId,
+  required List<SignaturesRequestEvent> requests,
+  required List<CancelledSignaturesRequest> cancellations,
+}) extends Event {
+  final List<SignaturesRequestEvent> requests = List.unmodifiable(requests);
+  final List<CancelledSignaturesRequest> cancellations = List.unmodifiable(
+    cancellations,
+  );
+
+  factory SigningSnapshotEvent.fromBytes(Uint8List bytes) => readNoosphere(
+    bytes,
+    (reader) => SigningSnapshotEvent(
+      correlationId: OnetimeNumber.fromReader(reader),
+      requests: reader.readWritableVector(SignaturesRequestEvent.fromBytes),
+      cancellations: reader.readWritableVector(
+        CancelledSignaturesRequest.fromBytes,
+      ),
+    ),
+  );
+
+  @override
+  void write(cl.Writer writer) {
+    correlationId.write(writer);
+    writer.writeWritableVector(requests);
+    writer.writeWritableVector(cancellations);
   }
 }
 

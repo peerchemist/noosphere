@@ -158,6 +158,15 @@ void main() {
                     .length ==
                 n - 1,
           );
+          expect(await worker.syncSigningRequests('signer-1'), isTrue);
+          final synced = events.whereType<WorkerSnapshotEvent>().lastWhere(
+            (event) => event.setupId == 'signer-1',
+          );
+          expect(
+            synced.snapshot.signingRequests.single.proposalBytes,
+            request.toBytes(),
+          );
+
           await expectLater(
             worker.cancelSignaturesRequest('signer-1', request.id),
             throwsA(isA<NoosphereWorkerException>()),

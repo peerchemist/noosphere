@@ -82,6 +82,16 @@ final class LocalCoordinatorApi implements ApiRequestInterface {
       _ready(sid, (handler) => handler.extendSession(sid));
 
   @override
+  Future<bool> getSigningSnapshot({
+    required SessionID sid,
+    required OnetimeNumber correlationId,
+  }) => _ready(
+    sid,
+    (handler) =>
+        handler.getSigningSnapshot(sid: sid, correlationId: correlationId),
+  );
+
+  @override
   Future<void> requestNewDkg({
     required SessionID sid,
     required Signed<NewDkgDetails> signedDetails,
