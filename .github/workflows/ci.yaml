@@ -18,19 +18,19 @@ jobs:
     name: Quality and library tests
     uses: ./.github/workflows/ci-quality.yaml
     with:
-      flutter_version: 3.50.0
+      flutter_version: 3.50.1
 
   integration:
     name: Native integration
     uses: ./.github/workflows/ci-integration.yaml
     with:
-      flutter_version: 3.50.0
+      flutter_version: 3.50.1
 
   distribution:
     name: Distribution validation
     uses: ./.github/workflows/ci-distribution.yaml
     with:
-      flutter_version: 3.50.0
+      flutter_version: 3.50.1
 
   summary:
     name: CI summary
