@@ -16,6 +16,7 @@ import '../server/api_handler.dart';
 import '../server/local_coordinator_api.dart';
 import '../server/persistence.dart';
 import '../room/manager.dart';
+import 'accept.dart';
 import 'connection_handler.dart';
 import 'dispatcher.dart';
 import 'enrollment_connection_handler.dart';
@@ -271,7 +272,12 @@ final class IrohServer {
 
   Future<void> _serve() async {
     while (!endpoint.isClosed) {
-      final connection = await endpoint.accept();
+      final connection = await nextAcceptedConnection(
+        nextIncoming: endpoint.acceptIncoming,
+        accept: (incoming) => incoming.accept(),
+        isClosed: () => endpoint.isClosed,
+        onHandshakeError: _reportError,
+      );
       if (connection == null) break;
       final alpn = String.fromCharCodes(connection.alpn);
       final auxiliary =

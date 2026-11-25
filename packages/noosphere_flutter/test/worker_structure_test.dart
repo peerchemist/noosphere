@@ -167,6 +167,7 @@ void main() {
         snapshot: () => events.add('first snapshot'),
         event: events.add,
         error: (_) => events.add('old error'),
+        done: () => events.add('old session ended'),
       );
       await delivery.attach(
         second.stream,
@@ -177,15 +178,19 @@ void main() {
         },
         event: events.add,
         error: (_) => events.add('new error'),
+        done: () => events.add('new session ended'),
         replaced: () => events.add('replaced'),
       );
       first.add('stale event');
+      await first.close();
+      await second.close();
       expect(events, [
         'first snapshot',
         'second snapshot',
         'replaced',
         'new event',
         'new error',
+        'new session ended',
       ]);
     },
   );

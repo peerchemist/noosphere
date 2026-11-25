@@ -12,6 +12,7 @@ final class SessionDelivery<T> {
     required void Function() snapshot,
     required void Function(T) event,
     required void Function(Object) error,
+    required void Function() done,
     void Function()? replaced,
   }) async {
     final revision = ++_revision;
@@ -31,6 +32,7 @@ final class SessionDelivery<T> {
     _subscription = stream.listen(
       (value) => deliver(() => event(value)),
       onError: (Object failure) => deliver(() => error(failure)),
+      onDone: () => deliver(done),
     );
     snapshot();
     replaced?.call();

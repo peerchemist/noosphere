@@ -121,6 +121,7 @@ final class WorkerSetupRuntime {
       client.events,
       event: _onClientEvent,
       error: (error) => _failure('session', error, true),
+      done: _emitSnapshot,
       snapshot: _emitSnapshot,
       replaced: replacement
           ? () => emit(WorkerSessionReplacedEvent(setupId, generation))
