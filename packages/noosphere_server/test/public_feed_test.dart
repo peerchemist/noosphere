@@ -778,22 +778,27 @@ void main() {
     () async {
       final id = PublicFeedId.generate();
       final feed = PublicFeedConfig(feedId: id);
-      final state = ServerState();
-      final journal = state.persistent.publicFeed = PublicFeedJournal(feed);
-      for (var i = 0; i < 150; i++) {
-        journal.requested(
-          'dkg:$i',
-          PublicFeedCategory.dkg,
-          DateTime.now().add(const Duration(days: 1)),
+      const smallMessageLength = 256;
+      ServerApiHandler handlerFor(int snapshotBudget) {
+        final state = ServerState();
+        final journal = state.persistent.publicFeed = PublicFeedJournal(feed);
+        for (var i = 0; i < 150; i++) {
+          journal.requested(
+            'dkg:$i',
+            PublicFeedCategory.dkg,
+            DateTime.now().add(const Duration(days: 1)),
+          );
+          journal.finish('dkg:$i', PublicFeedLifecycle.completed);
+        }
+        return ServerApiHandler(
+          config: _config(feed),
+          persistence: InMemoryServerPersistence(),
+          state: state,
+          maxSessionSnapshotBytes: snapshotBudget,
         );
-        journal.finish('dkg:$i', PublicFeedLifecycle.completed);
       }
-      final handler = ServerApiHandler(
-        config: _config(feed),
-        persistence: InMemoryServerPersistence(),
-        state: state,
-      );
-      final server = await _serve(handler);
+
+      final server = await _serve(handlerFor(wire.defaultMaxMessageLength));
       final checkpoint = await (await _connect(server))
           .fetchCheckpoint(id, limit: 1000000);
       expect(checkpoint.page.entries, hasLength(100));
@@ -824,7 +829,10 @@ void main() {
         hasLength(100),
       );
       await reader.cancel();
-      final small = await _serve(handler, maxMessageLength: 256);
+      final small = await _serve(
+        handlerFor(smallMessageLength),
+        maxMessageLength: smallMessageLength,
+      );
       await expectLater(
         (await _connect(small)).fetch(id),
         throwsA(
